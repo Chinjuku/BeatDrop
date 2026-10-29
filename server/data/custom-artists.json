@@ -1,0 +1,20 @@
+[
+  {
+    "id": "custom-1793251066862",
+    "name": "PUN & THE TOYS",
+    "category": "thai",
+    "mainGenre": "T-Pop",
+    "avatarUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music211/v4/1f/6e/26/1f6e26a6-f165-3785-f1a4-1a54c6e6ddf7/26UM1IM26484.rgb.jpg/600x600bb.jpg",
+    "isCustom": true,
+    "trackCount": 1
+  },
+  {
+    "id": "custom-1793251165258",
+    "name": "Dupla Real",
+    "category": "international",
+    "mainGenre": "Pop",
+    "avatarUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music115/v4/f9/54/f0/f954f0c1-7cca-bee1-4343-bb6cb9b5f761/1963620110964_cover.jpg/600x600bb.jpg",
+    "isCustom": true,
+    "trackCount": 34
+  }
+]

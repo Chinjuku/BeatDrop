@@ -1,0 +1,513 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@font-face {
+  font-family: 'Poppins';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 600;
+  src: url('/assets/poppins-latin-600-normal-zEkxB9Mr.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'Poppins';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 700;
+  src: url('/assets/poppins-latin-700-normal-Qrb0O0WB.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'Poppins';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 800;
+  src: url('/assets/poppins-latin-800-normal-Bd8-pIP1.woff2') format('woff2');
+}
+
+:root {
+  --song-accent: #19df70;
+  --song-accent-text: #39e887;
+  --song-accent-on: #04160b;
+  --song-accent-rgb: 25, 223, 112;
+  --song-page: #030704;
+  --song-stage: #0c110d;
+  --song-surface: #151b16;
+  --song-surface-soft: #1f2721;
+  --song-timeline: #232924;
+  --song-text: #f4f8f5;
+  --song-muted: #9db2a4;
+  --song-border: #29372f;
+}
+
+body {
+  background-color: var(--song-page);
+  color: var(--song-text);
+  font-family: 'Noto Sans Thai', 'Poppins', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  min-height: 100svh;
+  overflow-x: hidden;
+  transition: background-color 0.28s ease, color 0.28s ease;
+}
+
+/* Songspot Spotlight Stage Cone */
+.songspot-spotlight {
+  z-index: 0;
+  pointer-events: none;
+  width: 100%;
+  height: 100%;
+  position: fixed;
+  inset: 0;
+  overflow: visible;
+}
+
+.songspot-cone {
+  fill: var(--song-stage);
+  transition: fill 0.32s ease;
+}
+
+.songspot-spotlight line {
+  stroke: rgba(255, 255, 255, 0.035);
+  stroke-width: 1px;
+  vector-effect: non-scaling-stroke;
+}
+
+/* Songspot Wordmark */
+.songspot-wordmark {
+  color: rgba(235, 240, 236, 0.08);
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  font-size: clamp(36px, 6vw, 52px);
+  font-style: italic;
+  font-weight: 800;
+  line-height: 1;
+  user-select: none;
+}
+
+/* Songspot Segmented Timeline */
+.songspot-progress-track {
+  background: var(--song-timeline);
+  border-radius: 11px;
+  width: 100%;
+  height: 26px;
+  transition: background-color 0.26s;
+  display: flex;
+  position: relative;
+  overflow: hidden;
+  border: 1px solid var(--song-border);
+}
+
+.songspot-progress-segment {
+  background: var(--song-timeline);
+  height: 100%;
+  transition: background-color 0.26s;
+  position: relative;
+}
+
+.songspot-progress-segment + .songspot-progress-segment::before {
+  z-index: 2;
+  content: '';
+  background: rgba(0, 0, 0, 0.55);
+  width: 1.5px;
+  position: absolute;
+  inset: 0 auto 0 0;
+}
+
+.songspot-progress-segment.is-active {
+  background: color-mix(in srgb, var(--song-accent) 32%, var(--song-timeline));
+}
+
+.songspot-playback-progress {
+  z-index: 1;
+  border-radius: inherit;
+  background: var(--song-accent);
+  pointer-events: none;
+  transform: scaleX(var(--playback-progress, 0));
+  transform-origin: 0;
+  position: absolute;
+  inset: 0;
+  transition: transform 0.06s linear;
+}
+
+/* Songspot Big Play Key */
+.songspot-play-key {
+  background: var(--song-accent);
+  width: 116px;
+  height: 116px;
+  color: var(--song-accent-on);
+  cursor: pointer;
+  box-shadow:
+    0 0 30px rgba(var(--song-accent-rgb), 0.24),
+    0 0 76px rgba(var(--song-accent-rgb), 0.09);
+  border-radius: 50%;
+  justify-content: center;
+  align-items: center;
+  transition:
+    transform 0.15s,
+    background-color 0.26s,
+    box-shadow 0.26s;
+  display: flex;
+  position: relative;
+}
+
+.songspot-play-key:hover:not(:disabled) {
+  box-shadow:
+    0 0 38px rgba(var(--song-accent-rgb), 0.36),
+    0 0 90px rgba(var(--song-accent-rgb), 0.14);
+  transform: scale(1.03);
+}
+
+.songspot-play-key:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+.songspot-play-key[data-audio-state='playing'] {
+  box-shadow:
+    0 0 42px rgba(var(--song-accent-rgb), 0.42),
+    0 0 96px rgba(var(--song-accent-rgb), 0.16);
+  transform: scale(1.04);
+}
+
+.songspot-play-ripple {
+  border: 2px solid var(--song-accent);
+  opacity: 0;
+  pointer-events: none;
+  border-radius: 50%;
+  position: absolute;
+  inset: -4px;
+}
+
+.songspot-play-key[data-audio-state='playing'] .songspot-play-ripple {
+  animation: 1.1s ease-out infinite songspot-play-ripple;
+}
+
+/* Vinyl Disc Spin Animation (Post-Game Reveal) */
+@keyframes vinyl-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.vinyl-record-spin {
+  animation: vinyl-spin 5.5s linear infinite;
+  will-change: transform;
+}
+
+.vinyl-record-spin.is-paused {
+  animation-play-state: paused;
+}
+
+.vinyl-grooves {
+  background:
+    radial-gradient(circle, transparent 32%, rgba(255, 255, 255, 0.04) 33%, transparent 34%),
+    radial-gradient(circle, transparent 46%, rgba(255, 255, 255, 0.035) 47%, transparent 48%),
+    radial-gradient(circle, transparent 60%, rgba(255, 255, 255, 0.04) 61%, transparent 62%),
+    conic-gradient(
+      from 0deg,
+      #111 0deg,
+      #222 45deg,
+      #0d0d0d 90deg,
+      #1f1f1f 135deg,
+      #111 180deg,
+      #242424 225deg,
+      #0c0c0c 270deg,
+      #1e1e1e 315deg,
+      #111 360deg
+    );
+}
+
+/* Songspot Stamp Animation */
+@keyframes songspot-stamp-in {
+  0% {
+    opacity: 0;
+    transform: translateY(-50%) rotate(-18deg) scale(1.7);
+  }
+  56% {
+    opacity: 1;
+    transform: translateY(-48%) rotate(-8deg) scale(0.92);
+  }
+  76% {
+    transform: translateY(-51%) rotate(-11deg) scale(1.05);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(-50%) rotate(-10deg) scale(1);
+  }
+}
+
+.songspot-reveal-stamp {
+  border: 2.5px solid currentColor;
+  padding: 3px 10px;
+  font-family: 'Courier New', ui-monospace, monospace;
+  font-size: 16px;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  animation: 0.56s cubic-bezier(0.2, 0.9, 0.25, 1.25) 90ms both songspot-stamp-in;
+}
+
+@keyframes songspot-play-ripple {
+  0% {
+    opacity: 0.65;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 0;
+    transform: scale(1.36);
+  }
+}
+
+/* Custom Range Slider */
+.songspot-slider {
+  appearance: none;
+  cursor: pointer;
+  background: transparent;
+  width: 100%;
+  height: 22px;
+}
+
+.songspot-slider::-webkit-slider-runnable-track {
+  background: linear-gradient(
+    to right,
+    var(--song-accent) 0%,
+    var(--song-accent) var(--fill, 50%),
+    rgba(150, 160, 155, 0.22) var(--fill, 50%),
+    rgba(150, 160, 155, 0.22) 100%
+  );
+  border-radius: 999px;
+  height: 6px;
+}
+
+.songspot-slider::-webkit-slider-thumb {
+  appearance: none;
+  background: var(--song-accent);
+  border: 2px solid #ffffff;
+  border-radius: 50%;
+  width: 16px;
+  height: 16px;
+  margin-top: -5px;
+  box-shadow: 0 1px 5px rgba(0, 0, 0, 0.45);
+}
+
+/* Songspot Filter Reels (Default Mode: GENRES / ERAS / ARTISTS) */
+.songspot-filter-stack {
+  border-top: 1px solid rgba(255, 255, 255, 0.04);
+  width: 100%;
+  margin-bottom: 14px;
+  position: relative;
+}
+
+.songspot-filter-row {
+  background: rgba(0, 0, 0, 0.08);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  height: 36px;
+  display: block;
+  position: relative;
+}
+
+.songspot-filter-label {
+  z-index: 2;
+  color: rgba(173, 185, 176, 0.68);
+  letter-spacing: 0.06em;
+  pointer-events: none;
+  text-transform: uppercase;
+  align-items: center;
+  width: 84px;
+  height: 100%;
+  padding-left: 12px;
+  padding-right: 8px;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 14px;
+  display: flex;
+  position: relative;
+}
+
+.songspot-filter-values {
+  grid-template-columns: 84px repeat(5, minmax(0, 1fr)) 40px;
+  align-items: center;
+  min-width: 0;
+  height: 100%;
+  display: grid;
+  position: absolute;
+  inset: 0;
+}
+
+.songspot-filter-values > [data-offset='-2'] {
+  grid-column: 2;
+}
+.songspot-filter-values > [data-offset='-1'] {
+  grid-column: 3;
+}
+.songspot-filter-values > [data-offset='0'] {
+  grid-column: 4;
+}
+.songspot-filter-values > [data-offset='1'] {
+  grid-column: 5;
+}
+.songspot-filter-values > [data-offset='2'] {
+  grid-column: 6;
+}
+
+.songspot-filter-values > button,
+.songspot-filter-values > span {
+  min-width: 0;
+}
+
+.songspot-filter-values > button {
+  color: rgba(190, 200, 193, 0.32);
+  cursor: pointer;
+  text-align: center;
+  will-change: transform, opacity, filter;
+  background: transparent;
+  height: 100%;
+  padding: 0 6px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 14px;
+  position: relative;
+  overflow: visible;
+  transition: color 0.18s;
+}
+
+.songspot-filter-values.is-rolling-forward > button,
+.songspot-filter-values.is-rolling-forward > span {
+  animation: 0.32s cubic-bezier(0.22, 1, 0.36, 1) both songspot-filter-roll-forward;
+}
+
+.songspot-filter-values.is-rolling-backward > button,
+.songspot-filter-values.is-rolling-backward > span {
+  animation: 0.32s cubic-bezier(0.22, 1, 0.36, 1) both songspot-filter-roll-backward;
+}
+
+.songspot-filter-values > button[data-offset='-2'],
+.songspot-filter-values > button[data-offset='2'] {
+  color: rgba(190, 200, 193, 0.18);
+}
+
+.songspot-filter-values > button:hover {
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.songspot-filter-values > button[aria-pressed='true'] {
+  color: var(--song-accent-text);
+  text-shadow: 0 0 14px rgba(var(--song-accent-rgb), 0.32);
+  font-size: 12.5px;
+  font-weight: 800;
+}
+
+.songspot-filter-values > button > span {
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  display: block;
+  overflow: hidden;
+}
+
+.songspot-filter-indicator {
+  color: var(--song-accent-text);
+  filter: drop-shadow(0 0 5px rgba(var(--song-accent-rgb), 0.45));
+  pointer-events: none;
+  position: absolute;
+  top: -7px;
+  left: calc(84px + (100% - 124px) * 0.5);
+  transform: translate(-50%);
+}
+
+/* Songspot 5-Difficulty Tabs */
+.songspot-difficulty-tabs {
+  white-space: nowrap;
+  justify-content: center;
+  align-items: center;
+  gap: 5px;
+  width: 100%;
+  min-height: 32px;
+  display: flex;
+  flex-wrap: wrap;
+}
+
+.songspot-difficulty-tab {
+  background: color-mix(in srgb, var(--tab-color) 10.5%, transparent);
+  height: 31px;
+  color: var(--tab-text);
+  cursor: pointer;
+  border-radius: 999px;
+  padding: 0 16px;
+  font-size: 11.5px;
+  font-weight: 700;
+  line-height: 11.5px;
+  transition:
+    filter 0.15s,
+    background-color 0.26s,
+    color 0.26s,
+    box-shadow 0.26s;
+}
+
+.songspot-difficulty-tab[aria-pressed='true'] {
+  background: var(--tab-color);
+  color: var(--tab-on);
+  box-shadow: 0 0 18px color-mix(in srgb, var(--tab-color) 34%, transparent);
+}
+
+.songspot-difficulty-tab:hover {
+  filter: brightness(1.18);
+}
+
+@keyframes songspot-filter-roll-forward {
+  0% {
+    opacity: 0.16;
+    filter: blur(1.5px);
+    transform: translate(34%) scale(0.94);
+  }
+  to {
+    opacity: 1;
+    filter: blur(0);
+    transform: translate(0) scale(1);
+  }
+}
+
+@keyframes songspot-filter-roll-backward {
+  0% {
+    opacity: 0.16;
+    filter: blur(1.5px);
+    transform: translate(-34%) scale(0.94);
+  }
+  to {
+    opacity: 1;
+    filter: blur(0);
+    transform: translate(0) scale(1);
+  }
+}
+
+@media (max-width: 600px) {
+  .songspot-filter-label {
+    width: 64px;
+    font-size: 9px;
+    padding-left: 8px;
+  }
+  .songspot-filter-values {
+    grid-template-columns: 64px repeat(3, minmax(0, 1fr)) 16px;
+  }
+  .songspot-filter-values > [data-offset='-1'] {
+    grid-column: 2;
+  }
+  .songspot-filter-values > [data-offset='0'] {
+    grid-column: 3;
+  }
+  .songspot-filter-values > [data-offset='1'] {
+    grid-column: 4;
+  }
+  .songspot-filter-values > [data-offset='-2'],
+  .songspot-filter-values > [data-offset='2'] {
+    display: none;
+  }
+  .songspot-filter-indicator {
+    left: calc(64px + (100% - 80px) * 0.5);
+  }
+  .songspot-difficulty-tab {
+    padding: 0 12px;
+    font-size: 11px;
+  }
+}

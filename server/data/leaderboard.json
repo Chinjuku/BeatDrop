@@ -1,0 +1,115 @@
+[
+  {
+    "id": "lb-1",
+    "playerName": "MelodyKing_TH",
+    "score": 980,
+    "streak": 18,
+    "fastestSeconds": 0.1,
+    "difficulty": "impossible",
+    "category": "thai",
+    "isDaily": true,
+    "createdAt": "2026-10-29T04:10:00Z"
+  },
+  {
+    "id": "lb-2",
+    "playerName": "SwiftieForever",
+    "score": 950,
+    "streak": 14,
+    "fastestSeconds": 0.2,
+    "difficulty": "expert",
+    "category": "international",
+    "isDaily": true,
+    "createdAt": "2026-10-29T04:15:00Z"
+  },
+  {
+    "id": "lb-3",
+    "playerName": "NontFam99",
+    "score": 910,
+    "streak": 12,
+    "fastestSeconds": 0.5,
+    "difficulty": "hard",
+    "category": "thai",
+    "isDaily": false,
+    "createdAt": "2026-10-29T04:22:00Z"
+  },
+  {
+    "id": "lb-4",
+    "playerName": "VinylCollector",
+    "score": 870,
+    "streak": 10,
+    "fastestSeconds": 1,
+    "difficulty": "medium",
+    "category": "all",
+    "isDaily": true,
+    "createdAt": "2026-10-29T04:30:00Z"
+  },
+  {
+    "id": "lb-5",
+    "playerName": "TPopHunter",
+    "score": 840,
+    "streak": 9,
+    "fastestSeconds": 0.5,
+    "difficulty": "hard",
+    "category": "thai",
+    "isDaily": false,
+    "createdAt": "2026-10-29T04:45:00Z"
+  },
+  {
+    "id": "lb-6",
+    "playerName": "BangkokBeats",
+    "score": 790,
+    "streak": 7,
+    "fastestSeconds": 1,
+    "difficulty": "medium",
+    "category": "thai",
+    "isDaily": true,
+    "createdAt": "2026-10-29T05:00:00Z"
+  },
+  {
+    "id": "lb-7",
+    "playerName": "IndieVibes",
+    "score": 750,
+    "streak": 6,
+    "fastestSeconds": 2,
+    "difficulty": "medium",
+    "category": "international",
+    "isDaily": false,
+    "createdAt": "2026-10-29T05:10:00Z"
+  },
+  {
+    "id": "lb-1793258265479-dsoa",
+    "playerName": "Chinjuku",
+    "score": 550,
+    "streak": 4,
+    "fastestSeconds": 1,
+    "difficulty": "easy",
+    "category": "international",
+    "isDaily": false,
+    "dateKey": "2026-10-29",
+    "createdAt": "2026-10-29T07:19:35.980Z"
+  },
+  {
+    "id": "lb-1793258367506-b8hh",
+    "playerName": "Chinjuku",
+    "score": 200,
+    "streak": 4,
+    "fastestSeconds": 1,
+    "difficulty": "easy",
+    "category": "international",
+    "isDaily": true,
+    "dateKey": "2026-10-29",
+    "createdAt": "2026-10-29T07:19:32.115Z"
+  },
+  {
+    "id": "lb-1793258681692-r0cq",
+    "playerName": "TestUser",
+    "score": 400,
+    "streak": 2,
+    "fastestSeconds": 1.5,
+    "difficulty": "easy",
+    "category": "thai",
+    "isDaily": false,
+    "dateKey": "2026-10-29",
+    "createdAt": "2026-10-29T07:24:41.692Z"
+  }
+]

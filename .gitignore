@@ -1,0 +1,43 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Production / Build output
+dist/
+client/dist/
+build/
+out/
+
+# Extracted & Temporary Resource Analysis
+extracted/
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+*.log
+
+# Environment variables & local secrets
+.env
+.env.local
+.env.*.local
+*.env
+
+# Runtime / Data
+*.sqlite
+*.db
+
+# OS / Editor files
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
