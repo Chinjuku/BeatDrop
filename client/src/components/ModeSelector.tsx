@@ -22,6 +22,7 @@ import {
   GameMode,
   YEAR_OPTIONS,
 } from '../../../shared/types';
+import { TimeRangeSelector } from './TimeRangeSelector';
 
 interface ModeSelectorProps {
   config: GameConfig;
@@ -161,7 +162,6 @@ export const ModeSelector: React.FC<ModeSelectorProps> = ({
 
   const modes: Array<{ id: GameMode; label: string; icon: React.ReactNode }> = [
     { id: 'standard', label: 'โหมดทั่วไป (All Hits)', icon: <Sparkles className="w-3.5 h-3.5" /> },
-    { id: 'guesser', label: 'Song Guesser (4 ตัวเลือก)', icon: <ListChecks className="w-3.5 h-3.5" /> },
     { id: 'artist', label: 'ทายตามศิลปิน (Artist)', icon: <Mic2 className="w-3.5 h-3.5" /> },
     { id: 'year', label: 'ปีที่ปล่อยเพลง (Year/Era)', icon: <Calendar className="w-3.5 h-3.5" /> },
     { id: 'genre', label: 'แนวเพลง (Genre)', icon: <Music className="w-3.5 h-3.5" /> },
@@ -202,6 +202,8 @@ export const ModeSelector: React.FC<ModeSelectorProps> = ({
           ...config,
           mode: 'artist',
           artistName: defaultArtist,
+          yearFilter: 'any',
+          genreFilter: 'any',
         },
         true
       );
@@ -323,72 +325,118 @@ export const ModeSelector: React.FC<ModeSelectorProps> = ({
             />
           </div>
 
-          <div className="songspot-difficulty-tabs mt-3">
-            {difficultyList.map((lvl) => {
-              const preset = DIFFICULTY_PRESETS[lvl];
-              const isSelected = config.difficulty === lvl;
-              return (
-                <button
-                  key={lvl}
-                  type="button"
-                  className="songspot-difficulty-tab"
-                  aria-pressed={isSelected}
-                  style={
+          <div className="flex flex-col items-center justify-center gap-2.5 mt-4 pt-1 w-full">
+            {/* Row 1: ระดับความยาก (แถวแนวนอน) */}
+            <div className="songspot-difficulty-tabs w-full justify-center">
+              {difficultyList.map((lvl) => {
+                const preset = DIFFICULTY_PRESETS[lvl];
+                const isSelected = config.difficulty === lvl;
+                return (
+                  <button
+                    key={lvl}
+                    type="button"
+                    className="songspot-difficulty-tab"
+                    aria-pressed={isSelected}
+                    style={
+                      {
+                        '--tab-color': preset.accent,
+                        '--tab-text': preset.accentText,
+                        '--tab-on': preset.accentOn,
+                      } as React.CSSProperties
+                    }
+                    onClick={() => handleDifficultySelect(lvl)}
+                    title={preset.description}
+                  >
+                    {preset.label}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Row 2: Time Range (แถวแนวนอนด้านล่าง) */}
+            <div className="w-full flex items-center justify-center">
+              <TimeRangeSelector
+                currentPreset={config.timeRangePreset}
+                stages={config.customStages}
+                onChangePreset={(presetId, stages) => {
+                  onChangeConfig(
                     {
-                      '--tab-color': preset.accent,
-                      '--tab-text': preset.accentText,
-                      '--tab-on': preset.accentOn,
-                    } as React.CSSProperties
-                  }
-                  onClick={() => handleDifficultySelect(lvl)}
-                  title={preset.description}
-                >
-                  {preset.label}
-                </button>
-              );
-            })}
+                      ...config,
+                      timeRangePreset: presetId,
+                      customStages: stages,
+                    },
+                    true
+                  );
+                }}
+              />
+            </div>
           </div>
         </div>
       )}
 
-      {/* Difficulty Bar for Specialized Modes (Artist / Year / Genre) */}
+      {/* Difficulty & Time Range Bar for Specialized Modes (Artist / Year / Genre) */}
       {config.mode !== 'standard' && config.mode !== 'guesser' && config.mode !== 'daily' && (
         <div
-          className="p-3 rounded-2xl border flex flex-col sm:flex-row items-center justify-between gap-3"
+          className="p-3 rounded-2xl border flex flex-col items-center justify-center gap-2.5"
           style={{
             backgroundColor: 'var(--song-surface)',
             borderColor: 'var(--song-border)',
           }}
         >
-          <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider" style={{ color: 'var(--song-muted)' }}>
-            <Disc className="w-4 h-4" style={{ color: 'var(--song-accent-text)' }} />
-            <span>ระดับความยาก (Difficulty):</span>
+          {/* Row 1: ระดับความยาก (แถวแนวนอน) */}
+          <div className="w-full flex items-center justify-center gap-2.5 text-xs font-bold uppercase tracking-wider flex-wrap" style={{ color: 'var(--song-muted)' }}>
+            <div className="flex items-center gap-1.5 shrink-0">
+              <Disc className="w-3.5 h-3.5" style={{ color: 'var(--song-accent-text)' }} />
+              <span>ระดับความยาก:</span>
+            </div>
+            <div className="songspot-difficulty-tabs !w-auto">
+              {difficultyList.map((lvl) => {
+                const preset = DIFFICULTY_PRESETS[lvl];
+                const isSelected = config.difficulty === lvl;
+                return (
+                  <button
+                    key={lvl}
+                    type="button"
+                    className="songspot-difficulty-tab"
+                    aria-pressed={isSelected}
+                    style={
+                      {
+                        '--tab-color': preset.accent,
+                        '--tab-text': preset.accentText,
+                        '--tab-on': preset.accentOn,
+                      } as React.CSSProperties
+                    }
+                    onClick={() => handleDifficultySelect(lvl)}
+                    title={preset.description}
+                  >
+                    {preset.label}
+                  </button>
+                );
+              })}
+            </div>
           </div>
 
-          <div className="songspot-difficulty-tabs !w-auto">
-            {difficultyList.map((lvl) => {
-              const preset = DIFFICULTY_PRESETS[lvl];
-              const isSelected = config.difficulty === lvl;
-              return (
-                <button
-                  key={lvl}
-                  type="button"
-                  className="songspot-difficulty-tab"
-                  aria-pressed={isSelected}
-                  style={
-                    {
-                      '--tab-color': preset.accent,
-                      '--tab-text': preset.accentText,
-                      '--tab-on': preset.accentOn,
-                    } as React.CSSProperties
-                  }
-                  onClick={() => handleDifficultySelect(lvl)}
-                  title={preset.description}
-                >
-                  {preset.label}
-                </button>
-              );
-            })}
+          <div
+            className="w-full h-px opacity-30 my-0.5"
+            style={{ backgroundColor: 'var(--song-border)' }}
+          />
+
+          {/* Row 2: Time Range (แถวแนวนอนด้านล่าง) */}
+          <div className="w-full flex items-center justify-center">
+            <TimeRangeSelector
+              currentPreset={config.timeRangePreset}
+              stages={config.customStages}
+              onChangePreset={(presetId, stages) => {
+                onChangeConfig(
+                  {
+                    ...config,
+                    timeRangePreset: presetId,
+                    customStages: stages,
+                  },
+                  true
+                );
+              }}
+            />
           </div>
         </div>
       )}
@@ -460,6 +508,8 @@ export const ModeSelector: React.FC<ModeSelectorProps> = ({
                         ...config,
                         mode: 'artist',
                         artistName: artist.name,
+                        yearFilter: 'any',
+                        genreFilter: 'any',
                       },
                       true
                     );
@@ -506,6 +556,8 @@ export const ModeSelector: React.FC<ModeSelectorProps> = ({
                     ...config,
                     mode: 'artist',
                     artistName: pendingArtist || config.artistName,
+                    yearFilter: 'any',
+                    genreFilter: 'any',
                   },
                   true
                 )

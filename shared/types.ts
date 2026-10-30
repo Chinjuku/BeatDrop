@@ -54,6 +54,42 @@ export interface DifficultyPreset {
   timeline?: string;
 }
 
+export type TimeRangePresetId = 'relaxed' | 'standard' | 'songspot' | 'custom';
+
+export interface TimeRangePreset {
+  id: TimeRangePresetId;
+  label: string;
+  labelTh: string;
+  stages: number[];
+  description: string;
+}
+
+export const DEFAULT_TIME_STAGES = [0.5, 2, 6, 8, 15];
+
+export const TIME_RANGE_PRESETS: Record<Exclude<TimeRangePresetId, 'custom'>, TimeRangePreset> = {
+  relaxed: {
+    id: 'relaxed',
+    label: 'Easy / Relaxed',
+    labelTh: 'Relaxed (3s → 15s)',
+    stages: [3, 5, 10, 15],
+    description: '3s, 5s, 10s, 15s • ปลดล็อกช้า ฟังสบาย',
+  },
+  standard: {
+    id: 'standard',
+    label: 'Standard',
+    labelTh: 'Standard (1s → 15s)',
+    stages: [1, 2, 4, 8, 15],
+    description: '1s, 2s, 4s, 8s, 15s • มาตรฐานทั่วไป',
+  },
+  songspot: {
+    id: 'songspot',
+    label: 'Songspot (Default)',
+    labelTh: 'Songspot (0.5s → 10s)',
+    stages: [0.5, 2, 6, 8, 15],
+    description: '0.5s, 1.5s, 3s, 6s, 10s • ออริจินัล Songspot',
+  },
+};
+
 export const DIFFICULTY_PRESETS: Record<DifficultyLevel, DifficultyPreset> = {
   easy: {
     id: 'easy',
@@ -92,7 +128,7 @@ export const DIFFICULTY_PRESETS: Record<DifficultyLevel, DifficultyPreset> = {
     label: 'Hard',
     labelTh: 'ยาก (0.5s → 10s)',
     description: 'Short clips (0.5s, 1.5s, 3s, 6s, 10s) • Deeper cuts',
-    stages: [0.5, 1.5, 3, 6, 10],
+    stages: [0.5, 2, 6, 8, 15],
     accent: '#ff7517',
     accentText: '#ff8631',
     accentOn: '#190900',
@@ -252,6 +288,8 @@ export interface GameConfig {
   artistName?: string;
   yearFilter?: string; // e.g., 'any' | '2026' | '2025' | ... | '2020s' | '2010s' | '2000s'
   genreFilter?: string; // e.g., 'any' | 'Pop' | 'T-Pop' | 'Rock' | 'Indie' | 'R&B' | 'Hip-Hop/Rap' | 'K-Pop' | 'EDM' | 'Soundtrack'
+  timeRangePreset?: TimeRangePresetId;
+  customStages?: number[];
 }
 
 export interface GuessHistoryItem {

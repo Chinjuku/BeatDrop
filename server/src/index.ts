@@ -8,6 +8,7 @@ import {
   Artist,
   CategoryType,
   DailyChallengeInfo,
+  DEFAULT_TIME_STAGES,
   DIFFICULTY_PRESETS,
   DifficultyLevel,
   GameMode,
@@ -16,6 +17,7 @@ import {
   RoundStartResponse,
   Song,
 } from '../../shared/types.js';
+import { dbService } from './db.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -109,7 +111,13 @@ const SEED_LEADERBOARD: LeaderboardEntry[] = [
 ];
 
 function loadLeaderboard(): void {
+  dbService.migrateFromJsonFiles(DATA_DIR, SEED_LEADERBOARD);
   try {
+    const dbEntries = dbService.getLeaderboard();
+    if (dbEntries.length > 0) {
+      leaderboardEntries = dbEntries;
+      return;
+    }
     if (fs.existsSync(LEADERBOARD_FILE)) {
       const raw = fs.readFileSync(LEADERBOARD_FILE, 'utf-8');
       const parsed = JSON.parse(raw);
@@ -136,11 +144,19 @@ function saveLeaderboard(): void {
 function loadCustomArtists(): void {
   loadLeaderboard();
   try {
+    const dbArtists = dbService.getCustomArtists();
+    if (dbArtists.length > 0) {
+      customArtists = dbArtists;
+      return;
+    }
     if (fs.existsSync(CUSTOM_ARTISTS_FILE)) {
       const raw = fs.readFileSync(CUSTOM_ARTISTS_FILE, 'utf-8');
       const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed)) {
+      if (Array.isArray(parsed) && parsed.length > 0) {
         customArtists = parsed;
+        for (const a of customArtists) {
+          dbService.saveCustomArtist(a);
+        }
       }
     }
   } catch (err) {
@@ -194,7 +210,6 @@ function detectCategory(name: string, tracks: Song[], fallback: 'thai' | 'intern
 }
 
 function normalizeGenre(rawGenre: string, category: 'thai' | 'international', fallbackGenre?: string): string {
-  if (fallbackGenre && fallbackGenre !== 'any') return fallbackGenre;
   const g = (rawGenre || '').toLowerCase();
   if (g.includes('k-pop') || g.includes('kpop')) return 'K-Pop';
   if (g.includes('hip-hop') || g.includes('rap')) return 'Hip-Hop/Rap';
@@ -207,6 +222,7 @@ function normalizeGenre(rawGenre: string, category: 'thai' | 'international', fa
     if (g.includes('thai') || g.includes('t-pop')) return 'T-Pop';
     if (g.includes('pop')) return 'T-Pop';
   }
+  if (fallbackGenre && fallbackGenre !== 'any') return fallbackGenre;
   return 'Pop';
 }
 
@@ -228,10 +244,12 @@ async function fetchItunesSongs(
   country: 'TH' | 'US',
   category: 'thai' | 'international',
   limit = 20,
-  overrideGenre?: string
+  overrideGenre?: string,
+  byArtist = false
 ): Promise<Song[]> {
   try {
-    const url = `https://itunes.apple.com/search?term=${encodeURIComponent(term)}&country=${country}&entity=song&limit=${limit}`;
+    const attrParam = byArtist ? '&attribute=artistTerm' : '';
+    const url = `https://itunes.apple.com/search?term=${encodeURIComponent(term)}&country=${country}&entity=song${attrParam}&limit=${limit}`;
     const res = await fetch(url);
     if (!res.ok) return [];
     const data = (await res.json()) as { results?: ItunesRawTrack[] };
@@ -299,10 +317,20 @@ async function fetchDeezerSongs(
   }
 }
 
-async function ingestArtistSongs(artist: Artist, limit = 15): Promise<number> {
+async function ingestArtistSongs(artist: Artist, limit = 50): Promise<number> {
   const key = `${artist.category}:${artist.name.toLowerCase()}`;
   const country = artist.category === 'thai' ? 'TH' : 'US';
-  let tracks = await fetchItunesSongs(artist.name, country, artist.category, limit, artist.mainGenre);
+  let tracks = await fetchItunesSongs(artist.name, country, artist.category, limit, artist.mainGenre, true);
+
+  // If attribute=artistTerm returned few results, try standard term search
+  if (tracks.length < 5) {
+    const fallbackTracks = await fetchItunesSongs(artist.name, country, artist.category, limit, artist.mainGenre, false);
+    for (const fb of fallbackTracks) {
+      if (!tracks.some((t) => t.id === fb.id)) {
+        tracks.push(fb);
+      }
+    }
+  }
 
   if (tracks.length === 0) {
     tracks = await fetchDeezerSongs(artist.name, artist.category, limit, artist.mainGenre);
@@ -319,6 +347,8 @@ async function ingestArtistSongs(artist: Artist, limit = 15): Promise<number> {
   for (const song of finalTracks) {
     songPool.set(song.id, song);
   }
+  // Persist tracks to SQLite database
+  dbService.saveSongs(finalTracks);
 
   if (finalTracks.length > 0 && !artist.avatarUrl) {
     artist.avatarUrl = finalTracks[0].artworkUrl;
@@ -327,6 +357,8 @@ async function ingestArtistSongs(artist: Artist, limit = 15): Promise<number> {
     const aNorm = normalizeText(s.artistName);
     return aNorm.includes(targetNorm) || targetNorm.includes(aNorm);
   }).length;
+
+  dbService.updateArtistTrackCount(artist.name, artist.trackCount || 0);
 
   loadedArtistQueries.add(key);
   return finalTracks.length;
@@ -354,6 +386,14 @@ function getAllArtists(): Artist[] {
 
 async function warmupInitialCatalog(): Promise<void> {
   loadCustomArtists();
+
+  // 1. Populate songPool from permanent SQLite cache first (instant warmup)
+  const cachedSongs = dbService.getAllSongs();
+  for (const s of cachedSongs) {
+    songPool.set(s.id, s);
+  }
+  console.log(`[SQLite] Loaded ${cachedSongs.length} persistent songs from SQLite database.`);
+
   const allArtists = [...CURATED_ARTISTS, ...customArtists];
   console.log(`[Server] Warming up song catalog for ${allArtists.length} artists...`);
 
@@ -364,7 +404,7 @@ async function warmupInitialCatalog(): Promise<void> {
     await Promise.all(batch.map((artist) => ingestArtistSongs(artist, 40)));
   }
 
-  console.log(`[Server] Warmup complete! Total songs in pool: ${songPool.size}`);
+  console.log(`[Server] Warmup complete! Total songs in pool: ${songPool.size} (DB total: ${dbService.countSongs()})`);
 }
 
 function matchesYearFilter(song: Song, yearFilter?: string): boolean {
@@ -532,6 +572,7 @@ app.post('/api/artists/add', async (req: Request, res: Response) => {
     if (!existing) {
       customArtists.push(newArtist);
       saveCustomArtists();
+      dbService.saveCustomArtist(newArtist);
     }
 
     const enriched = getAllArtists().find(
@@ -553,15 +594,29 @@ app.post('/api/artists/add', async (req: Request, res: Response) => {
  * Remove a custom artist
  */
 app.delete('/api/artists/:id', (req: Request, res: Response) => {
-  const { id } = req.params;
+  const id = String(req.params.id);
   customArtists = customArtists.filter((a) => a.id !== id);
   saveCustomArtists();
+  dbService.deleteCustomArtist(id);
   res.json({ code: 0, message: 'ok', data: { removedId: id } });
 });
 
+function parseCustomStages(raw: unknown): number[] | null {
+  if (typeof raw !== 'string' || !raw.trim()) return null;
+  const parts = raw
+    .split(',')
+    .map((s) => parseFloat(s.trim()))
+    .filter((n) => !isNaN(n) && n > 0 && n <= 30);
+  if (parts.length >= 2) {
+    const unique = Array.from(new Set(parts)).sort((a, b) => a - b);
+    return unique.length >= 2 ? unique : null;
+  }
+  return null;
+}
+
 /**
- * 4. GET /api/songs (and /api/songspot/round)
- * Start a round with full filtering (Category, Difficulty, Mode, Artist, Year, Genre)
+ * 4. GET /api/songs (and /api/round/start, /api/songspot/round)
+ * Start a round with full filtering (Category, Difficulty, Mode, Artist, Year, Genre, CustomStages)
  */
 async function handleStartRound(req: Request, res: Response): Promise<void> {
   const category = ((req.query.category as CategoryType) || 'all') as CategoryType;
@@ -576,6 +631,8 @@ async function handleStartRound(req: Request, res: Response): Promise<void> {
     .filter(Boolean);
 
   const preset = DIFFICULTY_PRESETS[difficulty] || DIFFICULTY_PRESETS.medium;
+  const customStagesParam = parseCustomStages(req.query.customStages);
+  const roundStages = customStagesParam || (req.query.difficulty ? preset.stages : DEFAULT_TIME_STAGES);
 
   // If Artist Mode is active, ensure we have plenty of songs for that artist
   if (artistFilter && artistFilter !== 'any') {
@@ -583,30 +640,32 @@ async function handleStartRound(req: Request, res: Response): Promise<void> {
       matchesArtistFilter(s, artistFilter)
     );
     if (existingForArtist.length < 50) {
-      const targetCat: 'thai' | 'international' =
-        category === 'international' ? 'international' : 'thai';
+      const knownArtist = getAllArtists().find((a) => matchesArtistFilter({ artistName: a.name } as Song, artistFilter));
+      const targetCat: 'thai' | 'international' = knownArtist
+        ? knownArtist.category
+        : (category === 'international' ? 'international' : 'thai');
       await ingestArtistSongs(
         {
           id: 'temp',
           name: artistFilter,
           category: targetCat,
-          mainGenre: genreFilter !== 'any' ? genreFilter : 'Pop',
-          avatarUrl: '',
+          mainGenre: knownArtist?.mainGenre || (genreFilter !== 'any' ? genreFilter : 'Pop'),
+          avatarUrl: knownArtist?.avatarUrl || '',
         },
-        100
+        200
       );
-      // Also check US store if Thai store returned few tracks
+      // Also check alternate store if first store returned few tracks
       const afterFirstFetch = Array.from(songPool.values()).filter((s) =>
         matchesArtistFilter(s, artistFilter)
       );
-      if (afterFirstFetch.length < 15) {
+      if (afterFirstFetch.length < 20) {
         const altCat = targetCat === 'thai' ? 'international' : 'thai';
         await ingestArtistSongs(
           {
             id: 'temp-alt',
             name: artistFilter,
             category: altCat,
-            mainGenre: 'Pop',
+            mainGenre: knownArtist?.mainGenre || 'Pop',
             avatarUrl: '',
           },
           100
@@ -653,16 +712,16 @@ async function handleStartRound(req: Request, res: Response): Promise<void> {
     }
   }
 
-  // 3) Year / Era filter
-  if (yearFilter && yearFilter !== 'any') {
+  // 3) Year / Era filter (Ignore in Artist Mode so leftover filters don't reduce artist catalog)
+  if (mode !== 'artist' && yearFilter && yearFilter !== 'any') {
     const yearScoped = candidates.filter((s) => matchesYearFilter(s, yearFilter));
     if (yearScoped.length > 0) {
       candidates = yearScoped;
     }
   }
 
-  // 4) Genre filter
-  if (genreFilter && genreFilter !== 'any') {
+  // 4) Genre filter (Ignore in Artist Mode so leftover filters don't reduce artist catalog)
+  if (mode !== 'artist' && genreFilter && genreFilter !== 'any') {
     const genreScoped = candidates.filter((s) => matchesGenreFilter(s, genreFilter));
     if (genreScoped.length > 0) {
       candidates = genreScoped;
@@ -740,9 +799,9 @@ async function handleStartRound(req: Request, res: Response): Promise<void> {
   activeRounds.set(roundToken, {
     track: selectedTrack,
     difficulty,
-    stages: preset.stages,
+    stages: roundStages,
     stage: 0,
-    clipSeconds: preset.stages[0],
+    clipSeconds: roundStages[0],
     mistakes: 0,
     category,
     mode,
@@ -754,9 +813,9 @@ async function handleStartRound(req: Request, res: Response): Promise<void> {
     roundKey,
     audioUrl: selectedTrack.previewUrl,
     difficulty,
-    stages: preset.stages,
+    stages: roundStages,
     stage: 0,
-    clipSeconds: preset.stages[0],
+    clipSeconds: roundStages[0],
     category,
     mode,
     artistFilter: artistFilter && artistFilter !== 'any' ? artistFilter : undefined,
@@ -775,6 +834,8 @@ async function handleStartRound(req: Request, res: Response): Promise<void> {
 }
 
 app.get('/api/songs', handleStartRound);
+app.get('/api/round/start', handleStartRound);
+app.post('/api/round/start', handleStartRound);
 app.get('/api/songspot/round', handleStartRound);
 
 /**
@@ -785,7 +846,26 @@ async function handleAutocomplete(req: Request, res: Response): Promise<void> {
   const q = ((req.query.q as string) || '').trim();
   const category = ((req.query.category as CategoryType) || 'all') as CategoryType;
   const artistFilter = ((req.query.artist as string) || '').trim();
-  const limit = Math.min(30, Math.max(1, parseInt((req.query.limit as string) || '10', 10)));
+  const limit = Math.min(60, Math.max(1, parseInt((req.query.limit as string) || '10', 10)));
+
+  // If artistFilter is active and pool has few songs, eagerly load artist tracks
+  if (artistFilter && artistFilter !== 'any') {
+    const existing = Array.from(songPool.values()).filter((s) => matchesArtistFilter(s, artistFilter));
+    if (existing.length < 30) {
+      const knownArtist = getAllArtists().find((a) => matchesArtistFilter({ artistName: a.name } as Song, artistFilter));
+      const targetCat = knownArtist?.category || (category === 'international' ? 'international' : 'thai');
+      await ingestArtistSongs(
+        {
+          id: 'temp-auto',
+          name: artistFilter,
+          category: targetCat,
+          mainGenre: knownArtist?.mainGenre || 'Pop',
+          avatarUrl: knownArtist?.avatarUrl || '',
+        },
+        100
+      );
+    }
+  }
 
   let pool = Array.from(songPool.values());
 
@@ -811,8 +891,37 @@ async function handleAutocomplete(req: Request, res: Response): Promise<void> {
         normalizeText(s.artistName).includes(qNorm)
     );
 
-    // If not in strict Artist Mode and local matches are few, query iTunes live
-    if ((!artistFilter || artistFilter === 'any') && matches.length < 4 && q.length >= 2) {
+    // If local matches are few, search indexed SQLite database first!
+    if (matches.length < limit) {
+      const dbMatches = dbService.searchSongs(q, {
+        category,
+        artist: artistFilter && artistFilter !== 'any' ? artistFilter : undefined,
+        limit,
+      });
+      for (const ds of dbMatches) {
+        songPool.set(ds.id, ds);
+        if (!matches.some((m) => m.id === ds.id)) {
+          matches.push(ds);
+        }
+      }
+    }
+
+    // If still few matches:
+    if (artistFilter && artistFilter !== 'any' && matches.length < 4 && q.length >= 1) {
+      // In Artist Mode, search iTunes live specifically for this artist's song!
+      const knownArtist = getAllArtists().find((a) => matchesArtistFilter({ artistName: a.name } as Song, artistFilter));
+      const country = (knownArtist?.category || category) === 'international' ? 'US' : 'TH';
+      const targetCat = (knownArtist?.category || category) === 'international' ? 'international' : 'thai';
+      const liveTracks = await fetchItunesSongs(`${artistFilter} ${q}`, country, targetCat, 20);
+      const matchingLive = liveTracks.filter((t) => matchesArtistFilter(t, artistFilter));
+      for (const lt of matchingLive) {
+        songPool.set(lt.id, lt);
+        if (!matches.some((m) => m.id === lt.id)) {
+          matches.push(lt);
+        }
+      }
+      dbService.saveSongs(matchingLive);
+    } else if ((!artistFilter || artistFilter === 'any') && matches.length < 4 && q.length >= 2) {
       const country = category === 'international' ? 'US' : 'TH';
       const targetCat = category === 'international' ? 'international' : 'thai';
       const liveTracks = await fetchItunesSongs(q, country, targetCat, 8);
@@ -822,6 +931,7 @@ async function handleAutocomplete(req: Request, res: Response): Promise<void> {
           matches.push(lt);
         }
       }
+      dbService.saveSongs(liveTracks);
     }
   }
 
@@ -997,6 +1107,8 @@ app.get('/api/daily', (req: Request, res: Response) => {
   const category = ((req.query.category as CategoryType) || 'all') as CategoryType;
   const difficulty = ((req.query.difficulty as DifficultyLevel) || 'medium') as DifficultyLevel;
   const preset = DIFFICULTY_PRESETS[difficulty] || DIFFICULTY_PRESETS.medium;
+  const customStagesParam = parseCustomStages(req.query.customStages);
+  const roundStages = customStagesParam || (req.query.difficulty ? preset.stages : DEFAULT_TIME_STAGES);
   const dateKey = new Date().toISOString().slice(0, 10);
 
   let candidates = Array.from(songPool.values());
@@ -1036,9 +1148,9 @@ app.get('/api/daily', (req: Request, res: Response) => {
     activeRounds.set(roundToken, {
       track,
       difficulty,
-      stages: preset.stages,
+      stages: roundStages,
       stage: 0,
-      clipSeconds: preset.stages[0],
+      clipSeconds: roundStages[0],
       mistakes: 0,
       category,
       mode: 'daily',
@@ -1049,9 +1161,9 @@ app.get('/api/daily', (req: Request, res: Response) => {
       roundKey: `rk_daily_${dateKey}_${idx}`,
       audioUrl: track.previewUrl,
       difficulty,
-      stages: preset.stages,
+      stages: roundStages,
       stage: 0,
-      clipSeconds: preset.stages[0],
+      clipSeconds: roundStages[0],
       category,
       mode: 'daily',
       poolSize: candidates.length,
@@ -1142,6 +1254,7 @@ app.post('/api/leaderboard', (req: Request, res: Response) => {
   }
 
   saveLeaderboard();
+  dbService.addLeaderboardEntry(entry);
   res.json({ code: 0, message: 'ok', data: entry });
 });
 

@@ -6,6 +6,7 @@ import {
   Pause,
   Play,
   SkipForward,
+  Ticket,
   Volume2,
   VolumeX,
   Disc3,
@@ -33,6 +34,7 @@ interface SpinningAlbumArtProps {
   volume: number;
   onVolumeChange: (val: number) => void;
   onNextSong: () => void;
+  onOpenTicket?: () => void;
 }
 
 function formatTime(sec: number): string {
@@ -58,6 +60,7 @@ export const SpinningAlbumArt: React.FC<SpinningAlbumArtProps> = ({
   volume,
   onVolumeChange,
   onNextSong,
+  onOpenTicket,
 }) => {
   const [copied, setCopied] = useState(false);
   const isPlaying = audioState === 'playing';
@@ -316,25 +319,16 @@ export const SpinningAlbumArt: React.FC<SpinningAlbumArtProps> = ({
         <div className="w-full grid grid-cols-1 sm:grid-cols-2 gap-2.5">
           <button
             type="button"
-            onClick={handleCopyShare}
-            className="py-3.5 px-4 rounded-2xl border font-extrabold text-xs sm:text-sm flex items-center justify-center gap-2 transition hover:brightness-110"
+            onClick={onOpenTicket || handleCopyShare}
+            className="py-3.5 px-4 rounded-2xl border font-extrabold text-xs sm:text-sm flex items-center justify-center gap-2 transition hover:brightness-110 shadow-sm"
             style={{
-              backgroundColor: 'var(--song-surface-soft)',
-              borderColor: 'var(--song-border)',
-              color: 'var(--song-text)',
+              backgroundColor: 'color-mix(in srgb, var(--song-accent) 18%, var(--song-surface))',
+              borderColor: 'var(--song-accent)',
+              color: 'var(--song-accent-text)',
             }}
           >
-            {copied ? (
-              <>
-                <Check className="w-4 h-4 text-emerald-400" />
-                <span>คัดลอกผลลัพธ์แล้ว! ({emojiBoxes.join('')})</span>
-              </>
-            ) : (
-              <>
-                <Copy className="w-4 h-4" style={{ color: 'var(--song-accent-text)' }} />
-                <span>แชร์ผลลัพธ์ ({emojiBoxes.join('')})</span>
-              </>
-            )}
+            <Ticket className="w-4 h-4" />
+            <span>ดู Music Ticket / แชร์การ์ด</span>
           </button>
 
           <button
@@ -350,6 +344,16 @@ export const SpinningAlbumArt: React.FC<SpinningAlbumArtProps> = ({
             <SkipForward className="w-4 h-4" />
           </button>
         </div>
+
+        <button
+          type="button"
+          onClick={handleCopyShare}
+          className="mt-2 text-xs font-semibold underline underline-offset-4 flex items-center gap-1.5 opacity-70 hover:opacity-100 transition"
+          style={{ color: 'var(--song-muted)' }}
+        >
+          {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+          <span>{copied ? 'คัดลอกข้อความผลลัพธ์แล้ว!' : 'คัดลอกผลลัพธ์เป็นข้อความ (Text)'}</span>
+        </button>
       </div>
     </section>
   );

@@ -29,6 +29,11 @@ lerna-debug.log*
 # Runtime / Data
 *.sqlite
 *.db
+*.db-wal
+*.db-shm
+*.db-*
+server/data/*.db*
+server/data/*.sqlite*
 
 # OS / Editor files
 .DS_Store

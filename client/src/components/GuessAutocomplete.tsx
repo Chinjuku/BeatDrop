@@ -48,7 +48,7 @@ export const GuessAutocomplete: React.FC<GuessAutocompleteProps> = ({
         const params = new URLSearchParams({
           q: query.trim(),
           category,
-          limit: isArtistScoped ? '20' : '8',
+          limit: isArtistScoped ? '50' : '10',
         });
         if (isArtistScoped && artistFilter) {
           params.set('artist', artistFilter);

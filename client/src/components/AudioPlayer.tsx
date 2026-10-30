@@ -29,7 +29,7 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
   // Calculate relative flex weights for each stage segment (Songspot timeline style)
   const segments = stages.map((sec, idx) => {
     const prevSec = idx === 0 ? 0 : stages[idx - 1];
-    const delta = Math.max(0.2, sec - prevSec);
+    const delta = Math.max(0.1, sec - prevSec);
     return {
       index: idx,
       seconds: sec,
@@ -54,7 +54,7 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
     <div className="w-full flex flex-col items-center">
       {/* Stage Pills Indicator */}
       <div
-        className="w-full grid gap-2 mb-3"
+        className="w-full grid gap-1 sm:gap-2 mb-3"
         style={{ gridTemplateColumns: `repeat(${stages.length}, minmax(0, 1fr))` }}
       >
         {stages.map((sec, idx) => {
@@ -62,14 +62,15 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
           const isUnlocked = idx <= currentStage;
           return (
             <div
-              key={sec}
-              className="py-1.5 px-2 rounded-xl border text-center transition-all"
+              key={`stage-${idx}-${sec}`}
+              className="py-1 sm:py-1.5 px-1 sm:px-2 rounded-lg sm:rounded-xl border text-center transition-all min-w-0 overflow-hidden"
               style={
                 isCurrent
                   ? {
-                      backgroundColor: 'color-mix(in srgb, var(--song-accent) 18%, var(--song-surface))',
+                      backgroundColor: 'color-mix(in srgb, var(--song-accent) 22%, var(--song-surface))',
                       borderColor: 'var(--song-accent)',
                       color: 'var(--song-accent-text)',
+                      boxShadow: '0 0 14px color-mix(in srgb, var(--song-accent) 35%, transparent)',
                     }
                   : isUnlocked
                     ? {
@@ -85,8 +86,8 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
                       }
               }
             >
-              <div className="text-[10px] font-semibold uppercase">ขั้นที่ {idx + 1}</div>
-              <div className="text-xs sm:text-sm font-extrabold font-mono">{sec}s</div>
+              <div className="text-[9px] sm:text-[10px] font-semibold uppercase truncate">ขั้นที่ {idx + 1}</div>
+              <div className="text-[11px] sm:text-sm font-extrabold font-mono truncate">{sec}s</div>
             </div>
           );
         })}
