@@ -134,9 +134,9 @@ export const LeaderboardModal: React.FC<LeaderboardModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-black/80 backdrop-blur-md overflow-y-auto overflow-x-hidden animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-6 bg-black/80 backdrop-blur-md overflow-y-auto overflow-x-hidden animate-in fade-in duration-200">
       <div
-        className="w-full max-w-[94vw] sm:max-w-xl md:max-w-2xl lg:max-w-3xl rounded-3xl border shadow-2xl overflow-hidden flex flex-col max-h-[90vh] my-auto relative animate-in zoom-in-95 duration-200"
+        className="w-[calc(100vw-16px)] sm:w-full max-w-xl md:max-w-2xl rounded-2xl sm:rounded-3xl border shadow-2xl overflow-hidden flex flex-col max-h-[92dvh] my-auto relative animate-in zoom-in-95 duration-200"
         style={{
           backgroundColor: 'var(--song-surface)',
           borderColor: 'var(--song-border)',
@@ -145,25 +145,25 @@ export const LeaderboardModal: React.FC<LeaderboardModalProps> = ({
       >
         {/* Header */}
         <div
-          className="px-6 py-4 border-b flex items-center justify-between"
+          className="px-3.5 py-3 sm:px-6 sm:py-4 border-b flex items-center justify-between"
           style={{ borderColor: 'var(--song-border)' }}
         >
-          <div className="flex items-center gap-2.5">
+          <div className="flex items-center gap-2 sm:gap-2.5 min-w-0">
             <div
-              className="w-9 h-9 rounded-xl flex items-center justify-center"
+              className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl flex items-center justify-center flex-shrink-0"
               style={{
                 backgroundColor: 'color-mix(in srgb, var(--song-accent) 18%, transparent)',
                 color: 'var(--song-accent-text)',
               }}
             >
-              <Trophy className="w-5 h-5" />
+              <Trophy className="w-4 h-4 sm:w-5 sm:h-5" />
             </div>
-            <div>
-              <h2 className="text-base font-extrabold tracking-tight">
-                Songspot Leaderboard (ตารางอันดับผู้เล่น)
+            <div className="min-w-0">
+              <h2 className="text-sm sm:text-base font-extrabold tracking-tight truncate">
+                Songspot Leaderboard (ตารางอันดับ)
               </h2>
-              <p className="text-xs" style={{ color: 'var(--song-muted)' }}>
-                จัดอันดับผู้เล่นสายทายเพลงที่แม่นและไวที่สุดประจำวันและตลอดกาล
+              <p className="text-[10px] sm:text-xs truncate" style={{ color: 'var(--song-muted)' }}>
+                ผู้เล่นสายทายเพลงที่แม่นและไวที่สุด
               </p>
             </div>
           </div>
@@ -171,7 +171,7 @@ export const LeaderboardModal: React.FC<LeaderboardModalProps> = ({
           <button
             type="button"
             onClick={onClose}
-            className="p-2 rounded-full hover:bg-white/10 transition"
+            className="p-1.5 sm:p-2 rounded-full hover:bg-white/10 transition flex-shrink-0"
             aria-label="Close Leaderboard"
           >
             <X className="w-5 h-5" />
@@ -180,17 +180,17 @@ export const LeaderboardModal: React.FC<LeaderboardModalProps> = ({
 
         {/* Mode & Category Filter Tabs */}
         <div
-          className="px-6 py-3 border-b flex flex-wrap items-center justify-between gap-2"
+          className="px-3.5 py-2.5 sm:px-6 sm:py-3 border-b flex flex-wrap items-center justify-between gap-2"
           style={{
             backgroundColor: 'var(--song-surface-soft)',
             borderColor: 'var(--song-border)',
           }}
         >
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1 sm:gap-1.5">
             <button
               type="button"
               onClick={() => setTab('all')}
-              className="px-3 py-1.5 rounded-xl text-xs font-bold transition"
+              className="px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-xl text-[11px] sm:text-xs font-bold transition"
               style={
                 tab === 'all'
                   ? {
@@ -200,12 +200,12 @@ export const LeaderboardModal: React.FC<LeaderboardModalProps> = ({
                   : { color: 'var(--song-muted)' }
               }
             >
-              🏆 อันดับรวม (Global)
+              🏆 รวม (Global)
             </button>
             <button
               type="button"
               onClick={() => setTab('daily')}
-              className="px-3 py-1.5 rounded-xl text-xs font-bold transition"
+              className="px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-xl text-[11px] sm:text-xs font-bold transition"
               style={
                 tab === 'daily'
                   ? {
@@ -215,7 +215,7 @@ export const LeaderboardModal: React.FC<LeaderboardModalProps> = ({
                   : { color: 'var(--song-muted)' }
               }
             >
-              📅 ประจำวัน (Daily Challenge)
+              📅 รายวัน (Daily)
             </button>
           </div>
 
@@ -225,7 +225,7 @@ export const LeaderboardModal: React.FC<LeaderboardModalProps> = ({
                 key={c}
                 type="button"
                 onClick={() => setCatFilter(c)}
-                className="px-2.5 py-1 rounded-lg text-[11px] font-bold border transition"
+                className="px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-lg text-[10px] sm:text-[11px] font-bold border transition"
                 style={
                   catFilter === c
                     ? {
@@ -245,7 +245,7 @@ export const LeaderboardModal: React.FC<LeaderboardModalProps> = ({
             <button
               type="button"
               onClick={fetchLeaderboard}
-              className="p-1.5 rounded-lg hover:bg-white/10 transition"
+              className="p-1 sm:p-1.5 rounded-lg hover:bg-white/10 transition"
               title="รีเฟรชอันดับ"
             >
               <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
@@ -256,7 +256,7 @@ export const LeaderboardModal: React.FC<LeaderboardModalProps> = ({
         {/* Submit Player Score Form */}
         <form
           onSubmit={handleSubmitScore}
-          className="px-6 py-3 border-b flex flex-col sm:flex-row items-stretch sm:items-center gap-2"
+          className="px-3.5 py-2.5 sm:px-6 sm:py-3 border-b flex flex-col sm:flex-row items-stretch sm:items-center gap-2"
           style={{ borderColor: 'var(--song-border)' }}
         >
           <div className="flex-1">
@@ -264,7 +264,7 @@ export const LeaderboardModal: React.FC<LeaderboardModalProps> = ({
               type="text"
               value={playerName}
               onChange={(e) => setPlayerName(e.target.value)}
-              placeholder="กรอกชื่อของคุณเพื่อส่งคะแนนขึ้นตารางอันดับ..."
+              placeholder="กรอกชื่อของคุณเพื่อส่งคะแนน..."
               maxLength={24}
               className="w-full px-3 py-2 rounded-xl border text-xs font-semibold focus:outline-none"
               style={{
@@ -277,7 +277,7 @@ export const LeaderboardModal: React.FC<LeaderboardModalProps> = ({
           <button
             type="submit"
             disabled={submitting || !playerName.trim()}
-            className="px-4 py-2 rounded-xl text-xs font-extrabold flex items-center justify-center gap-1.5 transition hover:brightness-110 disabled:opacity-50"
+            className="px-3.5 py-2 rounded-xl text-xs font-extrabold flex items-center justify-center gap-1.5 transition hover:brightness-110 disabled:opacity-50 min-h-[38px] active:scale-95"
             style={{
               backgroundColor: 'var(--song-accent)',
               color: 'var(--song-accent-on)',
@@ -289,7 +289,7 @@ export const LeaderboardModal: React.FC<LeaderboardModalProps> = ({
         </form>
         {submittedMsg && (
           <div
-            className="px-6 py-1.5 text-center text-xs font-bold"
+            className="px-4 py-1.5 text-center text-xs font-bold"
             style={{
               backgroundColor: 'color-mix(in srgb, var(--song-accent) 15%, transparent)',
               color: 'var(--song-accent-text)',
@@ -300,7 +300,7 @@ export const LeaderboardModal: React.FC<LeaderboardModalProps> = ({
         )}
 
         {/* Rankings Table */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-2">
+        <div className="flex-1 overflow-y-auto p-2.5 sm:p-4 space-y-1.5 sm:space-y-2">
           {entries.length === 0 ? (
             <div className="py-12 text-center text-xs" style={{ color: 'var(--song-muted)' }}>
               ยังไม่มีข้อมูลอันดับในหมวดนี้ มาร่วมประเดิมส่งคะแนนคนแรกกันเลย!
@@ -313,7 +313,7 @@ export const LeaderboardModal: React.FC<LeaderboardModalProps> = ({
               return (
                 <div
                   key={entry.id}
-                  className="px-4 py-2.5 rounded-2xl border flex items-center justify-between gap-3 transition"
+                  className="px-3 py-2 sm:px-4 sm:py-2.5 rounded-xl sm:rounded-2xl border flex items-center justify-between gap-2.5 sm:gap-3 transition"
                   style={{
                     backgroundColor:
                       rank <= 3

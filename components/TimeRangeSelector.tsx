@@ -219,9 +219,9 @@ export const TimeRangeSelector: React.FC<TimeRangeSelectorProps> = ({
 
       {/* Custom Stages Configuration Modal */}
       {modalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-black/80 backdrop-blur-md overflow-y-auto overflow-x-hidden animate-in fade-in duration-200">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-6 bg-black/80 backdrop-blur-md overflow-y-auto overflow-x-hidden animate-in fade-in duration-200">
           <div
-            className="m-auto w-full max-w-[94vw] sm:max-w-lg md:max-w-xl lg:max-w-2xl rounded-2xl border p-5 sm:p-6 shadow-2xl flex flex-col gap-4 relative my-auto animate-in zoom-in-95 duration-200 max-h-[90vh] overflow-y-auto"
+            className="m-auto w-[calc(100vw-16px)] sm:w-full max-w-lg md:max-w-xl rounded-2xl border p-3.5 sm:p-6 shadow-2xl flex flex-col gap-4 relative my-auto animate-in zoom-in-95 duration-200 max-h-[92dvh] overflow-y-auto"
             style={{
               backgroundColor: 'var(--song-surface)',
               borderColor: 'var(--song-border)',
@@ -230,21 +230,21 @@ export const TimeRangeSelector: React.FC<TimeRangeSelectorProps> = ({
           >
             {/* Modal Header */}
             <div className="flex items-start justify-between">
-              <div>
+              <div className="min-w-0 pr-2">
                 <div className="flex items-center gap-2">
-                  <Sliders className="w-5 h-5" style={{ color: 'var(--song-accent-text)' }} />
-                  <h3 className="text-base font-extrabold tracking-wide">
-                    กำหนดช่วงเวลาเสียงตัวอย่าง (Custom Stages)
+                  <Sliders className="w-5 h-5 flex-shrink-0" style={{ color: 'var(--song-accent-text)' }} />
+                  <h3 className="text-sm sm:text-base font-extrabold tracking-wide truncate">
+                    กำหนดช่วงเวลาเสียง (Custom Stages)
                   </h3>
                 </div>
-                <p className="text-xs mt-1" style={{ color: 'var(--song-muted)' }}>
-                  ปรับความยาวเสียงในแต่ละขั้นตอน (วินาที) คั่นด้วยจุลภาค (,) หรือปรับ slider (สูงสุด 15s)
+                <p className="text-[10px] sm:text-xs mt-1" style={{ color: 'var(--song-muted)' }}>
+                  ปรับความยาวเสียงแต่ละขั้นตอน (วินาที) คั่นด้วยจุลภาค (,) สูงสุด 15s
                 </p>
               </div>
               <button
                 type="button"
                 onClick={() => setModalOpen(false)}
-                className="p-1 rounded-lg border hover:opacity-80 transition-opacity"
+                className="p-1 rounded-lg border hover:opacity-80 transition-opacity flex-shrink-0"
                 style={{
                   backgroundColor: 'var(--song-surface-soft)',
                   borderColor: 'var(--song-border)',

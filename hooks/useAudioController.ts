@@ -36,6 +36,21 @@ export function useAudioController({ audioUrl, volume }: UseAudioControllerOptio
     return audioCtxRef.current;
   }, []);
 
+  // Pre-warm / unlock AudioContext on first touch or click (iOS/iPadOS & Android policy)
+  useEffect(() => {
+    const unlock = () => {
+      if (audioCtxRef.current && audioCtxRef.current.state === 'suspended') {
+        audioCtxRef.current.resume().catch(() => {});
+      }
+    };
+    window.addEventListener('touchstart', unlock, { once: true, passive: true });
+    window.addEventListener('click', unlock, { once: true, passive: true });
+    return () => {
+      window.removeEventListener('touchstart', unlock);
+      window.removeEventListener('click', unlock);
+    };
+  }, []);
+
   const stopInternal = useCallback((resetOffset = true, targetState: AudioPlaybackState = 'ready') => {
     if (rafRef.current !== null) {
       cancelAnimationFrame(rafRef.current);
@@ -111,11 +126,17 @@ export function useAudioController({ audioUrl, volume }: UseAudioControllerOptio
   }, [volume]);
 
   const startPlaybackFrom = useCallback(
-    (startOffset: number, maxDurationSeconds: number) => {
+    async (startOffset: number, maxDurationSeconds: number) => {
       const buffer = bufferRef.current;
       if (!buffer) return;
 
       const ctx = getContext();
+      if (ctx.state === 'suspended') {
+        try {
+          await ctx.resume();
+        } catch {}
+      }
+
       stopInternal(false);
 
       const cappedMax = Math.min(maxDurationSeconds, buffer.duration);
@@ -142,12 +163,12 @@ export function useAudioController({ audioUrl, volume }: UseAudioControllerOptio
 
       const tick = () => {
         if (sourceRef.current !== source) return;
-        const elapsedInRun = ctx.currentTime - now;
+        const elapsedInRun = Math.max(0, ctx.currentTime - now);
         const absolutePos = Math.min(cappedMax, safeOffset + elapsedInRun);
         setCurrentTime(absolutePos);
         setProgress(cappedMax > 0 ? Math.min(1, absolutePos / cappedMax) : 0);
 
-        if (absolutePos < cappedMax) {
+        if (absolutePos < cappedMax && elapsedInRun < remainingPlayTime) {
           rafRef.current = requestAnimationFrame(tick);
         }
       };

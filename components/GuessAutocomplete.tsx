@@ -125,7 +125,7 @@ export const GuessAutocomplete: React.FC<GuessAutocompleteProps> = ({
       {isOpen && suggestions.length > 0 && (
         <div
           id="songspot-suggestions"
-          className="absolute bottom-full mb-2 left-0 right-0 rounded-2xl border p-1.5 shadow-2xl max-h-60 overflow-y-auto z-50"
+          className="absolute bottom-full mb-2 left-0 right-0 rounded-2xl border p-1.5 shadow-2xl max-h-48 sm:max-h-60 overflow-y-auto z-50"
           style={{
             backgroundColor: 'var(--song-surface)',
             borderColor: 'var(--song-border)',
@@ -196,7 +196,7 @@ export const GuessAutocomplete: React.FC<GuessAutocompleteProps> = ({
       {/* Search Bar & Skip Button Row */}
       <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
         <div
-          className="flex-1 flex items-center px-3.5 py-2.5 rounded-xl border transition focus-within:ring-2"
+          className="flex-1 flex items-center px-3.5 py-2.5 min-h-[42px] rounded-xl border transition focus-within:ring-2"
           style={{
             backgroundColor: 'var(--song-surface-soft)',
             borderColor: isOpen ? 'var(--song-accent)' : 'var(--song-border)',
@@ -220,8 +220,8 @@ export const GuessAutocomplete: React.FC<GuessAutocompleteProps> = ({
             onKeyDown={handleKeyDown}
             placeholder={
               isArtistScoped
-                ? `พิมพ์หรือคลิกเลือกเพลงของ ${artistFilter}...`
-                : 'พิมพ์ชื่อเพลง หรือ ศิลปิน เพื่อทายคำตอบ (↑↓ เลือก, Enter ส่ง)...'
+                ? `เลือกเพลงของ ${artistFilter}...`
+                : 'พิมพ์ชื่อเพลง หรือ ศิลปิน เพื่อทายคำตอบ...'
             }
             className="w-full bg-transparent border-0 outline-none text-xs sm:text-sm font-semibold placeholder:opacity-60"
             style={{ color: 'var(--song-text)' }}
@@ -241,7 +241,7 @@ export const GuessAutocomplete: React.FC<GuessAutocompleteProps> = ({
             type="button"
             onClick={onSkip}
             disabled={disabled}
-            className="flex-1 sm:flex-none px-4 py-2.5 rounded-xl border text-xs sm:text-sm font-extrabold flex items-center justify-center gap-1.5 transition hover:brightness-110 flex-shrink-0"
+            className="flex-1 sm:flex-none px-3.5 sm:px-4 py-2.5 min-h-[42px] rounded-xl border text-xs sm:text-sm font-extrabold flex items-center justify-center gap-1.5 transition hover:brightness-110 flex-shrink-0 active:scale-95"
             style={{
               backgroundColor: 'var(--song-surface-soft)',
               borderColor: 'var(--song-border)',
@@ -251,8 +251,8 @@ export const GuessAutocomplete: React.FC<GuessAutocompleteProps> = ({
             <SkipForward className="w-4 h-4" style={{ color: 'var(--song-accent-text)' }} />
             <span>
               {nextStageSeconds !== null
-                ? `ข้าม (+ปลดล็อก ${nextStageSeconds}s)`
-                : 'ยอมแพ้ / ดูเฉลย'}
+                ? `ข้าม (+${nextStageSeconds}s)`
+                : 'ยอมแพ้ / เฉลย'}
             </span>
           </button>
 
@@ -262,7 +262,7 @@ export const GuessAutocomplete: React.FC<GuessAutocompleteProps> = ({
               type="button"
               onClick={onGiveUp}
               disabled={disabled}
-              className="px-3.5 py-2.5 rounded-xl border text-xs sm:text-sm font-bold flex items-center justify-center gap-1.5 transition hover:brightness-110 flex-shrink-0"
+              className="px-3 sm:px-3.5 py-2.5 min-h-[42px] rounded-xl border text-xs sm:text-sm font-bold flex items-center justify-center gap-1.5 transition hover:brightness-110 flex-shrink-0 active:scale-95"
               style={{
                 backgroundColor: 'rgba(239, 68, 68, 0.1)',
                 borderColor: 'rgba(239, 68, 68, 0.35)',

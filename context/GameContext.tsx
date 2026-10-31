@@ -266,7 +266,10 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         const res = await fetch('/api/artists/sync', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload),
+          body: JSON.stringify({
+            ...payload,
+            artistName: payload.name,
+          }),
         });
         const json = await res.json();
         if (json.code !== 0 || !json.data) {

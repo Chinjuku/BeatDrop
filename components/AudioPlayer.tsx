@@ -115,7 +115,14 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
               style={{ flex: seg.weight }}
             />
           ))}
-          <span className="songspot-playback-progress" aria-hidden="true" />
+          <span
+            className="songspot-playback-progress"
+            aria-hidden="true"
+            style={{
+              transform: `scaleX(${overallPlaybackScale})`,
+              WebkitTransform: `scaleX(${overallPlaybackScale})`,
+            }}
+          />
         </div>
 
         <div className="flex justify-between items-center mt-1.5 px-1 text-[11px] font-mono font-bold">
@@ -141,13 +148,13 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
           <span className="songspot-play-ripple" aria-hidden="true" />
           {audioState === 'loading' ? (
             <div
-              className="w-10 h-10 rounded-full border-4 border-current border-t-transparent animate-spin"
+              className="w-8 h-8 sm:w-10 sm:h-10 rounded-full border-3 sm:border-4 border-current border-t-transparent animate-spin"
               aria-label="Loading audio"
             />
           ) : audioState === 'playing' ? (
-            <Square className="w-11 h-11 fill-current" />
+            <Square className="w-8 h-8 sm:w-11 sm:h-11 fill-current" />
           ) : (
-            <Play className="w-12 h-12 fill-current translate-x-1" />
+            <Play className="w-9 h-9 sm:w-12 sm:h-12 fill-current translate-x-0.5 sm:translate-x-1" />
           )}
         </button>
 

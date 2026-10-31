@@ -119,7 +119,7 @@ export const SpinningAlbumArt: React.FC<SpinningAlbumArtProps> = ({
         <div
           onClick={onToggleFullPlay}
           title={isPlaying ? 'คลิกเพื่อหยุดชั่วคราว' : 'คลิกเพื่อเล่นต่อ'}
-          className={`relative w-52 h-52 sm:w-60 sm:h-60 rounded-full shadow-2xl cursor-pointer flex items-center justify-center border-4 border-black/80 vinyl-grooves vinyl-record-spin ${
+          className={`relative w-44 h-44 sm:w-56 md:w-60 sm:h-56 md:h-60 rounded-full shadow-2xl cursor-pointer flex items-center justify-center border-4 border-black/80 vinyl-grooves vinyl-record-spin ${
             isPlaying ? '' : 'is-paused'
           }`}
         >
@@ -133,7 +133,7 @@ export const SpinningAlbumArt: React.FC<SpinningAlbumArtProps> = ({
           />
 
           {/* Album Cover Art (Large Vinyl Center Label) */}
-          <div className="relative w-32 h-32 sm:w-36 sm:h-36 rounded-full overflow-hidden border-4 border-neutral-900 shadow-inner">
+          <div className="relative w-28 h-28 sm:w-36 sm:h-36 rounded-full overflow-hidden border-4 border-neutral-900 shadow-inner">
             <img
               src={song.artworkUrl}
               alt={`${song.title} album art`}

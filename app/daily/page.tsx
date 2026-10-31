@@ -234,7 +234,7 @@ const DailyChallengePage: React.FC = () => {
 
       {/* 3. Game Arena Card (Identical structure to PlayPage) */}
       <div
-        className="w-full max-w-xl rounded-3xl p-4 sm:p-6 border shadow-2xl relative transition-colors duration-200"
+        className="w-full max-w-xl rounded-2xl sm:rounded-3xl p-3.5 sm:p-6 border shadow-2xl relative transition-colors duration-200"
         style={{
           backgroundColor: 'var(--song-surface)',
           borderColor: 'var(--song-border)',

@@ -58,10 +58,10 @@ const PlayPage: React.FC = () => {
           HEAR LESS. KNOW MORE.
         </p>
         {/* Streak Stats Pill & Active Filter Badges */}
-        <div className="flex flex-wrap items-center justify-center gap-2 mt-2">
+        <div className="flex flex-wrap items-center justify-center gap-1.5 sm:gap-2 mt-2">
           {/* Live Win Streaks Pill */}
           <div
-            className="flex items-center gap-2.5 px-3 py-1 sm:px-3.5 sm:py-1.5 rounded-full border text-xs font-bold shadow-sm"
+            className="flex items-center gap-1.5 sm:gap-2.5 px-2.5 sm:px-3.5 py-1 sm:py-1.5 rounded-full border text-[11px] sm:text-xs font-bold shadow-sm"
             style={{
               backgroundColor: 'var(--song-surface)',
               borderColor: 'var(--song-border)',
@@ -153,7 +153,7 @@ const PlayPage: React.FC = () => {
 
       {/* Game Arena Card */}
       <div
-        className="w-full max-w-xl rounded-3xl p-4 sm:p-6 border shadow-2xl relative mt-3 transition-colors duration-200"
+        className="w-full max-w-xl rounded-2xl sm:rounded-3xl p-3.5 sm:p-6 border shadow-2xl relative mt-2 sm:mt-3 transition-colors duration-200"
         style={{
           backgroundColor: 'var(--song-surface)',
           borderColor: 'var(--song-border)',

@@ -728,13 +728,13 @@ export const Navbar: React.FC<NavbarProps> = ({
       {/* Mobile Drawer Backdrop & Drawer */}
       {activeMenu === 'mobile' && (
         <div
-          className="fixed inset-0 z-40 bg-black/75 backdrop-blur-sm xl:hidden animate-in fade-in duration-200"
+          className="fixed inset-0 z-40 bg-black/75 backdrop-blur-sm max-[1140px]:block min-[1141px]:hidden animate-in fade-in duration-200"
           onClick={() => setActiveMenu(null)}
         />
       )}
 
       <div
-        className={`fixed top-14 right-0 bottom-0 w-80 max-w-[85vw] border-l z-50 p-4 overflow-y-auto xl:hidden transition-transform duration-300 flex flex-col gap-4 shadow-2xl ${
+        className={`fixed top-14 right-0 bottom-0 w-[min(88vw,360px)] border-l z-50 p-4 overflow-y-auto max-[1140px]:flex min-[1141px]:hidden transition-transform duration-300 flex-col gap-4 shadow-2xl ${
           activeMenu === 'mobile' ? 'translate-x-0' : 'translate-x-full'
         }`}
         style={{

@@ -281,11 +281,11 @@ export const ShareTicketModal: React.FC<ShareTicketModalProps> = ({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-black/85 backdrop-blur-md overflow-y-auto"
+      className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-6 bg-black/85 backdrop-blur-md overflow-y-auto"
       onClick={onClose}
     >
       <div
-        className="w-full max-w-[92vw] sm:max-w-[460px] md:max-w-[480px] rounded-3xl p-4 sm:p-6 shadow-2xl flex flex-col items-center relative my-auto"
+        className="w-[calc(100vw-16px)] sm:w-full max-w-[460px] md:max-w-[480px] rounded-2xl sm:rounded-3xl p-3 sm:p-6 shadow-2xl flex flex-col items-center relative my-auto sst-dialog"
         style={{
           backgroundColor: '#0d140f',
           color: '#f3f7f4',
@@ -294,14 +294,14 @@ export const ShareTicketModal: React.FC<ShareTicketModalProps> = ({
         onClick={(e) => e.stopPropagation()}
       >
         {/* Modal Top Bar */}
-        <div className="w-full flex items-center justify-between pb-3.5 border-b border-white/10 mb-4">
-          <h2 className="text-sm font-extrabold tracking-wide text-neutral-200">
+        <div className="w-full flex items-center justify-between pb-2.5 sm:pb-3.5 border-b border-white/10 mb-3 sm:mb-4">
+          <h2 className="text-xs sm:text-sm font-extrabold tracking-wide text-neutral-200">
             Your music ticket
           </h2>
           <button
             type="button"
             onClick={onClose}
-            className="p-1.5 rounded-full hover:bg-white/10 transition text-neutral-400 hover:text-white"
+            className="p-1 sm:p-1.5 rounded-full hover:bg-white/10 transition text-neutral-400 hover:text-white"
             aria-label="Close ticket dialog"
           >
             <X className="w-5 h-5" />

@@ -6,9 +6,14 @@ export async function POST(req: Request) {
   try {
     const body = (await req.json().catch(() => ({}))) as {
       artistName?: string;
+      name?: string;
+      artist?: string;
       category?: CategoryType;
+      mainGenre?: string;
+      avatarUrl?: string;
+      id?: string;
     };
-    const query = String(body.artistName || '').trim();
+    const query = String(body.artistName || body.name || body.artist || '').trim();
 
     if (!query || query.length < 2) {
       return NextResponse.json(

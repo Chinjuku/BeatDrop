@@ -85,7 +85,7 @@ const MusicQuizzesPage: React.FC = () => {
 
       {/* Segmented Filter Switcher */}
       <div
-        className="flex items-center gap-2 p-1.5 rounded-2xl border mb-6"
+        className="flex flex-wrap sm:flex-nowrap items-center justify-center gap-1 sm:gap-2 p-1 sm:p-1.5 rounded-2xl border mb-6 max-w-full overflow-x-auto"
         style={{
           backgroundColor: 'var(--song-surface)',
           borderColor: 'var(--song-border)',
@@ -94,7 +94,7 @@ const MusicQuizzesPage: React.FC = () => {
         <button
           type="button"
           onClick={() => setSelectedTab('genres')}
-          className="px-4 py-2 rounded-xl text-xs sm:text-sm font-extrabold flex items-center gap-2 transition"
+          className="px-2.5 sm:px-4 py-1.5 sm:py-2 rounded-xl text-xs sm:text-sm font-extrabold flex items-center gap-1.5 sm:gap-2 transition whitespace-nowrap"
           style={
             selectedTab === 'genres'
               ? {
@@ -106,14 +106,14 @@ const MusicQuizzesPage: React.FC = () => {
                 }
           }
         >
-          <Radio className="w-4 h-4" />
+          <Radio className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
           <span>แนวเพลง (Genres)</span>
         </button>
 
         <button
           type="button"
           onClick={() => setSelectedTab('eras')}
-          className="px-4 py-2 rounded-xl text-xs sm:text-sm font-extrabold flex items-center gap-2 transition"
+          className="px-2.5 sm:px-4 py-1.5 sm:py-2 rounded-xl text-xs sm:text-sm font-extrabold flex items-center gap-1.5 sm:gap-2 transition whitespace-nowrap"
           style={
             selectedTab === 'eras'
               ? {
@@ -125,14 +125,14 @@ const MusicQuizzesPage: React.FC = () => {
                 }
           }
         >
-          <Calendar className="w-4 h-4" />
+          <Calendar className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
           <span>ยุคสมัย (Decades)</span>
         </button>
 
         <button
           type="button"
           onClick={() => setSelectedTab('artists')}
-          className="px-4 py-2 rounded-xl text-xs sm:text-sm font-extrabold flex items-center gap-2 transition"
+          className="px-2.5 sm:px-4 py-1.5 sm:py-2 rounded-xl text-xs sm:text-sm font-extrabold flex items-center gap-1.5 sm:gap-2 transition whitespace-nowrap"
           style={
             selectedTab === 'artists'
               ? {
@@ -144,7 +144,7 @@ const MusicQuizzesPage: React.FC = () => {
                 }
           }
         >
-          <Mic2 className="w-4 h-4" />
+          <Mic2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
           <span>ศิลปิน (Artists)</span>
         </button>
       </div>

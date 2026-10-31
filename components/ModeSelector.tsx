@@ -1,9 +1,9 @@
 'use client';
+
 import React, { useEffect, useState } from 'react';
 import {
   Calendar,
   Disc,
-  ListChecks,
   Mic2,
   Music,
   Play,
@@ -220,7 +220,7 @@ export const ModeSelector: React.FC<ModeSelectorProps> = ({
     }
   };
 
-  // Options for the Songspot Default Mode 3-row filter reel
+  // Options for Songspot Default Mode 3-row filter reels
   const genreReelOptions = [
     { value: 'any', label: 'Any genre' },
     ...GENRE_OPTIONS.filter((g) => g !== 'any').map((g) => ({ value: g, label: g })),
@@ -228,12 +228,14 @@ export const ModeSelector: React.FC<ModeSelectorProps> = ({
 
   const eraReelOptions = [
     { value: 'any', label: 'Any era' },
-    { value: 'classic', label: 'Classic' },
-    { value: '1980s', label: '1980s' },
-    { value: '1990s', label: '1990s' },
-    { value: '2000s', label: '2000s' },
-    { value: '2010s', label: '2010s' },
-    { value: '2020s', label: '2020s' },
+    ...DECADE_OPTIONS.map((d) => ({
+      value: d,
+      label: d === 'classic' ? 'Classic' : d,
+    })),
+    ...YEAR_OPTIONS.slice(0, 10).map((y) => ({
+      value: String(y),
+      label: String(y),
+    })),
   ];
 
   const filteredPoolArtists = artists.filter((a) =>
@@ -248,8 +250,8 @@ export const ModeSelector: React.FC<ModeSelectorProps> = ({
 
   return (
     <div className="w-full max-w-2xl mx-auto mb-5 space-y-3 relative z-10">
-      {/* 1. Filter Mode Tabs (Keep Artist, Year, Genre modes intact!) */}
-      <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+      {/* 1. Filter Mode Tabs (4 Modes) */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 sm:gap-2">
         {modes.map((m) => {
           const active = config.mode === m.id;
           return (
@@ -257,7 +259,7 @@ export const ModeSelector: React.FC<ModeSelectorProps> = ({
               key={m.id}
               type="button"
               onClick={() => handleModeSwitch(m.id)}
-              className="px-3 py-2.5 rounded-xl border text-xs font-bold flex items-center justify-center gap-1.5 transition-all"
+              className="px-2.5 sm:px-3 py-2 sm:py-2.5 rounded-xl border text-xs font-bold flex items-center justify-center gap-1.5 transition-all"
               style={
                 active
                   ? {
@@ -299,7 +301,7 @@ export const ModeSelector: React.FC<ModeSelectorProps> = ({
               options={genreReelOptions}
               value={config.genreFilter || 'any'}
               onSelect={(val) =>
-                onChangeConfig({ ...config, genreFilter: val }, true)
+                onChangeConfig({ ...config, genreFilter: val, mode: 'standard' }, true)
               }
             />
             <FilterReelRow
@@ -307,7 +309,7 @@ export const ModeSelector: React.FC<ModeSelectorProps> = ({
               options={eraReelOptions}
               value={config.yearFilter || 'any'}
               onSelect={(val) =>
-                onChangeConfig({ ...config, yearFilter: val }, true)
+                onChangeConfig({ ...config, yearFilter: val, mode: 'standard' }, true)
               }
             />
             <FilterReelRow
@@ -319,6 +321,7 @@ export const ModeSelector: React.FC<ModeSelectorProps> = ({
                   {
                     ...config,
                     artistName: val === 'any' ? undefined : val,
+                    mode: 'standard',
                   },
                   true
                 )
@@ -445,7 +448,7 @@ export const ModeSelector: React.FC<ModeSelectorProps> = ({
       {/* 3. Sub-Mode Interactive Panels */}
       {config.mode === 'artist' && (
         <div
-          className="p-4 rounded-2xl border space-y-3"
+          className="p-3.5 sm:p-4 rounded-2xl border space-y-3"
           style={{
             backgroundColor: 'var(--song-surface)',
             borderColor: 'var(--song-border)',
@@ -456,13 +459,13 @@ export const ModeSelector: React.FC<ModeSelectorProps> = ({
               <h3 className="text-xs font-extrabold uppercase tracking-wider" style={{ color: 'var(--song-accent-text)' }}>
                 โหมดทายตามศิลปิน (Scoped Artist Mode)
               </h3>
-              <p className="text-[11px]" style={{ color: 'var(--song-muted)' }}>
+              <p className="text-[10px] sm:text-[11px]" style={{ color: 'var(--song-muted)' }}>
                 Step 1: ค้นหาและเลือกศิลปิน • Step 2: เลือกระดับความยาก • Step 3: ทายเฉพาะเพลงของศิลปินนั้น!
               </p>
             </div>
             {config.artistName && (
               <span
-                className="px-3 py-1 rounded-full text-xs font-extrabold self-start sm:self-auto"
+                className="px-3 py-1 rounded-full text-xs font-extrabold self-start sm:self-auto shrink-0"
                 style={{
                   backgroundColor: 'var(--song-accent)',
                   color: 'var(--song-accent-on)',
@@ -494,7 +497,7 @@ export const ModeSelector: React.FC<ModeSelectorProps> = ({
           </div>
 
           {/* Step 2: Artist Selection Grid */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 max-h-44 overflow-y-auto pr-1">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 max-h-48 overflow-y-auto pr-1">
             {searchedArtists.map((artist) => {
               const selected =
                 (pendingArtist || config.artistName)?.toLowerCase() === artist.name.toLowerCase();
@@ -531,7 +534,7 @@ export const ModeSelector: React.FC<ModeSelectorProps> = ({
                   <img
                     src={artist.avatarUrl || 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=120'}
                     alt={artist.name}
-                    className="w-9 h-9 rounded-full object-cover flex-shrink-0 border border-white/10"
+                    className="w-8 h-8 sm:w-9 sm:h-9 rounded-full object-cover flex-shrink-0 border border-white/10"
                   />
                   <div className="min-w-0 flex-1">
                     <div className="text-xs font-bold truncate">{artist.name}</div>
@@ -545,8 +548,8 @@ export const ModeSelector: React.FC<ModeSelectorProps> = ({
           </div>
 
           {/* Step 3: Start / Reroll Artist Game */}
-          <div className="flex items-center justify-between pt-1">
-            <span className="text-[11px]" style={{ color: 'var(--song-muted)' }}>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-1">
+            <span className="text-[10px] sm:text-[11px]" style={{ color: 'var(--song-muted)' }}>
               ระบบจำกัดตัวเลือกคำตอบเฉพาะเพลงของ <strong>{config.artistName || pendingArtist}</strong> เท่านั้น
             </span>
             <button
@@ -563,7 +566,7 @@ export const ModeSelector: React.FC<ModeSelectorProps> = ({
                   true
                 )
               }
-              className="px-4 py-1.5 rounded-xl text-xs font-extrabold flex items-center gap-1.5 transition hover:brightness-110"
+              className="px-4 py-2 sm:py-1.5 rounded-xl text-xs font-extrabold flex items-center justify-center gap-1.5 transition hover:brightness-110 active:scale-95"
               style={{
                 backgroundColor: 'var(--song-accent)',
                 color: 'var(--song-accent-on)',
@@ -578,7 +581,7 @@ export const ModeSelector: React.FC<ModeSelectorProps> = ({
 
       {config.mode === 'year' && (
         <div
-          className="p-4 rounded-2xl border space-y-3"
+          className="p-3.5 sm:p-4 rounded-2xl border space-y-3"
           style={{
             backgroundColor: 'var(--song-surface)',
             borderColor: 'var(--song-border)',
@@ -660,7 +663,7 @@ export const ModeSelector: React.FC<ModeSelectorProps> = ({
 
       {config.mode === 'genre' && (
         <div
-          className="p-4 rounded-2xl border space-y-2.5"
+          className="p-3.5 sm:p-4 rounded-2xl border space-y-2.5"
           style={{
             backgroundColor: 'var(--song-surface)',
             borderColor: 'var(--song-border)',
@@ -716,4 +719,3 @@ export const ModeSelector: React.FC<ModeSelectorProps> = ({
     </div>
   );
 };
-
