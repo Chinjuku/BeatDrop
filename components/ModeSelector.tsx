@@ -1,13 +1,15 @@
 'use client';
 
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   Calendar,
   Check,
   Music,
+  Plus,
   Search,
   SlidersHorizontal,
   Sparkles,
+  Users,
   X,
 } from 'lucide-react';
 import {
@@ -398,6 +400,280 @@ const EraPickerModal: React.FC<{
 };
 
 /* -------------------------------------------------------------------------- */
+/* Modal 3: All Artists Picker Modal (Select from Library)                    */
+/* -------------------------------------------------------------------------- */
+const ArtistPickerModal: React.FC<{
+  isOpen: boolean;
+  onClose: () => void;
+  artists: Artist[];
+  category: CategoryType;
+  selectedArtist?: string;
+  onSelectArtist: (artistName: string, artistCategory?: 'thai' | 'international') => void;
+  onOpenAddArtist?: () => void;
+}> = ({
+  isOpen,
+  onClose,
+  artists,
+  category,
+  selectedArtist,
+  onSelectArtist,
+  onOpenAddArtist,
+}) => {
+  const [search, setSearch] = useState('');
+  const [tab, setTab] = useState<'all' | 'thai' | 'international'>(
+    category === 'all' ? 'all' : category
+  );
+
+  // Sync tab with current category whenever modal opens or category changes
+  useEffect(() => {
+    if (isOpen) {
+      setTab(category === 'all' ? 'all' : category);
+      setSearch('');
+    }
+  }, [isOpen, category]);
+
+  const thaiCount = useMemo(() => artists.filter((a) => a.category === 'thai').length, [artists]);
+  const intlCount = useMemo(
+    () => artists.filter((a) => a.category === 'international').length,
+    [artists]
+  );
+
+  if (!isOpen) return null;
+
+  const filteredArtists = artists.filter((a) => {
+    if (tab !== 'all' && a.category !== tab) return false;
+    if (!search.trim()) return true;
+    const q = search.toLowerCase();
+    return a.name.toLowerCase().includes(q) || a.mainGenre?.toLowerCase().includes(q);
+  });
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-150">
+      <div
+        className="w-full max-w-lg rounded-2xl border p-4 sm:p-5 shadow-2xl space-y-3.5 max-h-[85vh] flex flex-col"
+        style={{
+          backgroundColor: 'var(--song-surface)',
+          borderColor: 'var(--song-border)',
+          color: 'var(--song-text)',
+        }}
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Users className="w-4 h-4 text-emerald-400" />
+            <h3 className="text-sm font-extrabold tracking-wide">
+              เลือกศิลปินในคลัง (Select Artist)
+            </h3>
+            <span className="text-xs font-mono font-bold text-emerald-400">
+              ({filteredArtists.length})
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="p-1 rounded-lg hover:bg-white/10 transition"
+            aria-label="Close"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        {/* Search & Tabs */}
+        <div className="space-y-2">
+          <div className="relative">
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="ค้นหาชื่อศิลปิน หรือแนวเพลงในคลัง..."
+              className="w-full pl-9 pr-8 py-2 rounded-xl border text-base sm:text-xs font-medium focus:outline-none"
+              style={{
+                backgroundColor: 'var(--song-surface-soft)',
+                borderColor: 'var(--song-border)',
+                color: 'var(--song-text)',
+              }}
+            />
+            <Search className="w-3.5 h-3.5 absolute left-3 top-2.5 text-neutral-400" />
+            {search && (
+              <button
+                type="button"
+                onClick={() => setSearch('')}
+                className="absolute right-2.5 top-2.5 text-neutral-400 hover:text-white"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+
+          {/* Category Tabs */}
+          <div
+            className="flex items-center gap-1 p-1 rounded-xl border shrink-0 text-xs font-bold"
+            style={{
+              backgroundColor: 'var(--song-surface-soft)',
+              borderColor: 'var(--song-border)',
+            }}
+          >
+            <button
+              type="button"
+              onClick={() => setTab('all')}
+              className="flex-1 py-1 rounded-lg transition"
+              style={
+                tab === 'all'
+                  ? { backgroundColor: 'var(--song-accent)', color: 'var(--song-accent-on)' }
+                  : { color: 'var(--song-muted)' }
+              }
+            >
+              ทั้งหมด ({artists.length})
+            </button>
+            <button
+              type="button"
+              onClick={() => setTab('thai')}
+              className="flex-1 py-1 rounded-lg transition flex items-center justify-center gap-1"
+              style={
+                tab === 'thai'
+                  ? { backgroundColor: 'var(--song-accent)', color: 'var(--song-accent-on)' }
+                  : { color: 'var(--song-muted)' }
+              }
+            >
+              <span>🇹🇭 เพลงไทย ({thaiCount})</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setTab('international')}
+              className="flex-1 py-1 rounded-lg transition flex items-center justify-center gap-1"
+              style={
+                tab === 'international'
+                  ? { backgroundColor: 'var(--song-accent)', color: 'var(--song-accent-on)' }
+                  : { color: 'var(--song-muted)' }
+              }
+            >
+              <span>🌍 เพลงสากล ({intlCount})</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Artist list / grid */}
+        <div className="overflow-y-auto flex-1 pr-1 space-y-2">
+          {/* Option: Any artist */}
+          <button
+            type="button"
+            onClick={() => {
+              onSelectArtist('any');
+              onClose();
+            }}
+            className="w-full p-2.5 rounded-xl border text-left text-xs font-bold flex items-center justify-between transition hover:brightness-110"
+            style={
+              !selectedArtist || selectedArtist === 'any'
+                ? {
+                    backgroundColor: 'color-mix(in srgb, var(--song-accent) 18%, var(--song-surface-soft))',
+                    borderColor: 'var(--song-accent)',
+                    color: 'var(--song-accent-text)',
+                  }
+                : {
+                    backgroundColor: 'var(--song-surface-soft)',
+                    borderColor: 'var(--song-border)',
+                  }
+            }
+          >
+            <span className="flex items-center gap-2">
+              <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
+              Any artist (สุ่มทุกศิลปินในคลัง)
+            </span>
+            {(!selectedArtist || selectedArtist === 'any') && (
+              <Check className="w-4 h-4 text-emerald-400" />
+            )}
+          </button>
+
+          {/* Grid of Artists */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+            {filteredArtists.map((artist) => {
+              const active = selectedArtist?.toLowerCase() === artist.name.toLowerCase();
+              return (
+                <button
+                  key={artist.id + artist.name}
+                  type="button"
+                  onClick={() => {
+                    onSelectArtist(artist.name, artist.category);
+                    onClose();
+                  }}
+                  className="p-2 rounded-xl border text-left flex items-center justify-between gap-2 transition hover:brightness-110"
+                  style={
+                    active
+                      ? {
+                          backgroundColor: 'color-mix(in srgb, var(--song-accent) 18%, var(--song-surface-soft))',
+                          borderColor: 'var(--song-accent)',
+                          color: 'var(--song-accent-text)',
+                        }
+                      : {
+                          backgroundColor: 'var(--song-surface-soft)',
+                          borderColor: 'var(--song-border)',
+                        }
+                  }
+                >
+                  <div className="flex items-center gap-2 min-w-0">
+                    {artist.avatarUrl ? (
+                      <img
+                        src={artist.avatarUrl}
+                        alt={artist.name}
+                        className="w-8 h-8 rounded-full object-cover shrink-0"
+                      />
+                    ) : (
+                      <div
+                        className="w-8 h-8 rounded-full flex items-center justify-center font-bold text-[10px] shrink-0"
+                        style={{
+                          backgroundColor: 'var(--song-surface)',
+                          color: 'var(--song-muted)',
+                        }}
+                      >
+                        {artist.name.slice(0, 1)}
+                      </div>
+                    )}
+                    <div className="min-w-0">
+                      <div className="text-xs font-bold truncate">{artist.name}</div>
+                      <div className="text-[10px] truncate" style={{ color: 'var(--song-muted)' }}>
+                        {artist.category === 'thai' ? '🇹🇭' : '🌍'} {artist.mainGenre}
+                        {artist.trackCount ? ` • ${artist.trackCount} เพลง` : ''}
+                      </div>
+                    </div>
+                  </div>
+                  {active && <Check className="w-4 h-4 text-emerald-400 shrink-0" />}
+                </button>
+              );
+            })}
+          </div>
+
+          {filteredArtists.length === 0 && (
+            <div className="py-8 text-center text-xs space-y-1" style={{ color: 'var(--song-muted)' }}>
+              <p>ไม่พบศิลปิน &quot;{search}&quot; ในคลังเพลง</p>
+            </div>
+          )}
+        </div>
+
+        {/* Footer: Link to AddArtistModal if user wants to import from iTunes */}
+        {onOpenAddArtist && (
+          <div className="pt-2 border-t flex items-center justify-between gap-2" style={{ borderColor: 'var(--song-border)' }}>
+            <span className="text-[11px]" style={{ color: 'var(--song-muted)' }}>
+              อยากเล่นศิลปินอื่นที่ยังไม่มีในนี้?
+            </span>
+            <button
+              type="button"
+              onClick={() => {
+                onClose();
+                onOpenAddArtist();
+              }}
+              className="text-xs font-bold text-emerald-400 hover:underline flex items-center gap-1 shrink-0"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              เพิ่มศิลปินใหม่เข้าคลัง
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+/* -------------------------------------------------------------------------- */
 /* Main ModeSelector Component                                                */
 /* -------------------------------------------------------------------------- */
 export const ModeSelector: React.FC<ModeSelectorProps> = ({
@@ -409,6 +685,7 @@ export const ModeSelector: React.FC<ModeSelectorProps> = ({
 }) => {
   const [genreModalOpen, setGenreModalOpen] = useState(false);
   const [eraModalOpen, setEraModalOpen] = useState(false);
+  const [artistModalOpen, setArtistModalOpen] = useState(false);
 
   const handleDifficultySelect = (diff: DifficultyLevel) => {
     onChangeConfig({ ...config, difficulty: diff }, true);
@@ -533,8 +810,8 @@ export const ModeSelector: React.FC<ModeSelectorProps> = ({
                 true
               )
             }
-            onOpenPicker={onOpenAddArtist}
-            actionTitle="เลือกหรือค้นหาศิลปินทั้งหมด (All Artists & Add Artist)"
+            onOpenPicker={() => setArtistModalOpen(true)}
+            actionTitle="ค้นหาและเลือกศิลปินในคลัง (All Artists)"
             actionIcon={<SlidersHorizontal className="w-3.5 h-3.5" />}
           />
         </div>
@@ -606,6 +883,30 @@ export const ModeSelector: React.FC<ModeSelectorProps> = ({
         onSelectEra={(era) => {
           onChangeConfig({ ...config, yearFilter: era, mode: 'standard' }, true);
         }}
+      />
+
+      {/* Artist Picker Modal */}
+      <ArtistPickerModal
+        isOpen={artistModalOpen}
+        onClose={() => setArtistModalOpen(false)}
+        artists={artists}
+        category={category}
+        selectedArtist={config.artistName}
+        onSelectArtist={(artistName, artistCategory) => {
+          const nextCategory =
+            artistCategory && artistName !== 'any' ? artistCategory : config.category;
+
+          onChangeConfig(
+            {
+              ...config,
+              artistName: artistName === 'any' ? undefined : artistName,
+              category: nextCategory,
+              mode: 'standard',
+            },
+            true
+          );
+        }}
+        onOpenAddArtist={onOpenAddArtist}
       />
     </div>
   );

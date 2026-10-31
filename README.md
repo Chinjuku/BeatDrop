@@ -33,7 +33,7 @@
 - สรุปผลลัพธ์ด้วย Emoji Grid (`🟩`, `🟥`, `⬜`) เพื่อแชร์ลง Social Media ได้ทันที
 
 ### 5. 🎨 Multi-Theme System & Thai Font
-- รองรับธีมสีหลากหลาย (BeatDrop Emerald, Spotify Studio, Sunset Glow, Cyber Neon, Crimson Dark, Minimal Pure Light)
+- รองรับธีมสีหลากหลาย (BeatDrop Emerald, Spotify Studio, Sunset Glow, Cyber Neon)
 - ตัวอักษรภาษาไทยคมชัดสวยงามด้วย Google Fonts **Noto Sans Thai**
 
 ---

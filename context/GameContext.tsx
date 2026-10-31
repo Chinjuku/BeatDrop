@@ -26,6 +26,13 @@ import {
 } from '../types';
 import { useTheme } from './ThemeContext';
 import { useAudioController, AudioPlaybackState } from '../hooks/useAudioController';
+import { useQuery } from '@tanstack/react-query';
+import {
+  QUERY_KEYS,
+  invalidateArtists,
+  invalidateDaily,
+  invalidateSongs,
+} from '../lib/queryClient';
 
 const STORAGE_STREAK_KEY = 'songspot:streak';
 const STORAGE_BEST_STREAK_KEY = 'songspot:best-streak';
@@ -231,25 +238,38 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     } catch {}
   }, [config.timeRangePreset, config.customStages]);
 
-  // Load artist pool from backend + localStorage fallback
-  const fetchArtists = useCallback(async () => {
-    try {
-      const res = await fetch('/api/artists');
-      const json = await res.json();
-      if (json.code === 0 && Array.isArray(json.data)) {
-        setArtists(json.data);
-      }
-    } catch {
+  // TanStack Query for Artists with real-time cache & invalidation
+  const { data: queryArtists = [] } = useQuery<Artist[]>({
+    queryKey: QUERY_KEYS.artists,
+    queryFn: async () => {
       try {
-        const local = JSON.parse(localStorage.getItem(STORAGE_LOCAL_ARTISTS_KEY) || '[]');
-        if (Array.isArray(local)) setArtists(local);
-      } catch {}
-    }
-  }, []);
+        const res = await fetch('/api/artists');
+        const json = await res.json();
+        if (json.code === 0 && Array.isArray(json.data)) {
+          return json.data;
+        }
+      } catch {
+        try {
+          const local = JSON.parse(localStorage.getItem(STORAGE_LOCAL_ARTISTS_KEY) || '[]');
+          if (Array.isArray(local)) return local;
+        } catch {}
+      }
+      return [];
+    },
+    staleTime: 1000 * 60 * 2,
+  });
 
+  // Keep artists state synchronized with TanStack Query cache
   useEffect(() => {
-    fetchArtists();
-  }, [fetchArtists]);
+    if (queryArtists && queryArtists.length > 0) {
+      setArtists(queryArtists);
+    }
+  }, [queryArtists]);
+
+  // Load artist pool from backend via TanStack Query invalidation
+  const fetchArtists = useCallback(async () => {
+    await invalidateArtists();
+  }, []);
 
   // Unified Artist Add & Sync (up to 200 songs via /api/artists/sync)
   const syncArtist = useCallback(
@@ -298,6 +318,7 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         });
 
         await fetchArtists();
+        await invalidateSongs();
 
         return {
           artist: { ...syncedArtist, trackCount: newCount },
@@ -454,10 +475,21 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   // Handle Category change
   const handleCategoryChange = (cat: CategoryType) => {
+    let nextArtist = config.artistName;
+    if (nextArtist && cat !== 'all') {
+      const currentArtistObj = artists.find(
+        (a) => a.name.toLowerCase() === nextArtist?.toLowerCase()
+      );
+      if (currentArtistObj && currentArtistObj.category !== cat) {
+        nextArtist = undefined;
+      }
+    }
+
     const nextCfg: GameConfig = {
       ...config,
       category: cat,
-      ...(config.mode === 'artist' ? { mode: 'standard', artistName: undefined } : {}),
+      artistName: nextArtist,
+      ...(config.mode === 'artist' && !nextArtist ? { mode: 'standard' } : {}),
     };
     setConfig(nextCfg);
     startNewRound(nextCfg);

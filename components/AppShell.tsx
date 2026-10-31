@@ -8,6 +8,7 @@ import { LeaderboardModal } from './LeaderboardModal';
 import { ShareTicketModal } from './ShareTicketModal';
 import { BeatDropLogo } from './BeatDropLogo';
 import { useGame } from '../context/GameContext';
+import { invalidateArtists, invalidateSongs } from '../lib/queryClient';
 import type { GameConfig, GameMode } from '../types';
 
 export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -148,6 +149,8 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
         onArtistRemoved={async (id) => {
           try {
             await fetch(`/api/artists/${id}`, { method: 'DELETE' });
+            await invalidateArtists();
+            await invalidateSongs();
           } catch {}
           fetchArtists();
         }}

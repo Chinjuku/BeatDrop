@@ -8,8 +8,7 @@ export type ThemeId =
   | 'songspot-dark'
   | 'spotify-green'
   | 'neon-cyber'
-  | 'sunset'
-  | 'minimal-light';
+  | 'sunset';
 
 export interface Song {
   id: string;
@@ -260,24 +259,6 @@ export const THEME_PRESETS: Record<ThemeId, ThemeConfig> = {
     textMain: '#fff7f0',
     textMuted: '#bfa592',
     border: '#3d2c20',
-  },
-  'minimal-light': {
-    id: 'minimal-light',
-    name: 'Minimal Light',
-    description: 'Crisp warm paper aesthetic inspired by Songspot ticket stubs',
-    isLight: true,
-    accent: '#00b965',
-    accentText: '#008a4b',
-    accentOn: '#ffffff',
-    rgb: '0, 185, 101',
-    page: '#f3f2e2',
-    stage: '#eae8d5',
-    surface: '#ffffff',
-    surfaceSoft: '#f7f6eb',
-    timeline: '#dcdac6',
-    textMain: '#06110d',
-    textMuted: '#535d51',
-    border: '#d0ceb8',
   },
 };
 

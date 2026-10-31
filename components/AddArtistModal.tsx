@@ -41,8 +41,10 @@ export const AddArtistModal: React.FC<AddArtistModalProps> = ({
 }) => {
   const { syncArtist, syncingArtistId } = useGame();
   const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedQuery, setDebouncedQuery] = useState('');
   const [discovered, setDiscovered] = useState<Artist[]>([]);
   const [searching, setSearching] = useState(false);
+  const [searchError, setSearchError] = useState<string | null>(null);
   const [addingName, setAddingName] = useState<string | null>(null);
   const [toast, setToast] = useState<ToastState | null>(null);
 
@@ -53,32 +55,99 @@ export const AddArtistModal: React.FC<AddArtistModalProps> = ({
     return () => clearTimeout(t);
   }, [toast]);
 
+  // Fuzzy match helper (handles exact, substring, case, and vowel typos like weeknd / weekend)
+  const matchesArtistFuzzy = (name: string, query: string): boolean => {
+    const cleanName = (name || '').toLowerCase().trim();
+    const cleanQuery = (query || '').toLowerCase().trim();
+    if (!cleanQuery) return true;
+    if (cleanName.includes(cleanQuery) || cleanQuery.includes(cleanName)) return true;
+    // Strip vowels and symbols for fuzzy match
+    const nameNoVowels = cleanName.replace(/[^a-z0-9\u0E00-\u0E7F]/g, '').replace(/[aeiou]/g, '');
+    const queryNoVowels = cleanQuery.replace(/[^a-z0-9\u0E00-\u0E7F]/g, '').replace(/[aeiou]/g, '');
+    if (nameNoVowels.length >= 3 && queryNoVowels.length >= 3) {
+      if (nameNoVowels.includes(queryNoVowels) || queryNoVowels.includes(nameNoVowels)) {
+        return true;
+      }
+    }
+    return false;
+  };
+
+  // Debounce search query input (350ms)
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedQuery(searchQuery.trim());
+    }, 350);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
   // Debounced search via iTunes Discovery API
   useEffect(() => {
-    if (!isOpen || searchQuery.trim().length < 2) {
+    if (!isOpen || debouncedQuery.length < 2) {
       setDiscovered([]);
+      setSearching(false);
+      setSearchError(null);
       return;
     }
 
-    const timer = setTimeout(async () => {
-      setSearching(true);
-      try {
-        const res = await fetch(
-          `/api/artists?q=${encodeURIComponent(searchQuery.trim())}&discover=true`
-        );
-        const json = await res.json();
+    let isMounted = true;
+    setSearching(true);
+    setSearchError(null);
+
+    fetch(`/api/artists?q=${encodeURIComponent(debouncedQuery)}&discover=true`)
+      .then((res) => {
+        if (!res.ok) throw new Error(`ค้นหาไม่สำเร็จ (HTTP ${res.status})`);
+        return res.json();
+      })
+      .then((json) => {
+        if (!isMounted) return;
         if (json.code === 0 && Array.isArray(json.data)) {
           setDiscovered(json.data);
+        } else {
+          setDiscovered([]);
         }
-      } catch (err) {
+      })
+      .catch((err) => {
+        if (!isMounted) return;
         console.error('Artist discovery error:', err);
-      } finally {
-        setSearching(false);
-      }
-    }, 300);
+        setSearchError((err as Error).message || 'เกิดข้อผิดพลาดในการเชื่อมต่อ');
+        setDiscovered([]);
+      })
+      .finally(() => {
+        if (isMounted) setSearching(false);
+      });
 
-    return () => clearTimeout(timer);
-  }, [searchQuery, isOpen]);
+    return () => {
+      isMounted = false;
+    };
+  }, [debouncedQuery, isOpen]);
+
+  // Filtered Library Artists by search query
+  const filteredLibrary = React.useMemo(() => {
+    if (!searchQuery.trim()) return artists;
+    return artists.filter((a) => matchesArtistFuzzy(a.name, searchQuery));
+  }, [artists, searchQuery]);
+
+  // Filtered Discovered Artists (exclude those already in library to prevent duplication)
+  const uniqueDiscovered = React.useMemo(() => {
+    const existingNames = new Set(artists.map((a) => a.name.toLowerCase()));
+    return discovered.filter((d) => !existingNames.has(d.name.toLowerCase()));
+  }, [discovered, artists]);
+
+  const hasSearched = debouncedQuery.length >= 2;
+  const isNotFound =
+    hasSearched &&
+    !searching &&
+    !searchError &&
+    filteredLibrary.length === 0 &&
+    uniqueDiscovered.length === 0;
+
+  const extractSoloArtistName = (name: string): string => {
+    const tokens = (name || '')
+      .split(/[,&/]|\b(?:feat\.?|ft\.?|featuring|with|x|and|ร่วมกับ)\b/i)
+      .map((t) => t.trim())
+      .filter((t) => t.length >= 2);
+    return tokens.length > 0 ? tokens[0] : (name || '').trim();
+  };
 
   if (!isOpen) return null;
 
@@ -88,7 +157,7 @@ export const AddArtistModal: React.FC<AddArtistModalProps> = ({
     mainGenre = 'Pop',
     avatarUrl = ''
   ) => {
-    const cleanName = name.trim();
+    const cleanName = extractSoloArtistName(name);
     if (!cleanName) return;
     setAddingName(cleanName);
     setToast(null);
@@ -278,13 +347,59 @@ export const AddArtistModal: React.FC<AddArtistModalProps> = ({
               ) : searchQuery ? (
                 <button
                   type="button"
-                  onClick={() => setSearchQuery('')}
+                  onClick={() => {
+                    setSearchQuery('');
+                    setDebouncedQuery('');
+                    setSearchError(null);
+                  }}
                   className="p-1 rounded-full absolute right-2.5 top-2.5 hover:bg-white/10"
                 >
                   <X className="w-3.5 h-3.5" style={{ color: 'var(--song-muted)' }} />
                 </button>
               ) : null}
             </div>
+
+            {/* Searching indicator */}
+            {searching && (
+              <div
+                className="p-2.5 rounded-xl border flex items-center justify-center gap-2 text-xs font-semibold animate-pulse"
+                style={{
+                  backgroundColor: 'var(--song-surface-soft)',
+                  borderColor: 'var(--song-border)',
+                  color: 'var(--song-muted)',
+                }}
+              >
+                <Loader2 className="w-3.5 h-3.5 animate-spin" style={{ color: 'var(--song-accent-text)' }} />
+                <span>กำลังค้นหาศิลปิน &ldquo;{searchQuery}&rdquo; จากระบบและ iTunes...</span>
+              </div>
+            )}
+
+            {/* Search Error banner */}
+            {searchError && (
+              <div className="p-3 rounded-xl border flex items-center gap-2 text-xs font-semibold text-rose-300 border-rose-500/30 bg-rose-500/10">
+                <AlertCircle className="w-4 h-4 shrink-0 text-rose-400" />
+                <span>ค้นหาไม่สำเร็จ: {searchError}</span>
+              </div>
+            )}
+
+            {/* Not Found Banner */}
+            {isNotFound && (
+              <div
+                className="p-4 rounded-xl border text-center space-y-1 animate-in fade-in"
+                style={{
+                  backgroundColor: 'var(--song-surface-soft)',
+                  borderColor: 'var(--song-border)',
+                }}
+              >
+                <AlertCircle className="w-5 h-5 mx-auto text-amber-400" />
+                <div className="text-xs sm:text-sm font-bold text-white">
+                  ไม่พบศิลปินที่ตรงกับ &ldquo;{searchQuery}&rdquo;
+                </div>
+                <div className="text-[11px]" style={{ color: 'var(--song-muted)' }}>
+                  ไม่มีในคลังและไม่พบใน iTunes • ลองตรวจสอบตัวสะกด หรือพิมพ์ชื่อภาษาไทย/อังกฤษให้ถูกต้อง
+                </div>
+              </div>
+            )}
 
             {/* Quick Action: Add typed query directly if user pressed Enter or clicked button */}
             {searchQuery.trim().length >= 2 && (
@@ -301,91 +416,96 @@ export const AddArtistModal: React.FC<AddArtistModalProps> = ({
               >
                 <div className="flex items-center gap-2">
                   <Plus className="w-4 h-4" />
-                  <span>ดึงเพลงของ <strong>"{searchQuery.trim()}"</strong> เข้าคลังทันที (200 เพลง)</span>
+                  <span>ดึงเพลงของ <strong>"{extractSoloArtistName(searchQuery.trim())}"</strong> เข้าคลังทันที (200 เพลง)</span>
                 </div>
-                {addingName === searchQuery.trim() && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                {addingName === extractSoloArtistName(searchQuery.trim()) && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
               </button>
             )}
 
             {/* Discovered Artists Grid from Search */}
-            {discovered.length > 0 && (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1 max-h-56 overflow-y-auto pr-1">
-                {discovered.map((art) => {
-                  const existingArtist = artists.find(
-                    (a) => a.name.toLowerCase() === art.name.toLowerCase()
-                  );
-                  const isBusy = addingName === art.name;
-                  return (
-                    <div
-                      key={art.id + art.name}
-                      className="p-2.5 rounded-xl border flex items-center justify-between gap-2 transition hover:border-white/20"
-                      style={{
-                        backgroundColor: 'var(--song-surface-soft)',
-                        borderColor: 'var(--song-border)',
-                      }}
-                    >
-                      <div className="flex items-center gap-2.5 min-w-0">
-                        {art.avatarUrl ? (
-                          <img
-                            src={art.avatarUrl}
-                            alt={art.name}
-                            className="w-10 h-10 rounded-full object-cover flex-shrink-0"
-                          />
-                        ) : (
-                          <div
-                            className="w-10 h-10 rounded-full flex items-center justify-center font-bold text-xs flex-shrink-0"
-                            style={{
-                              backgroundColor: 'var(--song-surface)',
-                              color: 'var(--song-muted)',
-                            }}
-                          >
-                            {art.name.slice(0, 1)}
-                          </div>
-                        )}
-                        <div className="min-w-0">
-                          <div className="text-xs font-bold truncate">{art.name}</div>
-                          <div className="text-[10px]" style={{ color: 'var(--song-muted)' }}>
-                            {art.category === 'thai' ? '🇹🇭 เพลงไทย' : '🌍 สากล'} • {art.mainGenre}
+            {uniqueDiscovered.length > 0 && (
+              <div className="space-y-1.5 pt-1">
+                <div className="text-xs font-extrabold uppercase tracking-wider flex items-center justify-between" style={{ color: 'var(--song-accent-text)' }}>
+                  <span>พบศิลปินใหม่จากออนไลน์ ({uniqueDiscovered.length})</span>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-56 overflow-y-auto pr-1">
+                  {uniqueDiscovered.map((art) => {
+                    const existingArtist = artists.find(
+                      (a) => a.name.toLowerCase() === art.name.toLowerCase()
+                    );
+                    const isBusy = addingName === art.name;
+                    return (
+                      <div
+                        key={art.id + art.name}
+                        className="p-2.5 rounded-xl border flex items-center justify-between gap-2 transition hover:border-white/20"
+                        style={{
+                          backgroundColor: 'var(--song-surface-soft)',
+                          borderColor: 'var(--song-border)',
+                        }}
+                      >
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          {art.avatarUrl ? (
+                            <img
+                              src={art.avatarUrl}
+                              alt={art.name}
+                              className="w-10 h-10 rounded-full object-cover flex-shrink-0"
+                            />
+                          ) : (
+                            <div
+                              className="w-10 h-10 rounded-full flex items-center justify-center font-bold text-xs flex-shrink-0"
+                              style={{
+                                backgroundColor: 'var(--song-surface)',
+                                color: 'var(--song-muted)',
+                              }}
+                            >
+                              {art.name.slice(0, 1)}
+                            </div>
+                          )}
+                          <div className="min-w-0">
+                            <div className="text-xs font-bold truncate">{art.name}</div>
+                            <div className="text-[10px]" style={{ color: 'var(--song-muted)' }}>
+                              {art.category === 'thai' ? '🇹🇭 เพลงไทย' : '🌍 สากล'} • {art.mainGenre}
+                            </div>
                           </div>
                         </div>
-                      </div>
 
-                      <div className="flex items-center gap-1.5 flex-shrink-0">
-                        <button
-                          type="button"
-                          disabled={isBusy || syncingArtistId !== null}
-                          onClick={() =>
-                            handleAddOrSync(art.name, art.category, art.mainGenre, art.avatarUrl)
-                          }
-                          className="px-3 py-1.5 rounded-lg text-xs font-extrabold flex items-center gap-1 transition disabled:opacity-50"
-                          style={{
-                            backgroundColor: existingArtist
-                              ? 'var(--song-surface)'
-                              : 'var(--song-accent)',
-                            color: existingArtist
-                              ? 'var(--song-accent-text)'
-                              : 'var(--song-accent-on)',
-                            border: existingArtist ? '1px solid var(--song-border)' : 'none',
-                          }}
-                        >
-                          {isBusy ? (
-                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                          ) : existingArtist ? (
-                            <>
-                              <RefreshCw className="w-3.5 h-3.5" />
-                              <span>Sync</span>
-                            </>
-                          ) : (
-                            <>
-                              <Plus className="w-3.5 h-3.5" />
-                              <span>เพิ่มศิลปิน</span>
-                            </>
-                          )}
-                        </button>
+                        <div className="flex items-center gap-1.5 flex-shrink-0">
+                          <button
+                            type="button"
+                            disabled={isBusy || syncingArtistId !== null}
+                            onClick={() =>
+                              handleAddOrSync(art.name, art.category, art.mainGenre, art.avatarUrl)
+                            }
+                            className="px-3 py-1.5 rounded-lg text-xs font-extrabold flex items-center gap-1 transition disabled:opacity-50"
+                            style={{
+                              backgroundColor: existingArtist
+                                ? 'var(--song-surface)'
+                                : 'var(--song-accent)',
+                              color: existingArtist
+                                ? 'var(--song-accent-text)'
+                                : 'var(--song-accent-on)',
+                              border: existingArtist ? '1px solid var(--song-border)' : 'none',
+                            }}
+                          >
+                            {isBusy ? (
+                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                            ) : existingArtist ? (
+                              <>
+                                <RefreshCw className="w-3.5 h-3.5" />
+                                <span>Sync</span>
+                              </>
+                            ) : (
+                              <>
+                                <Plus className="w-3.5 h-3.5" />
+                                <span>เพิ่มศิลปิน</span>
+                              </>
+                            )}
+                          </button>
+                        </div>
                       </div>
-                    </div>
-                  );
-                })}
+                    );
+                  })}
+                </div>
               </div>
             )}
           </div>
@@ -393,11 +513,23 @@ export const AddArtistModal: React.FC<AddArtistModalProps> = ({
           {/* Saved Artists in Library */}
           <div className="space-y-2 pt-2 border-t" style={{ borderColor: 'var(--song-border)' }}>
             <div className="flex items-center justify-between text-xs font-extrabold uppercase tracking-wider" style={{ color: 'var(--song-muted)' }}>
-              <span>ศิลปินในคลังทั้งหมด ({artists.length} ศิลปิน)</span>
+              <span>
+                {searchQuery.trim()
+                  ? `ศิลปินในคลังที่ตรงกับคำค้นหา (${filteredLibrary.length})`
+                  : `ศิลปินในคลังทั้งหมด (${artists.length} ศิลปิน)`}
+              </span>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-64 overflow-y-auto pr-1">
-              {artists.map((artist) => {
+            {searchQuery.trim() && filteredLibrary.length === 0 ? (
+              <div
+                className="py-3 px-3 rounded-xl border border-dashed text-center text-xs"
+                style={{ borderColor: 'var(--song-border)', color: 'var(--song-muted)' }}
+              >
+                ไม่มีศิลปินชื่อ &ldquo;{searchQuery}&rdquo; อยู่ในคลังเดิมของคุณ
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-64 overflow-y-auto pr-1">
+                {filteredLibrary.map((artist) => {
                 const trackCount = artist.trackCount ?? 10;
                 const canSyncMore = trackCount < 200;
                 const isSyncing =
@@ -503,7 +635,8 @@ export const AddArtistModal: React.FC<AddArtistModalProps> = ({
                 );
               })}
             </div>
-          </div>
+          )}
+        </div>
         </div>
       </div>
     </div>

@@ -69,7 +69,8 @@ export const Navbar: React.FC<NavbarProps> = ({
   const isPlayActive = location.pathname === '/' || location.pathname === '/play';
   const isDailyActive = location.pathname === '/daily';
   const isGuesserActive = location.pathname === '/guesser';
-  const isQuizzesActive = location.pathname === '/quizzes';
+  const isCategoriesActive =
+    location.pathname === '/categories' || location.pathname === '/quizzes';
 
   const {
     themeId,
@@ -227,17 +228,17 @@ export const Navbar: React.FC<NavbarProps> = ({
             Play
           </button>
 
-          {/* 2. Music Quizzes (Unified Pill with Dropdown) */}
+          {/* 2. Music Categories (Unified Pill with Dropdown) */}
           <div className="songspot-site-quiz-menu">
             <button
               type="button"
               className="songspot-site-nav-link flex items-center gap-1.5"
               aria-expanded={activeMenu === 'clip'}
-              aria-current={isQuizzesActive ? 'page' : undefined}
-              data-section={isQuizzesActive || activeMenu === 'clip' ? 'active' : undefined}
+              aria-current={isCategoriesActive ? 'page' : undefined}
+              data-section={isCategoriesActive || activeMenu === 'clip' ? 'active' : undefined}
               onClick={() => setActiveMenu(activeMenu === 'clip' ? null : 'clip')}
             >
-              <span>Music Quizzes</span>
+              <span>Music Categories</span>
               <ChevronDown
                 className={`w-3.5 h-3.5 opacity-60 transition-transform duration-200 ${
                   activeMenu === 'clip' ? 'rotate-180' : ''
@@ -349,11 +350,11 @@ export const Navbar: React.FC<NavbarProps> = ({
                   type="button"
                   onClick={() => {
                     setActiveMenu(null);
-                    navigate('/quizzes');
+                    navigate('/categories');
                   }}
                   className="songspot-site-browse-all"
                 >
-                  <span>Browse all clip quizzes</span>
+                  <span>Browse all categories (เลือกหมวดหมู่เพลง)</span>
                   <ArrowRight className="w-4 h-4" />
                 </button>
               </div>
@@ -852,11 +853,11 @@ export const Navbar: React.FC<NavbarProps> = ({
                   type="button"
                   onClick={() => {
                     setActiveMenu(null);
-                    navigate('/quizzes');
+                    navigate('/categories');
                   }}
                   className="w-full px-3 py-2.5 rounded-xl text-left text-sm font-bold flex items-center justify-between transition hover:brightness-110"
                   style={
-                    isQuizzesActive
+                    isCategoriesActive
                       ? {
                           backgroundColor: 'var(--song-accent)',
                           color: 'var(--song-accent-on)',
@@ -869,7 +870,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 >
                   <span className="flex items-center gap-2">
                     <Compass className="w-4 h-4" />
-                    <span>Music Quizzes Hub (รวมหมวดหมู่)</span>
+                    <span>Music Categories (เลือกหมวดหมู่เพลง)</span>
                   </span>
                   <ArrowRight className="w-4 h-4 opacity-70" />
                 </button>
@@ -878,7 +879,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               {/* Accordion Topics for Clip Quizzes */}
               <details className="border-t border-[var(--song-border)] pt-2 group">
                 <summary className="flex items-center justify-between py-2 text-xs font-bold cursor-pointer select-none">
-                  <span>Music Quizzes topics</span>
+                  <span>Music Categories topics</span>
                   <ChevronDown className="w-4 h-4 transition-transform group-open:rotate-180" />
                 </summary>
                 <div className="py-2 space-y-3">

@@ -3,6 +3,7 @@ import type { Metadata, Viewport } from 'next';
 import './globals.css';
 import { ThemeProvider } from '../context/ThemeContext';
 import { GameProvider } from '../context/GameContext';
+import { QueryProvider } from '../components/QueryProvider';
 import { AppShell } from '../components/AppShell';
 
 export const metadata: Metadata = {
@@ -33,11 +34,13 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         />
       </head>
       <body>
-        <ThemeProvider>
-          <GameProvider>
-            <AppShell>{children}</AppShell>
-          </GameProvider>
-        </ThemeProvider>
+        <QueryProvider>
+          <ThemeProvider>
+            <GameProvider>
+              <AppShell>{children}</AppShell>
+            </GameProvider>
+          </ThemeProvider>
+        </QueryProvider>
       </body>
     </html>
   );

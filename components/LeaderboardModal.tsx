@@ -17,6 +17,8 @@ import {
   DifficultyLevel,
   LeaderboardEntry,
 } from '../types';
+import { useQuery } from '@tanstack/react-query';
+import { QUERY_KEYS, invalidateLeaderboard } from '../lib/queryClient';
 
 interface LeaderboardModalProps {
   isOpen: boolean;
@@ -45,8 +47,21 @@ export const LeaderboardModal: React.FC<LeaderboardModalProps> = ({
 }) => {
   const [tab, setTab] = useState<'all' | 'daily'>(isDailyMode ? 'daily' : 'all');
   const [catFilter, setCatFilter] = useState<CategoryType>(category);
-  const [entries, setEntries] = useState<LeaderboardEntry[]>([]);
-  const [loading, setLoading] = useState(false);
+
+  // TanStack Query: Real-time leaderboard with auto-invalidation
+  const { data: entries = [], isLoading: loading } = useQuery<LeaderboardEntry[]>({
+    queryKey: QUERY_KEYS.leaderboard(catFilter, tab),
+    queryFn: async () => {
+      const res = await fetch(`/api/leaderboard?category=${catFilter}&mode=${tab}`);
+      const json = await res.json();
+      if (json.code === 0 && Array.isArray(json.data)) {
+        return json.data;
+      }
+      return [];
+    },
+    enabled: isOpen,
+    staleTime: 1000 * 30,
+  });
 
   const [playerName, setPlayerName] = useState<string>(() => {
     try {
@@ -65,30 +80,13 @@ export const LeaderboardModal: React.FC<LeaderboardModalProps> = ({
       if (isDailyMode) {
         setTab('daily');
       }
+      setSubmittedMsg('');
     }
   }, [isOpen, category, isDailyMode]);
 
   const fetchLeaderboard = useCallback(async () => {
-    setLoading(true);
-    try {
-      const res = await fetch(`/api/leaderboard?category=${catFilter}&mode=${tab}`);
-      const json = await res.json();
-      if (json.code === 0 && Array.isArray(json.data)) {
-        setEntries(json.data);
-      }
-    } catch (err) {
-      console.error('Failed to fetch leaderboard:', err);
-    } finally {
-      setLoading(false);
-    }
-  }, [catFilter, tab]);
-
-  useEffect(() => {
-    if (isOpen) {
-      fetchLeaderboard();
-      setSubmittedMsg('');
-    }
-  }, [isOpen, fetchLeaderboard]);
+    await invalidateLeaderboard();
+  }, []);
 
   if (!isOpen) return null;
 
@@ -122,7 +120,7 @@ export const LeaderboardModal: React.FC<LeaderboardModalProps> = ({
       const json = await res.json();
       if (json.code === 0) {
         setSubmittedMsg('บันทึกคะแนนขึ้นตารางอันดับสำเร็จ!');
-        await fetchLeaderboard();
+        await invalidateLeaderboard();
       } else {
         setSubmittedMsg(json.message || 'เกิดข้อผิดพลาดในการส่งคะแนน');
       }
