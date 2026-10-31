@@ -102,7 +102,6 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
           aria-valuemin={0}
           aria-valuemax={activeSeconds}
           aria-valuenow={Math.round(progress * activeSeconds * 10) / 10}
-          style={{ '--playback-progress': overallPlaybackScale } as React.CSSProperties}
         >
           {segments.map((seg) => (
             <span
@@ -112,15 +111,14 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
                   ? 'songspot-progress-segment is-active'
                   : 'songspot-progress-segment'
               }
-              style={{ flex: seg.weight }}
+              style={{ flex: `${seg.weight} ${seg.weight} 0%` }}
             />
           ))}
           <span
             className="songspot-playback-progress"
             aria-hidden="true"
             style={{
-              transform: `scaleX(${overallPlaybackScale})`,
-              WebkitTransform: `scaleX(${overallPlaybackScale})`,
+              width: `${Math.min(100, Math.max(0, overallPlaybackScale * 100))}%`,
             }}
           />
         </div>

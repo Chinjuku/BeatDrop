@@ -5,7 +5,7 @@ import { ModeSelector } from '../../components/ModeSelector';
 import { AudioPlayer } from '../../components/AudioPlayer';
 import { GuessAutocomplete } from '../../components/GuessAutocomplete';
 import { SpinningAlbumArt } from '../../components/SpinningAlbumArt';
-import { Flame, Loader2, Trophy, Zap } from 'lucide-react';
+import { Flame, Loader2, Trophy, X, Zap } from 'lucide-react';
 
 const PlayPage: React.FC = () => {
   const {
@@ -37,6 +37,7 @@ const PlayPage: React.FC = () => {
     handleSkip,
     handleNextRoundOrDaily,
     setTicketModalOpen,
+    setAddArtistOpen,
     startNewRound,
   } = useGame();
 
@@ -104,38 +105,62 @@ const PlayPage: React.FC = () => {
           </span>
           {config.artistName && config.artistName !== 'any' && (
             <span
-              className="text-xs font-bold px-2.5 py-0.5 rounded-full border"
+              className="text-xs font-bold px-2.5 py-0.5 rounded-full border flex items-center gap-1.5"
               style={{
                 backgroundColor: 'var(--song-surface)',
                 borderColor: 'var(--song-accent)',
                 color: 'var(--song-text)',
               }}
             >
-              🎤 ศิลปิน: {config.artistName}
+              <span>🎤 ศิลปิน: {config.artistName}</span>
+              <button
+                type="button"
+                onClick={() => handleConfigChange({ ...config, artistName: undefined }, true)}
+                className="hover:text-rose-400 p-0.5 rounded transition"
+                title="ยกเลิกการเลือกศิลปินนี้ (กลับสู่สุ่มศิลปิน)"
+              >
+                <X className="w-3 h-3" />
+              </button>
             </span>
           )}
           {config.yearFilter && config.yearFilter !== 'any' && (
             <span
-              className="text-xs font-bold px-2.5 py-0.5 rounded-full border"
+              className="text-xs font-bold px-2.5 py-0.5 rounded-full border flex items-center gap-1.5"
               style={{
                 backgroundColor: 'var(--song-surface)',
                 borderColor: 'var(--song-accent)',
                 color: 'var(--song-text)',
               }}
             >
-              📅 ปี/ยุค: {config.yearFilter}
+              <span>📅 ปี/ยุค: {config.yearFilter}</span>
+              <button
+                type="button"
+                onClick={() => handleConfigChange({ ...config, yearFilter: 'any' }, true)}
+                className="hover:text-rose-400 p-0.5 rounded transition"
+                title="ยกเลิกการเลือกปี/ยุคนี้ (กลับสู่สุ่มทุกยุค)"
+              >
+                <X className="w-3 h-3" />
+              </button>
             </span>
           )}
           {config.genreFilter && config.genreFilter !== 'any' && (
             <span
-              className="text-xs font-bold px-2.5 py-0.5 rounded-full border"
+              className="text-xs font-bold px-2.5 py-0.5 rounded-full border flex items-center gap-1.5"
               style={{
                 backgroundColor: 'var(--song-surface)',
                 borderColor: 'var(--song-accent)',
                 color: 'var(--song-text)',
               }}
             >
-              🎸 แนวเพลง: {config.genreFilter}
+              <span>🎸 แนวเพลง: {config.genreFilter}</span>
+              <button
+                type="button"
+                onClick={() => handleConfigChange({ ...config, genreFilter: 'any' }, true)}
+                className="hover:text-rose-400 p-0.5 rounded transition"
+                title="ยกเลิกการเลือกแนวเพลงนี้ (กลับสู่สุ่มทุกแนว)"
+              >
+                <X className="w-3 h-3" />
+              </button>
             </span>
           )}
         </div>
@@ -149,6 +174,7 @@ const PlayPage: React.FC = () => {
         category={config.category}
         poolSize={round?.poolSize || 0}
         onReroll={() => startNewRound(config)}
+        onOpenAddArtist={() => setAddArtistOpen(true)}
       />
 
       {/* Game Arena Card */}

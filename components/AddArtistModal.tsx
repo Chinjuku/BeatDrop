@@ -11,7 +11,6 @@ import {
   RefreshCw,
   Search,
   Sparkles,
-  Trash2,
   X,
 } from 'lucide-react';
 import { Artist } from '../types';
@@ -374,7 +373,7 @@ export const AddArtistModal: React.FC<AddArtistModalProps> = ({
                           ) : existingArtist ? (
                             <>
                               <RefreshCw className="w-3.5 h-3.5" />
-                              <span>ซิงก์เพลงเพิ่ม</span>
+                              <span>Sync</span>
                             </>
                           ) : (
                             <>
@@ -433,7 +432,7 @@ export const AddArtistModal: React.FC<AddArtistModalProps> = ({
                       )}
                       <div className="min-w-0">
                         <div className="text-xs font-bold truncate">{artist.name}</div>
-                        <div className="text-[10px]" style={{ color: 'var(--song-muted)' }}>
+                        <div className="text-[10px] whitespace-nowrap truncate" style={{ color: 'var(--song-muted)' }}>
                           {artist.category === 'thai' ? '🇹🇭' : '🌍'} {artist.mainGenre} •{' '}
                           <span className="font-bold" style={{ color: 'var(--song-accent-text)' }}>
                             {trackCount} เพลง
@@ -459,13 +458,12 @@ export const AddArtistModal: React.FC<AddArtistModalProps> = ({
                           {isSyncing ? (
                             <>
                               <Loader2 className="w-3 h-3 animate-spin" />
-                              <span>กำลังดึง...</span>
+                              <span>Syncing...</span>
                             </>
                           ) : (
                             <>
                               <RefreshCw className="w-3 h-3" />
-                              <span className="hidden sm:inline">ดึงเพลงเพิ่ม (Sync 200 เพลง)</span>
-                              <span className="sm:hidden">Sync 200</span>
+                              <span>Sync</span>
                             </>
                           )}
                         </button>
@@ -480,7 +478,7 @@ export const AddArtistModal: React.FC<AddArtistModalProps> = ({
                           title="มีเพลงในคลังครบ 200 เพลงแล้ว"
                         >
                           <Check className="w-3 h-3" />
-                          <span>ครบ 200</span>
+                          <span>200</span>
                         </span>
                       )}
 
@@ -500,16 +498,6 @@ export const AddArtistModal: React.FC<AddArtistModalProps> = ({
                         <Play className="w-3 h-3 fill-current" />
                         <span>เล่น</span>
                       </button>
-                      {artist.isCustom && (
-                        <button
-                          type="button"
-                          onClick={() => onArtistRemoved(artist.id)}
-                          className="p-1.5 rounded-lg text-rose-400 hover:bg-rose-500/10 transition"
-                          title="ลบศิลปินนี้"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      )}
                     </div>
                   </div>
                 );

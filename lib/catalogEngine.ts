@@ -19,6 +19,7 @@ import {
 import { signRoundToken, verifyRoundToken, getBangkokDateKey } from './token';
 import { isDbLocal, isSupabaseConfigured, supabaseAdmin } from './supabase';
 import { dbService } from './db';
+import { isJunkTrack, checkArtistStrictMatch } from './itunes';
 
 const DATA_DIR = path.resolve(process.cwd(), 'data');
 const CUSTOM_ARTISTS_FILE = path.join(DATA_DIR, 'custom-artists.json');
@@ -61,6 +62,13 @@ const CURATED_ARTISTS: Artist[] = [
   { id: 'th-billkin', name: 'Billkin', category: 'thai', mainGenre: 'T-Pop', avatarUrl: '' },
   { id: 'th-fellowfellow', name: 'Fellow Fellow', category: 'thai', mainGenre: 'T-Pop', avatarUrl: '' },
   { id: 'th-violette', name: 'Violette Wautier', category: 'thai', mainGenre: 'Indie', avatarUrl: '' },
+  { id: 'th-illslick', name: 'Illslick', category: 'thai', mainGenre: 'Hip-Hop/Rap', avatarUrl: '' },
+  { id: 'th-purpeech', name: 'PURPEECH', category: 'thai', mainGenre: 'T-Pop', avatarUrl: '' },
+  { id: 'th-safeplanet', name: 'Safeplanet', category: 'thai', mainGenre: 'Indie', avatarUrl: '' },
+  { id: 'th-carabao', name: 'Carabao', category: 'thai', mainGenre: 'Rock', avatarUrl: '' },
+  { id: 'th-bigass', name: 'Big Ass', category: 'thai', mainGenre: 'Rock', avatarUrl: '' },
+  { id: 'th-thetoys', name: 'THE TOYS', category: 'thai', mainGenre: 'T-Pop', avatarUrl: '' },
+  { id: 'th-gunner', name: 'GUNNER', category: 'thai', mainGenre: 'Hip-Hop/Rap', avatarUrl: '' },
 
   // International Artists
   { id: 'intl-queen', name: 'Queen', category: 'international', mainGenre: 'Rock', avatarUrl: '' },
@@ -208,12 +216,8 @@ function normalizeText(str: string): string {
 
 // Detect whether an artist/tracks belong to Thai or International catalog accurately
 function detectCategory(name: string, tracks: Song[], fallback: 'thai' | 'international' = 'international'): 'thai' | 'international' {
-  // 1. Check if artist exists in curated catalogue (exact or partial name match e.g. "Taylor Swift" in "ZAYN & Taylor Swift")
-  const norm = normalizeText(name);
-  const curated = CURATED_ARTISTS.find((a) => {
-    const curNorm = normalizeText(a.name);
-    return curNorm === norm || norm.includes(curNorm) || curNorm.includes(norm);
-  });
+  // 1. Check if artist exists in curated catalogue
+  const curated = CURATED_ARTISTS.find((a) => checkArtistStrictMatch(name, a.name));
   if (curated) return curated.category;
 
   // 2. Check for Thai Unicode characters in artist name or track titles
@@ -284,11 +288,24 @@ async function fetchItunesSongs(
       .filter((t): t is Required<Pick<ItunesRawTrack, 'trackId' | 'trackName' | 'artistName' | 'previewUrl'>> & ItunesRawTrack =>
         Boolean(t.trackId && t.trackName && t.artistName && t.previewUrl)
       )
+      .filter((t) => !isJunkTrack(t.trackName, t.collectionName, t.artistName))
       .map((t, index) => {
         const year = t.releaseDate ? new Date(t.releaseDate).getFullYear() : 2020;
         const artworkHiRes = t.artworkUrl100
           ? t.artworkUrl100.replace('100x100bb', '600x600bb')
           : 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=600&auto=format&fit=crop&q=80';
+
+        // Check if artist is known international
+        let resolvedCategory = category;
+        if (country === 'TH') {
+          const knownIntl = CURATED_ARTISTS.find(
+            (a) => a.category === 'international' && checkArtistStrictMatch(t.artistName!, a.name)
+          );
+          if (knownIntl) {
+            resolvedCategory = 'international';
+          }
+        }
+
         return {
           id: String(t.trackId),
           title: t.trackName,
@@ -297,8 +314,8 @@ async function fetchItunesSongs(
           albumName: t.collectionName || 'Single',
           releaseYear: Number.isFinite(year) ? year : 2020,
           releaseDate: t.releaseDate,
-          genre: normalizeGenre(t.primaryGenreName || '', category, overrideGenre),
-          category,
+          genre: normalizeGenre(t.primaryGenreName || '', resolvedCategory, overrideGenre),
+          category: resolvedCategory,
           previewUrl: t.previewUrl,
           artworkUrl: artworkHiRes,
           trackViewUrl: t.trackViewUrl,
@@ -361,14 +378,14 @@ async function ingestArtistSongs(artist: Artist, limit = 200): Promise<number> {
     tracks = await fetchDeezerSongs(artist.name, artist.category, limit, artist.mainGenre);
   }
 
-  // Filter tracks where artistName reasonably matches the artist to avoid unrelated covers
-  const targetNorm = normalizeText(artist.name);
-  const matchingTracks = tracks.filter((t) => {
-    const trackArtistNorm = normalizeText(t.artistName);
-    return trackArtistNorm.includes(targetNorm) || targetNorm.includes(trackArtistNorm);
-  });
+  // Filter strictly by artist and discard junk
+  const matchingTracks = tracks.filter((t) =>
+    checkArtistStrictMatch(t.artistName, artist.name, undefined, undefined, t.title) &&
+    !isJunkTrack(t.title, t.albumName, t.artistName)
+  );
 
-  const finalTracks = (matchingTracks.length >= 3 ? matchingTracks : tracks).slice(0, limit);
+  // NEVER fall back to unfiltered tracks! Only save genuine matching tracks.
+  const finalTracks = matchingTracks.slice(0, limit);
   for (const song of finalTracks) {
     songPool.set(song.id, song);
   }
@@ -378,10 +395,10 @@ async function ingestArtistSongs(artist: Artist, limit = 200): Promise<number> {
   if (finalTracks.length > 0 && !artist.avatarUrl) {
     artist.avatarUrl = finalTracks[0].artworkUrl;
   }
-  artist.trackCount = Array.from(songPool.values()).filter((s) => {
-    const aNorm = normalizeText(s.artistName);
-    return aNorm.includes(targetNorm) || targetNorm.includes(aNorm);
-  }).length;
+  artist.trackCount = Array.from(songPool.values()).filter((s) =>
+    checkArtistStrictMatch(s.artistName, artist.name, undefined, undefined, s.title) &&
+    !isJunkTrack(s.title, s.albumName, s.artistName)
+  ).length;
 
   dbService.updateArtistTrackCount(artist.name, artist.trackCount || 0);
 
@@ -393,12 +410,11 @@ function getAllArtists(): Artist[] {
   const map = new Map<string, Artist>();
   for (const a of [...CURATED_ARTISTS, ...customArtists]) {
     const norm = a.name.toLowerCase();
-    // Calculate current track count in pool
-    const targetNorm = normalizeText(a.name);
-    const tracks = Array.from(songPool.values()).filter((s) => {
-      const sNorm = normalizeText(s.artistName);
-      return sNorm.includes(targetNorm) || targetNorm.includes(sNorm);
-    });
+    // Calculate current track count in pool using strict check
+    const tracks = Array.from(songPool.values()).filter((s) =>
+      checkArtistStrictMatch(s.artistName, a.name, undefined, undefined, s.title) &&
+      !isJunkTrack(s.title, s.albumName, s.artistName)
+    );
     const avatar = a.avatarUrl || tracks[0]?.artworkUrl || 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=300&auto=format&fit=crop&q=80';
     map.set(norm, {
       ...a,
@@ -450,21 +466,38 @@ function matchesYearFilter(song: Song, yearFilter?: string): boolean {
   return true;
 }
 
+function normalizeGenreComparison(g: string): string {
+  const s = g.toLowerCase().trim();
+  if (s.includes('hip-hop') || s.includes('rap')) return 'hip-hop';
+  if (s.includes('r&b') || s.includes('soul')) return 'r&b';
+  if (s.includes('indie') || s.includes('alt')) return 'indie';
+  if (s.includes('edm') || s.includes('dance') || s.includes('electro') || s.includes('house')) return 'edm';
+  if (s.includes('soundtrack') || s.includes('score')) return 'soundtrack';
+  if (s.includes('k-pop') || s.includes('kpop')) return 'k-pop';
+  if (s.includes('t-pop') || s.includes('tpop')) return 't-pop';
+  if (s.includes('rock') || s.includes('metal') || s.includes('punk')) return 'rock';
+  if (s.includes('pop')) return 'pop';
+  return s;
+}
+
 function matchesGenreFilter(song: Song, genreFilter?: string): boolean {
   if (!genreFilter || genreFilter === 'any') return true;
-  const g = genreFilter.toLowerCase();
-  const sg = song.genre.toLowerCase();
-  if (g === 't-pop') {
-    return song.category === 'thai' && (sg === 't-pop' || sg === 'pop');
+  const target = normalizeGenreComparison(genreFilter);
+  const actual = normalizeGenreComparison(song.genre);
+  const songCat = song.category;
+
+  if (target === 't-pop') {
+    return songCat === 'thai' && (actual === 't-pop' || actual === 'pop');
   }
-  return sg === g || sg.includes(g);
+  if (target === 'pop') {
+    return actual === 'pop' || (songCat === 'thai' && actual === 't-pop');
+  }
+  return actual === target || actual.includes(target) || target.includes(actual);
 }
 
 function matchesArtistFilter(song: Song, artistName?: string): boolean {
   if (!artistName || artistName === 'any') return true;
-  const target = normalizeText(artistName);
-  const actual = normalizeText(song.artistName);
-  return actual.includes(target) || target.includes(actual);
+  return checkArtistStrictMatch(song.artistName, artistName, undefined, undefined, song.title);
 }
 
 // ============================================================================
@@ -781,38 +814,70 @@ async function handleStartRound(req: Request, res: Response): Promise<void> {
     }
   }
 
-  // Filter candidate songs
-  let candidates = Array.from(songPool.values());
+  // 1. Initial pool must discard any junk tracks
+  let pool = Array.from(songPool.values()).filter(
+    (s) => !isJunkTrack(s.title, s.albumName, s.artistName)
+  );
 
-  // 1) Category filter (unless Artist Mode overrides to a specific artist)
+  // 2. Strict category constraint (never leak international into Thai or vice versa)
   if (!artistFilter || artistFilter === 'any') {
     if (category === 'thai' || category === 'international') {
-      candidates = candidates.filter((s) => s.category === category);
+      pool = pool.filter((s) => s.category === category);
     }
   }
 
-  // 2) Artist filter
+  // 3. Strict artist filter
+  let candidates: Song[] = [];
   if (artistFilter && artistFilter !== 'any') {
-    const artistScoped = candidates.filter((s) => matchesArtistFilter(s, artistFilter));
-    if (artistScoped.length > 0) {
-      candidates = artistScoped;
+    candidates = pool.filter((s) => matchesArtistFilter(s, artistFilter));
+    // If not found in memory pool, query DB with strict artist check
+    if (candidates.length === 0) {
+      const dbMatches = dbService
+        .searchSongs(artistFilter, { artist: artistFilter, limit: 200 })
+        .filter((s) => matchesArtistFilter(s, artistFilter) && !isJunkTrack(s.title, s.albumName, s.artistName));
+      for (const m of dbMatches) {
+        songPool.set(m.id, m);
+      }
+      candidates = dbMatches;
+    }
+  } else {
+    candidates = pool;
+  }
+
+  // 4. Year and Genre filters (applied if not in Scoped Artist Mode)
+  if (mode !== 'artist') {
+    if (yearFilter && yearFilter !== 'any') {
+      const yearMatches = candidates.filter((s) => matchesYearFilter(s, yearFilter));
+      if (yearMatches.length > 0) {
+        candidates = yearMatches;
+      }
+    }
+    if (genreFilter && genreFilter !== 'any') {
+      const genreMatches = candidates.filter((s) => matchesGenreFilter(s, genreFilter));
+      if (genreMatches.length > 0) {
+        candidates = genreMatches;
+      }
     }
   }
 
-  // 3) Year / Era filter (Ignore in Artist Mode so leftover filters don't reduce artist catalog)
-  if (mode !== 'artist' && yearFilter && yearFilter !== 'any') {
-    const yearScoped = candidates.filter((s) => matchesYearFilter(s, yearFilter));
-    if (yearScoped.length > 0) {
-      candidates = yearScoped;
+  // Fallback: If still empty (e.g. strict year + genre combo yielded 0), relax year/genre,
+  // but NEVER relax Category or Artist!
+  if (candidates.length === 0) {
+    if (artistFilter && artistFilter !== 'any') {
+      candidates = pool.filter((s) => matchesArtistFilter(s, artistFilter));
+    } else if (category === 'thai' || category === 'international') {
+      candidates = pool.filter((s) => s.category === category);
+    } else {
+      candidates = pool;
     }
   }
 
-  // 4) Genre filter (Ignore in Artist Mode so leftover filters don't reduce artist catalog)
-  if (mode !== 'artist' && genreFilter && genreFilter !== 'any') {
-    const genreScoped = candidates.filter((s) => matchesGenreFilter(s, genreFilter));
-    if (genreScoped.length > 0) {
-      candidates = genreScoped;
-    }
+  if (candidates.length === 0) {
+    res.status(404).json({
+      code: -1,
+      message: 'ไม่พบเพลงที่ตรงกับตัวกรองที่เลือก กรุณาลองเลือกแนวเพลงหรือปีอื่น',
+    });
+    return;
   }
 
   const totalMatchingPoolSize = candidates.length;
@@ -837,10 +902,6 @@ async function handleStartRound(req: Request, res: Response): Promise<void> {
     candidates = nonExcluded;
   }
 
-  if (candidates.length === 0) {
-    candidates = Array.from(songPool.values());
-  }
-
   const selectedTrack = candidates[Math.floor(Math.random() * candidates.length)];
   const roundState = {
     track: selectedTrack,
@@ -863,7 +924,8 @@ async function handleStartRound(req: Request, res: Response): Promise<void> {
       (s) =>
         s.id !== selectedTrack.id &&
         normalizeText(s.title) !== normalizeText(selectedTrack.title) &&
-        s.category === selectedTrack.category
+        s.category === selectedTrack.category &&
+        !isJunkTrack(s.title, s.albumName, s.artistName)
     );
     // Prioritize same artist or same genre for realistic distractors
     const sameArtistOrGenre = distractorPool.filter(

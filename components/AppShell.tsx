@@ -8,7 +8,7 @@ import { LeaderboardModal } from './LeaderboardModal';
 import { ShareTicketModal } from './ShareTicketModal';
 import { BeatDropLogo } from './BeatDropLogo';
 import { useGame } from '../context/GameContext';
-import type { GameMode } from '../types';
+import type { GameConfig, GameMode } from '../types';
 
 export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const router = useRouter();
@@ -51,9 +51,10 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
     mode: GameMode,
     filters?: { artist?: string; year?: string; genre?: string }
   ) => {
-    const nextCfg = {
+    const targetMode: GameMode = mode === 'guesser' || mode === 'daily' ? mode : 'standard';
+    const nextCfg: GameConfig = {
       ...config,
-      mode,
+      mode: targetMode,
       artistName: filters?.artist,
       yearFilter: filters?.year || 'any',
       genreFilter: filters?.genre || 'any',
@@ -151,7 +152,7 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
           fetchArtists();
         }}
         onPlayArtist={(artist) => {
-          handleSelectQuiz('artist', { artist: artist.name });
+          handleSelectQuiz('standard', { artist: artist.name });
         }}
       />
 

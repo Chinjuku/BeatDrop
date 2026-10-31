@@ -33,7 +33,7 @@ export const GuessAutocomplete: React.FC<GuessAutocompleteProps> = ({
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const isArtistScoped = mode === 'artist' && Boolean(artistFilter);
+  const isArtistScoped = Boolean(artistFilter && artistFilter !== 'any');
 
   useEffect(() => {
     // In standard mode, require at least 1 character; in Artist Mode, allow empty query to list artist's songs

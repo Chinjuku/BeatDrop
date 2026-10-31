@@ -1,16 +1,14 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   Calendar,
-  Disc,
-  Mic2,
+  Check,
   Music,
-  Play,
   Search,
+  SlidersHorizontal,
   Sparkles,
-  Loader2,
-  RotateCcw,
+  X,
 } from 'lucide-react';
 import {
   Artist,
@@ -20,7 +18,6 @@ import {
   DifficultyLevel,
   GENRE_OPTIONS,
   GameConfig,
-  GameMode,
   YEAR_OPTIONS,
 } from '../types';
 import { TimeRangeSelector } from './TimeRangeSelector';
@@ -32,6 +29,7 @@ interface ModeSelectorProps {
   category: CategoryType;
   poolSize: number;
   onReroll: () => void;
+  onOpenAddArtist?: () => void;
 }
 
 const REEL_OFFSETS = [-2, -1, 0, 1, 2];
@@ -41,6 +39,9 @@ interface FilterReelRowProps {
   options: Array<{ value: string; label: string }>;
   value: string;
   onSelect: (val: string) => void;
+  onOpenPicker?: () => void;
+  actionTitle?: string;
+  actionIcon?: React.ReactNode;
 }
 
 const FilterReelRow: React.FC<FilterReelRowProps> = ({
@@ -48,6 +49,9 @@ const FilterReelRow: React.FC<FilterReelRowProps> = ({
   options,
   value,
   onSelect,
+  onOpenPicker,
+  actionTitle,
+  actionIcon,
 }) => {
   const [rollingDir, setRollingDir] = useState<'forward' | 'backward' | null>(null);
   const currentIdx = Math.max(
@@ -57,7 +61,16 @@ const FilterReelRow: React.FC<FilterReelRowProps> = ({
 
   return (
     <section className="songspot-filter-row" aria-label={label}>
-      <span className="songspot-filter-label">{label}</span>
+      <button
+        type="button"
+        onClick={onOpenPicker}
+        className="songspot-filter-label group"
+        title={actionTitle || label}
+        style={{ cursor: onOpenPicker ? 'pointer' : 'default', pointerEvents: 'auto' }}
+      >
+        <span className="truncate group-hover:text-emerald-400 transition-colors">{label}</span>
+      </button>
+
       <div
         className={`songspot-filter-values${rollingDir ? ` is-rolling-${rollingDir}` : ''}`}
         onAnimationEnd={(e) => {
@@ -92,340 +105,470 @@ const FilterReelRow: React.FC<FilterReelRowProps> = ({
           );
         })}
       </div>
+
+      {onOpenPicker && (
+        <button
+          type="button"
+          onClick={onOpenPicker}
+          className="songspot-filter-action"
+          title={actionTitle}
+          aria-label={actionTitle}
+        >
+          {actionIcon || <SlidersHorizontal className="w-3.5 h-3.5" />}
+        </button>
+      )}
     </section>
   );
 };
 
+/* -------------------------------------------------------------------------- */
+/* Modal 1: All Genres Picker Modal                                           */
+/* -------------------------------------------------------------------------- */
+const GenrePickerModal: React.FC<{
+  isOpen: boolean;
+  onClose: () => void;
+  selectedGenre: string;
+  onSelectGenre: (genre: string) => void;
+}> = ({ isOpen, onClose, selectedGenre, onSelectGenre }) => {
+  const [search, setSearch] = useState('');
+  if (!isOpen) return null;
+
+  const filteredGenres = GENRE_OPTIONS.filter((g) =>
+    g.toLowerCase().includes(search.toLowerCase())
+  );
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-150">
+      <div
+        className="w-full max-w-md rounded-2xl border p-4 sm:p-5 shadow-2xl space-y-4 max-h-[85vh] flex flex-col"
+        style={{
+          backgroundColor: 'var(--song-surface)',
+          borderColor: 'var(--song-border)',
+          color: 'var(--song-text)',
+        }}
+      >
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Music className="w-4 h-4 text-emerald-400" />
+            <h3 className="text-sm font-extrabold tracking-wide">เลือกแนวเพลง (All Genres)</h3>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="p-1 rounded-lg hover:bg-white/10 transition"
+            aria-label="Close"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        <div className="relative">
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="ค้นหาแนวเพลง (เช่น Pop, Rock, Indie, T-Pop)..."
+            className="w-full pl-9 pr-3 py-2 rounded-xl border text-xs font-medium focus:outline-none"
+            style={{
+              backgroundColor: 'var(--song-surface-soft)',
+              borderColor: 'var(--song-border)',
+              color: 'var(--song-text)',
+            }}
+          />
+          <Search className="w-3.5 h-3.5 absolute left-3 top-2.5 text-neutral-400" />
+        </div>
+
+        <div className="overflow-y-auto flex-1 pr-1 space-y-2">
+          {/* Option: Any genre */}
+          <button
+            type="button"
+            onClick={() => {
+              onSelectGenre('any');
+              onClose();
+            }}
+            className="w-full p-2.5 rounded-xl border text-left text-xs font-bold flex items-center justify-between transition hover:brightness-110"
+            style={
+              !selectedGenre || selectedGenre === 'any'
+                ? {
+                    backgroundColor: 'color-mix(in srgb, var(--song-accent) 18%, var(--song-surface-soft))',
+                    borderColor: 'var(--song-accent)',
+                    color: 'var(--song-accent-text)',
+                  }
+                : {
+                    backgroundColor: 'var(--song-surface-soft)',
+                    borderColor: 'var(--song-border)',
+                  }
+            }
+          >
+            <span className="flex items-center gap-2">
+              <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
+              Any genre (สุ่มทุกแนวเพลง)
+            </span>
+            {(!selectedGenre || selectedGenre === 'any') && (
+              <Check className="w-4 h-4 text-emerald-400" />
+            )}
+          </button>
+
+          {/* Grid of genres */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5 pt-1">
+            {filteredGenres
+              .filter((g) => g !== 'any')
+              .map((genre) => {
+                const active = selectedGenre.toLowerCase() === genre.toLowerCase();
+                return (
+                  <button
+                    key={genre}
+                    type="button"
+                    onClick={() => {
+                      onSelectGenre(genre);
+                      onClose();
+                    }}
+                    className="p-2 rounded-xl border text-left text-xs font-semibold flex items-center justify-between transition hover:brightness-110"
+                    style={
+                      active
+                        ? {
+                            backgroundColor: 'color-mix(in srgb, var(--song-accent) 18%, var(--song-surface-soft))',
+                            borderColor: 'var(--song-accent)',
+                            color: 'var(--song-accent-text)',
+                          }
+                        : {
+                            backgroundColor: 'var(--song-surface-soft)',
+                            borderColor: 'var(--song-border)',
+                          }
+                    }
+                  >
+                    <span className="truncate">{genre}</span>
+                    {active && <Check className="w-3.5 h-3.5 text-emerald-400 shrink-0" />}
+                  </button>
+                );
+              })}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+/* -------------------------------------------------------------------------- */
+/* Modal 2: All Eras & Years Picker Modal                                     */
+/* -------------------------------------------------------------------------- */
+const EraPickerModal: React.FC<{
+  isOpen: boolean;
+  onClose: () => void;
+  selectedEra: string;
+  onSelectEra: (era: string) => void;
+}> = ({ isOpen, onClose, selectedEra, onSelectEra }) => {
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-150">
+      <div
+        className="w-full max-w-md rounded-2xl border p-4 sm:p-5 shadow-2xl space-y-4 max-h-[85vh] flex flex-col"
+        style={{
+          backgroundColor: 'var(--song-surface)',
+          borderColor: 'var(--song-border)',
+          color: 'var(--song-text)',
+        }}
+      >
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Calendar className="w-4 h-4 text-emerald-400" />
+            <h3 className="text-sm font-extrabold tracking-wide">เลือกปีหรือทศวรรษ (All Eras & Years)</h3>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="p-1 rounded-lg hover:bg-white/10 transition"
+            aria-label="Close"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        <div className="overflow-y-auto flex-1 pr-1 space-y-4">
+          {/* Any era */}
+          <button
+            type="button"
+            onClick={() => {
+              onSelectEra('any');
+              onClose();
+            }}
+            className="w-full p-2.5 rounded-xl border text-left text-xs font-bold flex items-center justify-between transition hover:brightness-110"
+            style={
+              !selectedEra || selectedEra === 'any'
+                ? {
+                    backgroundColor: 'color-mix(in srgb, var(--song-accent) 18%, var(--song-surface-soft))',
+                    borderColor: 'var(--song-accent)',
+                    color: 'var(--song-accent-text)',
+                  }
+                : {
+                    backgroundColor: 'var(--song-surface-soft)',
+                    borderColor: 'var(--song-border)',
+                  }
+            }
+          >
+            <span className="flex items-center gap-2">
+              <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
+              Any era (สุ่มทุกยุคสมัย)
+            </span>
+            {(!selectedEra || selectedEra === 'any') && (
+              <Check className="w-4 h-4 text-emerald-400" />
+            )}
+          </button>
+
+          {/* Decades */}
+          <div className="space-y-1.5">
+            <div className="text-[11px] font-extrabold uppercase tracking-wider" style={{ color: 'var(--song-muted)' }}>
+              ทศวรรษ (Decades)
+            </div>
+            <div className="grid grid-cols-3 gap-2">
+              {DECADE_OPTIONS.map((dec) => {
+                const active = selectedEra === dec;
+                return (
+                  <button
+                    key={dec}
+                    type="button"
+                    onClick={() => {
+                      onSelectEra(dec);
+                      onClose();
+                    }}
+                    className="p-2 rounded-xl border text-center text-xs font-bold transition hover:brightness-110"
+                    style={
+                      active
+                        ? {
+                            backgroundColor: 'var(--song-accent)',
+                            color: 'var(--song-accent-on)',
+                            borderColor: 'var(--song-accent)',
+                          }
+                        : {
+                            backgroundColor: 'var(--song-surface-soft)',
+                            borderColor: 'var(--song-border)',
+                            color: 'var(--song-text)',
+                          }
+                    }
+                  >
+                    {dec === 'classic' ? 'Classic' : dec}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Exact Years 2026 down to 2000 */}
+          <div className="space-y-1.5">
+            <div className="text-[11px] font-extrabold uppercase tracking-wider" style={{ color: 'var(--song-muted)' }}>
+              เจาะจงปีที่ปล่อยเพลง (Exact Years: 2000 – 2026)
+            </div>
+            <div className="grid grid-cols-4 sm:grid-cols-6 gap-1.5">
+              {YEAR_OPTIONS.map((yr) => {
+                const active = selectedEra === yr;
+                return (
+                  <button
+                    key={yr}
+                    type="button"
+                    onClick={() => {
+                      onSelectEra(yr);
+                      onClose();
+                    }}
+                    className="py-1.5 px-2 rounded-lg border text-center text-[11px] font-bold transition hover:brightness-110"
+                    style={
+                      active
+                        ? {
+                            backgroundColor: 'var(--song-accent)',
+                            color: 'var(--song-accent-on)',
+                            borderColor: 'var(--song-accent)',
+                          }
+                        : {
+                            backgroundColor: 'var(--song-surface-soft)',
+                            borderColor: 'var(--song-border)',
+                            color: 'var(--song-muted)',
+                          }
+                    }
+                  >
+                    {yr}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+/* -------------------------------------------------------------------------- */
+/* Main ModeSelector Component                                                */
+/* -------------------------------------------------------------------------- */
 export const ModeSelector: React.FC<ModeSelectorProps> = ({
   config,
   onChangeConfig,
   artists,
   category,
-  poolSize,
-  onReroll,
+  onOpenAddArtist,
 }) => {
-  const [artistQuery, setArtistQuery] = useState('');
-  const [searchedArtists, setSearchedArtists] = useState<Artist[]>([]);
-  const [searchingArtists, setSearchingArtists] = useState(false);
-  const [pendingArtist, setPendingArtist] = useState<string>(config.artistName || '');
-
-  useEffect(() => {
-    if (config.artistName) {
-      setPendingArtist(config.artistName);
-    }
-  }, [config.artistName]);
-
-  // Debounced API + local artist search for Artist Mode Step 1
-  useEffect(() => {
-    if (config.mode !== 'artist') return;
-    if (!artistQuery.trim()) {
-      const filteredLocal = artists.filter((a) =>
-        category === 'all' ? true : a.category === category
-      );
-      setSearchedArtists(filteredLocal);
-      return;
-    }
-
-    const timer = setTimeout(async () => {
-      setSearchingArtists(true);
-      try {
-        const res = await fetch(
-          `/api/artists?category=${category}&q=${encodeURIComponent(artistQuery)}&discover=true`
-        );
-        const json = await res.json();
-        if (json.code === 0) {
-          setSearchedArtists(json.data || []);
-        }
-      } catch {
-        // Fallback to local filter
-        const qLower = artistQuery.toLowerCase();
-        setSearchedArtists(
-          artists.filter((a) => a.name.toLowerCase().includes(qLower))
-        );
-      } finally {
-        setSearchingArtists(false);
-      }
-    }, 260);
-
-    return () => clearTimeout(timer);
-  }, [artistQuery, artists, category, config.mode]);
-
-  const modes: Array<{ id: GameMode; label: string; icon: React.ReactNode }> = [
-    { id: 'standard', label: 'โหมดทั่วไป (All Hits)', icon: <Sparkles className="w-3.5 h-3.5" /> },
-    { id: 'artist', label: 'ทายตามศิลปิน (Artist)', icon: <Mic2 className="w-3.5 h-3.5" /> },
-    { id: 'year', label: 'ปีที่ปล่อยเพลง (Year/Era)', icon: <Calendar className="w-3.5 h-3.5" /> },
-    { id: 'genre', label: 'แนวเพลง (Genre)', icon: <Music className="w-3.5 h-3.5" /> },
-  ];
+  const [genreModalOpen, setGenreModalOpen] = useState(false);
+  const [eraModalOpen, setEraModalOpen] = useState(false);
 
   const handleDifficultySelect = (diff: DifficultyLevel) => {
     onChangeConfig({ ...config, difficulty: diff }, true);
   };
 
-  const handleModeSwitch = (mode: GameMode) => {
-    if (mode === 'standard') {
-      onChangeConfig(
-        {
-          ...config,
-          mode: 'standard',
-          artistName: undefined,
-          yearFilter: 'any',
-          genreFilter: 'any',
-        },
-        true
-      );
-    } else if (mode === 'guesser') {
-      onChangeConfig(
-        {
-          ...config,
-          mode: 'guesser',
-        },
-        true
-      );
-    } else if (mode === 'artist') {
-      const defaultArtist =
-        config.artistName ||
-        artists.find((a) => (category === 'all' ? true : a.category === category))?.name ||
-        'Bodyslam';
-      setPendingArtist(defaultArtist);
-      onChangeConfig(
-        {
-          ...config,
-          mode: 'artist',
-          artistName: defaultArtist,
-          yearFilter: 'any',
-          genreFilter: 'any',
-        },
-        true
-      );
-    } else if (mode === 'year') {
-      onChangeConfig(
-        {
-          ...config,
-          mode: 'year',
-          artistName: undefined,
-          yearFilter: config.yearFilter && config.yearFilter !== 'any' ? config.yearFilter : '2020s',
-        },
-        true
-      );
-    } else if (mode === 'genre') {
-      onChangeConfig(
-        {
-          ...config,
-          mode: 'genre',
-          artistName: undefined,
-          genreFilter: config.genreFilter && config.genreFilter !== 'any' ? config.genreFilter : 'Pop',
-        },
-        true
-      );
+  // Genre reel options
+  const genreReelOptions = useMemo(() => {
+    const opts = [
+      { value: 'any', label: 'Any genre' },
+      ...GENRE_OPTIONS.filter((g) => g !== 'any').map((g) => ({ value: g, label: g })),
+    ];
+    if (
+      config.genreFilter &&
+      config.genreFilter !== 'any' &&
+      !opts.some((o) => o.value.toLowerCase() === config.genreFilter?.toLowerCase())
+    ) {
+      opts.push({ value: config.genreFilter, label: config.genreFilter });
     }
-  };
+    return opts;
+  }, [config.genreFilter]);
 
-  // Options for Songspot Default Mode 3-row filter reels
-  const genreReelOptions = [
-    { value: 'any', label: 'Any genre' },
-    ...GENRE_OPTIONS.filter((g) => g !== 'any').map((g) => ({ value: g, label: g })),
-  ];
+  // Era reel options
+  const eraReelOptions = useMemo(() => {
+    const opts = [
+      { value: 'any', label: 'Any era' },
+      ...DECADE_OPTIONS.map((d) => ({
+        value: d,
+        label: d === 'classic' ? 'Classic' : d,
+      })),
+      ...YEAR_OPTIONS.slice(0, 10).map((y) => ({
+        value: String(y),
+        label: String(y),
+      })),
+    ];
+    if (
+      config.yearFilter &&
+      config.yearFilter !== 'any' &&
+      !opts.some((o) => o.value === config.yearFilter)
+    ) {
+      opts.push({ value: config.yearFilter, label: config.yearFilter });
+    }
+    return opts;
+  }, [config.yearFilter]);
 
-  const eraReelOptions = [
-    { value: 'any', label: 'Any era' },
-    ...DECADE_OPTIONS.map((d) => ({
-      value: d,
-      label: d === 'classic' ? 'Classic' : d,
-    })),
-    ...YEAR_OPTIONS.slice(0, 10).map((y) => ({
-      value: String(y),
-      label: String(y),
-    })),
-  ];
+  // Artist reel options
+  const filteredPoolArtists = useMemo(() => {
+    return artists.filter((a) => (category === 'all' ? true : a.category === category));
+  }, [artists, category]);
 
-  const filteredPoolArtists = artists.filter((a) =>
-    category === 'all' ? true : a.category === category
-  );
-  const artistReelOptions = [
-    { value: 'any', label: 'Any artist' },
-    ...filteredPoolArtists.map((a) => ({ value: a.name, label: a.name })),
-  ];
+  const artistReelOptions = useMemo(() => {
+    const opts = [
+      { value: 'any', label: 'Any artist' },
+      ...filteredPoolArtists.map((a) => ({ value: a.name, label: a.name })),
+    ];
+    if (
+      config.artistName &&
+      config.artistName !== 'any' &&
+      !opts.some((o) => o.value.toLowerCase() === config.artistName?.toLowerCase())
+    ) {
+      opts.push({ value: config.artistName, label: config.artistName });
+    }
+    return opts;
+  }, [filteredPoolArtists, config.artistName]);
 
   const difficultyList: DifficultyLevel[] = ['easy', 'medium', 'hard', 'expert', 'impossible'];
 
   return (
     <div className="w-full max-w-2xl mx-auto mb-5 space-y-3 relative z-10">
-      {/* 1. Filter Mode Tabs (4 Modes) */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 sm:gap-2">
-        {modes.map((m) => {
-          const active = config.mode === m.id;
-          return (
-            <button
-              key={m.id}
-              type="button"
-              onClick={() => handleModeSwitch(m.id)}
-              className="px-2.5 sm:px-3 py-2 sm:py-2.5 rounded-xl border text-xs font-bold flex items-center justify-center gap-1.5 transition-all"
-              style={
-                active
-                  ? {
-                      backgroundColor: 'color-mix(in srgb, var(--song-accent) 16%, var(--song-surface))',
-                      borderColor: 'var(--song-accent)',
-                      color: 'var(--song-accent-text)',
-                    }
-                  : {
-                      backgroundColor: 'var(--song-surface)',
-                      borderColor: 'var(--song-border)',
-                      color: 'var(--song-muted)',
-                    }
-              }
-            >
-              {m.icon}
-              <span className="truncate">{m.label}</span>
-            </button>
-          );
-        })}
-      </div>
+      {/* Exact Songspot 3-Row Filter Reels + 5 Difficulty Tabs */}
+      <div className="pt-1 pb-2">
+        <div className="songspot-filter-stack">
+          {/* Indicator Arrow at Top of Filter Reel */}
+          <svg
+            className="songspot-filter-indicator"
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="currentColor"
+            aria-hidden="true"
+          >
+            <path d="M12 18L4 6h16l-8 12z" />
+          </svg>
 
-      {/* 2. Default Mode (Standard) & Song Guesser: Exact Songspot 3-Row Filter Reels + 5 Difficulty Tabs */}
-      {(config.mode === 'standard' || config.mode === 'guesser') && (
-        <div className="pt-1 pb-2">
-          <div className="songspot-filter-stack">
-            {/* Single Indicator Arrow at Top of Filter Reel */}
-            <svg
-              className="songspot-filter-indicator"
-              width="14"
-              height="14"
-              viewBox="0 0 24 24"
-              fill="currentColor"
-              aria-hidden="true"
-            >
-              <path d="M12 18L4 6h16l-8 12z" />
-            </svg>
-            <FilterReelRow
-              label="GENRES"
-              options={genreReelOptions}
-              value={config.genreFilter || 'any'}
-              onSelect={(val) =>
-                onChangeConfig({ ...config, genreFilter: val, mode: 'standard' }, true)
-              }
-            />
-            <FilterReelRow
-              label="ERAS"
-              options={eraReelOptions}
-              value={config.yearFilter || 'any'}
-              onSelect={(val) =>
-                onChangeConfig({ ...config, yearFilter: val, mode: 'standard' }, true)
-              }
-            />
-            <FilterReelRow
-              label="ARTISTS"
-              options={artistReelOptions}
-              value={config.artistName || 'any'}
-              onSelect={(val) =>
-                onChangeConfig(
-                  {
-                    ...config,
-                    artistName: val === 'any' ? undefined : val,
-                    mode: 'standard',
-                  },
-                  true
-                )
-              }
-            />
-          </div>
-
-          <div className="flex flex-col items-center justify-center gap-2.5 mt-4 pt-1 w-full">
-            {/* Row 1: ระดับความยาก (แถวแนวนอน) */}
-            <div className="songspot-difficulty-tabs w-full justify-center">
-              {difficultyList.map((lvl) => {
-                const preset = DIFFICULTY_PRESETS[lvl];
-                const isSelected = config.difficulty === lvl;
-                return (
-                  <button
-                    key={lvl}
-                    type="button"
-                    className="songspot-difficulty-tab"
-                    aria-pressed={isSelected}
-                    style={
-                      {
-                        '--tab-color': preset.accent,
-                        '--tab-text': preset.accentText,
-                        '--tab-on': preset.accentOn,
-                      } as React.CSSProperties
-                    }
-                    onClick={() => handleDifficultySelect(lvl)}
-                    title={preset.description}
-                  >
-                    {preset.label}
-                  </button>
-                );
-              })}
-            </div>
-
-            {/* Row 2: Time Range (แถวแนวนอนด้านล่าง) */}
-            <div className="w-full flex items-center justify-center">
-              <TimeRangeSelector
-                currentPreset={config.timeRangePreset}
-                stages={config.customStages}
-                onChangePreset={(presetId, stages) => {
-                  onChangeConfig(
-                    {
-                      ...config,
-                      timeRangePreset: presetId,
-                      customStages: stages,
-                    },
-                    true
-                  );
-                }}
-              />
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Difficulty & Time Range Bar for Specialized Modes (Artist / Year / Genre) */}
-      {config.mode !== 'standard' && config.mode !== 'guesser' && config.mode !== 'daily' && (
-        <div
-          className="p-3 rounded-2xl border flex flex-col items-center justify-center gap-2.5"
-          style={{
-            backgroundColor: 'var(--song-surface)',
-            borderColor: 'var(--song-border)',
-          }}
-        >
-          {/* Row 1: ระดับความยาก (แถวแนวนอน) */}
-          <div className="w-full flex items-center justify-center gap-2.5 text-xs font-bold uppercase tracking-wider flex-wrap" style={{ color: 'var(--song-muted)' }}>
-            <div className="flex items-center gap-1.5 shrink-0">
-              <Disc className="w-3.5 h-3.5" style={{ color: 'var(--song-accent-text)' }} />
-              <span>ระดับความยาก:</span>
-            </div>
-            <div className="songspot-difficulty-tabs !w-auto">
-              {difficultyList.map((lvl) => {
-                const preset = DIFFICULTY_PRESETS[lvl];
-                const isSelected = config.difficulty === lvl;
-                return (
-                  <button
-                    key={lvl}
-                    type="button"
-                    className="songspot-difficulty-tab"
-                    aria-pressed={isSelected}
-                    style={
-                      {
-                        '--tab-color': preset.accent,
-                        '--tab-text': preset.accentText,
-                        '--tab-on': preset.accentOn,
-                      } as React.CSSProperties
-                    }
-                    onClick={() => handleDifficultySelect(lvl)}
-                    title={preset.description}
-                  >
-                    {preset.label}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          <div
-            className="w-full h-px opacity-30 my-0.5"
-            style={{ backgroundColor: 'var(--song-border)' }}
+          {/* Row 1: GENRES */}
+          <FilterReelRow
+            label="GENRES"
+            options={genreReelOptions}
+            value={config.genreFilter || 'any'}
+            onSelect={(val) =>
+              onChangeConfig({ ...config, genreFilter: val, mode: 'standard' }, true)
+            }
+            onOpenPicker={() => setGenreModalOpen(true)}
+            actionTitle="เลือกแนวเพลงทั้งหมด (All Genres)"
+            actionIcon={<SlidersHorizontal className="w-3.5 h-3.5" />}
           />
 
-          {/* Row 2: Time Range (แถวแนวนอนด้านล่าง) */}
+          {/* Row 2: ERAS */}
+          <FilterReelRow
+            label="ERAS"
+            options={eraReelOptions}
+            value={config.yearFilter || 'any'}
+            onSelect={(val) =>
+              onChangeConfig({ ...config, yearFilter: val, mode: 'standard' }, true)
+            }
+            onOpenPicker={() => setEraModalOpen(true)}
+            actionTitle="เลือกปีและทศวรรษทั้งหมด (All Eras & Years)"
+            actionIcon={<Calendar className="w-3.5 h-3.5" />}
+          />
+
+          {/* Row 3: ARTISTS */}
+          <FilterReelRow
+            label="ARTISTS"
+            options={artistReelOptions}
+            value={config.artistName || 'any'}
+            onSelect={(val) =>
+              onChangeConfig(
+                {
+                  ...config,
+                  artistName: val === 'any' ? undefined : val,
+                  mode: 'standard',
+                },
+                true
+              )
+            }
+            onOpenPicker={onOpenAddArtist}
+            actionTitle="เลือกหรือค้นหาศิลปินทั้งหมด (All Artists & Add Artist)"
+            actionIcon={<SlidersHorizontal className="w-3.5 h-3.5" />}
+          />
+        </div>
+
+        {/* 5 Difficulty Tabs + Time Range Selector */}
+        <div className="flex flex-col items-center justify-center gap-2.5 mt-4 pt-1 w-full">
+          {/* Row 1: ระดับความยาก (5 Difficulty Tabs) */}
+          <div className="songspot-difficulty-tabs w-full justify-center">
+            {difficultyList.map((lvl) => {
+              const preset = DIFFICULTY_PRESETS[lvl];
+              const isSelected = config.difficulty === lvl;
+              return (
+                <button
+                  key={lvl}
+                  type="button"
+                  className="songspot-difficulty-tab"
+                  aria-pressed={isSelected}
+                  style={
+                    {
+                      '--tab-color': preset.accent,
+                      '--tab-text': preset.accentText,
+                      '--tab-on': preset.accentOn,
+                    } as React.CSSProperties
+                  }
+                  onClick={() => handleDifficultySelect(lvl)}
+                  title={preset.description}
+                >
+                  {preset.label}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Row 2: Time Range Preset */}
           <div className="w-full flex items-center justify-center">
             <TimeRangeSelector
               currentPreset={config.timeRangePreset}
@@ -443,279 +586,27 @@ export const ModeSelector: React.FC<ModeSelectorProps> = ({
             />
           </div>
         </div>
-      )}
+      </div>
 
-      {/* 3. Sub-Mode Interactive Panels */}
-      {config.mode === 'artist' && (
-        <div
-          className="p-3.5 sm:p-4 rounded-2xl border space-y-3"
-          style={{
-            backgroundColor: 'var(--song-surface)',
-            borderColor: 'var(--song-border)',
-          }}
-        >
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-            <div>
-              <h3 className="text-xs font-extrabold uppercase tracking-wider" style={{ color: 'var(--song-accent-text)' }}>
-                โหมดทายตามศิลปิน (Scoped Artist Mode)
-              </h3>
-              <p className="text-[10px] sm:text-[11px]" style={{ color: 'var(--song-muted)' }}>
-                Step 1: ค้นหาและเลือกศิลปิน • Step 2: เลือกระดับความยาก • Step 3: ทายเฉพาะเพลงของศิลปินนั้น!
-              </p>
-            </div>
-            {config.artistName && (
-              <span
-                className="px-3 py-1 rounded-full text-xs font-extrabold self-start sm:self-auto shrink-0"
-                style={{
-                  backgroundColor: 'var(--song-accent)',
-                  color: 'var(--song-accent-on)',
-                }}
-              >
-                🎤 กำลังเล่น: {config.artistName} ({poolSize} เพลง)
-              </span>
-            )}
-          </div>
+      {/* Genre Picker Modal */}
+      <GenrePickerModal
+        isOpen={genreModalOpen}
+        onClose={() => setGenreModalOpen(false)}
+        selectedGenre={config.genreFilter || 'any'}
+        onSelectGenre={(genre) => {
+          onChangeConfig({ ...config, genreFilter: genre, mode: 'standard' }, true);
+        }}
+      />
 
-          {/* Step 1: Artist Search Input */}
-          <div className="relative">
-            <input
-              type="text"
-              value={artistQuery}
-              onChange={(e) => setArtistQuery(e.target.value)}
-              placeholder="ค้นหาชื่อศิลปินไทยหรือสากล (เช่น Bodyslam, Three Man Down, Taylor Swift, Queen)..."
-              className="w-full pl-9 pr-9 py-2 rounded-xl border text-xs font-medium focus:outline-none"
-              style={{
-                backgroundColor: 'var(--song-surface-soft)',
-                borderColor: 'var(--song-border)',
-                color: 'var(--song-text)',
-              }}
-            />
-            <Search className="w-4 h-4 absolute left-3 top-2.5" style={{ color: 'var(--song-muted)' }} />
-            {searchingArtists && (
-              <Loader2 className="w-4 h-4 animate-spin absolute right-3 top-2.5" style={{ color: 'var(--song-accent-text)' }} />
-            )}
-          </div>
-
-          {/* Step 2: Artist Selection Grid */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 max-h-48 overflow-y-auto pr-1">
-            {searchedArtists.map((artist) => {
-              const selected =
-                (pendingArtist || config.artistName)?.toLowerCase() === artist.name.toLowerCase();
-              return (
-                <button
-                  key={artist.id + artist.name}
-                  type="button"
-                  onClick={() => {
-                    setPendingArtist(artist.name);
-                    onChangeConfig(
-                      {
-                        ...config,
-                        mode: 'artist',
-                        artistName: artist.name,
-                        yearFilter: 'any',
-                        genreFilter: 'any',
-                      },
-                      true
-                    );
-                  }}
-                  className="p-2 rounded-xl border text-left flex items-center gap-2 transition hover:brightness-110"
-                  style={
-                    selected
-                      ? {
-                          backgroundColor: 'color-mix(in srgb, var(--song-accent) 18%, var(--song-surface-soft))',
-                          borderColor: 'var(--song-accent)',
-                        }
-                      : {
-                          backgroundColor: 'var(--song-surface-soft)',
-                          borderColor: 'var(--song-border)',
-                        }
-                  }
-                >
-                  <img
-                    src={artist.avatarUrl || 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=120'}
-                    alt={artist.name}
-                    className="w-8 h-8 sm:w-9 sm:h-9 rounded-full object-cover flex-shrink-0 border border-white/10"
-                  />
-                  <div className="min-w-0 flex-1">
-                    <div className="text-xs font-bold truncate">{artist.name}</div>
-                    <div className="text-[10px] truncate" style={{ color: 'var(--song-muted)' }}>
-                      {artist.category === 'thai' ? '🇹🇭' : '🌍'} {artist.mainGenre}
-                    </div>
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-
-          {/* Step 3: Start / Reroll Artist Game */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-1">
-            <span className="text-[10px] sm:text-[11px]" style={{ color: 'var(--song-muted)' }}>
-              ระบบจำกัดตัวเลือกคำตอบเฉพาะเพลงของ <strong>{config.artistName || pendingArtist}</strong> เท่านั้น
-            </span>
-            <button
-              type="button"
-              onClick={() =>
-                onChangeConfig(
-                  {
-                    ...config,
-                    mode: 'artist',
-                    artistName: pendingArtist || config.artistName,
-                    yearFilter: 'any',
-                    genreFilter: 'any',
-                  },
-                  true
-                )
-              }
-              className="px-4 py-2 sm:py-1.5 rounded-xl text-xs font-extrabold flex items-center justify-center gap-1.5 transition hover:brightness-110 active:scale-95"
-              style={{
-                backgroundColor: 'var(--song-accent)',
-                color: 'var(--song-accent-on)',
-              }}
-            >
-              <Play className="w-3.5 h-3.5 fill-current" />
-              <span>เริ่มสุ่มเพลงของ {pendingArtist || config.artistName}</span>
-            </button>
-          </div>
-        </div>
-      )}
-
-      {config.mode === 'year' && (
-        <div
-          className="p-3.5 sm:p-4 rounded-2xl border space-y-3"
-          style={{
-            backgroundColor: 'var(--song-surface)',
-            borderColor: 'var(--song-border)',
-          }}
-        >
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-extrabold uppercase tracking-wider" style={{ color: 'var(--song-accent-text)' }}>
-              เลือกตามทศวรรษ หรือ ปีที่ปล่อยเพลง (2000 – 2026)
-            </span>
-            <span className="text-xs font-semibold" style={{ color: 'var(--song-muted)' }}>
-              กำลังกรอง: <strong style={{ color: 'var(--song-text)' }}>{config.yearFilter || 'All'}</strong>
-            </span>
-          </div>
-
-          {/* Decade Quick Filters */}
-          <div className="flex flex-wrap items-center gap-1.5">
-            <span className="text-[11px] font-bold mr-1" style={{ color: 'var(--song-muted)' }}>
-              ทศวรรษ:
-            </span>
-            {DECADE_OPTIONS.map((dec) => {
-              const active = config.yearFilter === dec;
-              return (
-                <button
-                  key={dec}
-                  type="button"
-                  onClick={() => onChangeConfig({ ...config, mode: 'year', yearFilter: dec }, true)}
-                  className="px-3 py-1 rounded-lg text-xs font-bold border transition"
-                  style={
-                    active
-                      ? {
-                          backgroundColor: 'var(--song-accent)',
-                          color: 'var(--song-accent-on)',
-                          borderColor: 'var(--song-accent)',
-                        }
-                      : {
-                          backgroundColor: 'var(--song-surface-soft)',
-                          borderColor: 'var(--song-border)',
-                          color: 'var(--song-text)',
-                        }
-                  }
-                >
-                  ยุค {dec}
-                </button>
-              );
-            })}
-          </div>
-
-          {/* Exact Years 2026 down to 2000 */}
-          <div className="flex flex-wrap gap-1.5 max-h-28 overflow-y-auto pt-1">
-            {YEAR_OPTIONS.map((yr) => {
-              const active = config.yearFilter === yr;
-              return (
-                <button
-                  key={yr}
-                  type="button"
-                  onClick={() => onChangeConfig({ ...config, mode: 'year', yearFilter: yr }, true)}
-                  className="px-2.5 py-1 rounded-lg text-[11px] font-bold border transition"
-                  style={
-                    active
-                      ? {
-                          backgroundColor: 'var(--song-accent)',
-                          color: 'var(--song-accent-on)',
-                          borderColor: 'var(--song-accent)',
-                        }
-                      : {
-                          backgroundColor: 'var(--song-surface-soft)',
-                          borderColor: 'var(--song-border)',
-                          color: 'var(--song-muted)',
-                        }
-                  }
-                >
-                  {yr}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
-      {config.mode === 'genre' && (
-        <div
-          className="p-3.5 sm:p-4 rounded-2xl border space-y-2.5"
-          style={{
-            backgroundColor: 'var(--song-surface)',
-            borderColor: 'var(--song-border)',
-          }}
-        >
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-extrabold uppercase tracking-wider" style={{ color: 'var(--song-accent-text)' }}>
-              เลือกแนวเพลง (Genre Filter)
-            </span>
-            <button
-              type="button"
-              onClick={onReroll}
-              className="text-[11px] font-bold flex items-center gap-1 hover:underline"
-              style={{ color: 'var(--song-accent-text)' }}
-            >
-              <RotateCcw className="w-3 h-3" />
-              สุ่มเพลงใหม่ในแนวนี้
-            </button>
-          </div>
-
-          <div className="flex flex-wrap gap-2">
-            {GENRE_OPTIONS.filter((g) => g !== 'any').map((genre) => {
-              const active = config.genreFilter === genre;
-              return (
-                <button
-                  key={genre}
-                  type="button"
-                  onClick={() =>
-                    onChangeConfig({ ...config, mode: 'genre', genreFilter: genre }, true)
-                  }
-                  className="px-3.5 py-1.5 rounded-xl text-xs font-bold border transition"
-                  style={
-                    active
-                      ? {
-                          backgroundColor: 'var(--song-accent)',
-                          color: 'var(--song-accent-on)',
-                          borderColor: 'var(--song-accent)',
-                        }
-                      : {
-                          backgroundColor: 'var(--song-surface-soft)',
-                          borderColor: 'var(--song-border)',
-                          color: 'var(--song-text)',
-                        }
-                  }
-                >
-                  {genre}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      )}
+      {/* Era Picker Modal */}
+      <EraPickerModal
+        isOpen={eraModalOpen}
+        onClose={() => setEraModalOpen(false)}
+        selectedEra={config.yearFilter || 'any'}
+        onSelectEra={(era) => {
+          onChangeConfig({ ...config, yearFilter: era, mode: 'standard' }, true);
+        }}
+      />
     </div>
   );
 };

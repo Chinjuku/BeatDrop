@@ -36,20 +36,23 @@ export function useAudioController({ audioUrl, volume }: UseAudioControllerOptio
     return audioCtxRef.current;
   }, []);
 
-  // Pre-warm / unlock AudioContext on first touch or click (iOS/iPadOS & Android policy)
+  // Pre-warm / unlock AudioContext on touch or click (iOS/iPadOS & Android mobile policy)
   useEffect(() => {
     const unlock = () => {
-      if (audioCtxRef.current && audioCtxRef.current.state === 'suspended') {
-        audioCtxRef.current.resume().catch(() => {});
+      const ctx = getContext();
+      if (ctx.state === 'suspended') {
+        ctx.resume().catch(() => {});
       }
     };
-    window.addEventListener('touchstart', unlock, { once: true, passive: true });
-    window.addEventListener('click', unlock, { once: true, passive: true });
+    window.addEventListener('touchstart', unlock, { passive: true });
+    window.addEventListener('touchend', unlock, { passive: true });
+    window.addEventListener('click', unlock, { passive: true });
     return () => {
       window.removeEventListener('touchstart', unlock);
+      window.removeEventListener('touchend', unlock);
       window.removeEventListener('click', unlock);
     };
-  }, []);
+  }, [getContext]);
 
   const stopInternal = useCallback((resetOffset = true, targetState: AudioPlaybackState = 'ready') => {
     if (rafRef.current !== null) {
@@ -126,15 +129,13 @@ export function useAudioController({ audioUrl, volume }: UseAudioControllerOptio
   }, [volume]);
 
   const startPlaybackFrom = useCallback(
-    async (startOffset: number, maxDurationSeconds: number) => {
+    (startOffset: number, maxDurationSeconds: number) => {
       const buffer = bufferRef.current;
       if (!buffer) return;
 
       const ctx = getContext();
       if (ctx.state === 'suspended') {
-        try {
-          await ctx.resume();
-        } catch {}
+        ctx.resume().catch(() => {});
       }
 
       stopInternal(false);
@@ -158,12 +159,15 @@ export function useAudioController({ audioUrl, volume }: UseAudioControllerOptio
       gainRef.current = gain;
 
       const now = ctx.currentTime;
+      const startPerf = performance.now();
       startCtxTimeRef.current = now;
       setState('playing');
 
       const tick = () => {
         if (sourceRef.current !== source) return;
-        const elapsedInRun = Math.max(0, ctx.currentTime - now);
+        const audioElapsed = ctx.currentTime - now;
+        const perfElapsed = (performance.now() - startPerf) / 1000;
+        const elapsedInRun = Math.max(0, Math.max(audioElapsed, perfElapsed));
         const absolutePos = Math.min(cappedMax, safeOffset + elapsedInRun);
         setCurrentTime(absolutePos);
         setProgress(cappedMax > 0 ? Math.min(1, absolutePos / cappedMax) : 0);

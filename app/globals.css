@@ -107,10 +107,6 @@ body {
   position: relative;
   overflow: hidden;
   border: 1px solid var(--song-border);
-  isolation: isolate;
-  -webkit-mask-image: -webkit-radial-gradient(white, black);
-  transform: translateZ(0);
-  -webkit-transform: translateZ(0);
 }
 
 .songspot-progress-segment {
@@ -139,17 +135,11 @@ body {
   border-radius: inherit;
   background: color-mix(in srgb, var(--song-accent) 72%, white 28%);
   pointer-events: none;
-  transform: scaleX(var(--playback-progress, 0));
-  -webkit-transform: scaleX(var(--playback-progress, 0));
-  transform-origin: 0 0;
-  -webkit-transform-origin: 0 0;
   position: absolute;
-  inset: 0;
-  width: 100%;
+  top: 0;
+  bottom: 0;
+  left: 0;
   height: 100%;
-  will-change: transform;
-  -webkit-backface-visibility: hidden;
-  transition: transform 0.05s linear;
 }
 
 /* Songspot Big Play Key */
@@ -358,7 +348,7 @@ body {
   z-index: 2;
   color: rgba(173, 185, 176, 0.68);
   letter-spacing: 0.06em;
-  pointer-events: none;
+  pointer-events: auto;
   text-transform: uppercase;
   align-items: center;
   width: 84px;
@@ -370,6 +360,35 @@ body {
   line-height: 14px;
   display: flex;
   position: relative;
+  background: transparent;
+  border: none;
+  text-align: left;
+  cursor: pointer;
+}
+
+.songspot-filter-action {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  color: rgba(173, 185, 176, 0.55);
+  background: transparent;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: all 0.16s ease;
+}
+
+.songspot-filter-action:hover {
+  color: var(--song-accent-text);
+  background: color-mix(in srgb, var(--song-accent) 15%, transparent);
+  border-color: color-mix(in srgb, var(--song-accent) 30%, transparent);
 }
 
 .songspot-filter-values {
@@ -552,6 +571,11 @@ body {
   .songspot-filter-indicator {
     left: calc(64px + (100% - 80px) * 0.5);
   }
+  .songspot-filter-action {
+    right: 2px;
+    width: 20px;
+    height: 20px;
+  }
   .songspot-difficulty-tab {
     padding: 0 10px;
     font-size: 10.5px;
@@ -574,6 +598,11 @@ body {
   }
   .songspot-filter-indicator {
     left: calc(58px + (100% - 70px) * 0.5);
+  }
+  .songspot-filter-action {
+    right: 1px;
+    width: 18px;
+    height: 18px;
   }
   .songspot-difficulty-tab {
     padding: 0 8px;

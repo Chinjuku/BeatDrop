@@ -47,9 +47,74 @@ export function cleanTrackTitle(rawTitle: string): string {
     .trim();
 }
 
+const JUNK_TERMS_REGEX = /\b(karaoke|tribute|instrumental|music box|sleep music|lullaby|relaxation|in the style of|made famous by|originally performed|backing track|ringtone|piano cover|guitar cover|soundtrack cast|loopable|nature sounds|ambient rain|white noise)\b/i;
+
+export function isJunkTrack(title?: string, albumName?: string, artistName?: string): boolean {
+  const t = title || '';
+  const a = albumName || '';
+  const art = artistName || '';
+  const normArt = normalizeText(art);
+  const normTitle = normalizeText(t);
+
+  // Preserve real songs like Tattoo Colour's 'คาราโอเกะ (Karaoke)'
+  if (normArt === 'tattoo colour' && normTitle.includes('karaoke')) {
+    return false;
+  }
+
+  // Reject explicit (Instrumental) / [Instrumental] tags
+  if (/\((?:instrumental|karaoke|tribute)\)|\[(?:instrumental|karaoke|tribute)\]/i.test(t)) {
+    return true;
+  }
+
+  return JUNK_TERMS_REGEX.test(t) || JUNK_TERMS_REGEX.test(a) || JUNK_TERMS_REGEX.test(art);
+}
+
+export function checkArtistStrictMatch(
+  trackArtist: string,
+  targetArtist: string,
+  targetArtistId?: number | null,
+  trackArtistId?: number | null,
+  trackTitle?: string
+): boolean {
+  if (!trackArtist || !targetArtist) return false;
+  if (targetArtistId && trackArtistId && targetArtistId === trackArtistId) {
+    return true;
+  }
+  const target = normalizeText(targetArtist);
+  const actual = normalizeText(trackArtist);
+  if (!target || !actual) return false;
+  if (actual === target) return true;
+
+  // Reject imposter patterns e.g. "Illslick Music", "Taylor Swift Songs", "Taylor Swift Tribute Band"
+  const imposter = new RegExp(`^${target}\\s+(music|song|songs|band|orchestra|project|experience|records|tribute|cover|soundtrack)$`, 'i');
+  if (imposter.test(actual)) return false;
+
+  // Tokenized collaboration match (e.g. "ILLSLICK, SANTAZ & DM", "ZAYN & Taylor Swift")
+  const tokens = trackArtist
+    .split(/[,&/]|\b(?:feat\.?|ft\.?|featuring|with|x|and|ร่วมกับ)\b/i)
+    .map((t) => normalizeText(t))
+    .filter(Boolean);
+
+  if (tokens.includes(target)) return true;
+
+  // Check feat in track title e.g. "ชุดวิวาห์ (feat. Illslick)"
+  if (trackTitle) {
+    const featMatch = trackTitle.match(/\((?:feat\.?|ft\.?|featuring|with)\s+([^)]+)\)/i);
+    if (featMatch && featMatch[1]) {
+      const featTokens = featMatch[1]
+        .split(/[,&/]|\b(?:feat\.?|ft\.?|featuring|with|x|and|ร่วมกับ)\b/i)
+        .map((t) => normalizeText(t))
+        .filter(Boolean);
+      if (featTokens.includes(target)) return true;
+    }
+  }
+
+  return false;
+}
+
 export function mapGenreTag(rawGenre?: string, category?: CategoryType): string {
   const g = (rawGenre || '').toLowerCase();
-  if (g.includes('hip-hop') || g.includes('rap')) return 'Hip-Hop';
+  if (g.includes('hip-hop') || g.includes('rap')) return 'Hip-Hop/Rap';
   if (g.includes('r&b') || g.includes('soul')) return 'R&B';
   if (g.includes('rock') || g.includes('metal') || g.includes('punk')) return 'Rock';
   if (g.includes('alternative') || g.includes('indie')) return 'Indie';
@@ -163,11 +228,17 @@ export async function fetchArtistSongsUpTo200(
       if (collected.size >= 200) return;
       if (!item.trackId || !item.trackName || !item.artistName || !item.previewUrl) return;
 
+      // Discard junk tracks (karaoke, tribute, lullaby, sleep, music box, etc.)
+      if (isJunkTrack(item.trackName, item.collectionName, item.artistName)) return;
+
       const normArtist = normalizeText(item.artistName);
-      const isArtistMatch =
-        (resolvedArtistId && item.artistId === resolvedArtistId) ||
-        normArtist.includes(normQuery) ||
-        normQuery.includes(normArtist);
+      const isArtistMatch = checkArtistStrictMatch(
+        item.artistName,
+        artistQuery,
+        resolvedArtistId,
+        item.artistId,
+        item.trackName
+      );
       if (!isArtistMatch) return;
 
       const cleanedTitle = cleanTrackTitle(item.trackName);

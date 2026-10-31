@@ -1,5 +1,6 @@
 'use client';
 import React, { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { usePathname, useRouter } from 'next/navigation';
 import {
   ArrowRight,
@@ -81,6 +82,22 @@ export const Navbar: React.FC<NavbarProps> = ({
   const [activeMenu, setActiveMenu] = useState<
     'clip' | 'guesser' | 'locale' | 'settings' | 'mobile' | null
   >(null);
+
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  // Lock background scroll when mobile navigation drawer is active
+  useEffect(() => {
+    if (activeMenu === 'mobile') {
+      const originalOverflow = document.body.style.overflow;
+      document.body.style.overflow = 'hidden';
+      return () => {
+        document.body.style.overflow = originalOverflow;
+      };
+    }
+  }, [activeMenu]);
 
   const headerRef = useRef<HTMLElement>(null);
 
@@ -190,16 +207,6 @@ export const Navbar: React.FC<NavbarProps> = ({
           <div className="flex items-center gap-1.5">
             <span className="font-extrabold text-lg italic tracking-normal bg-gradient-to-r from-emerald-400 via-teal-300 to-cyan-400 bg-clip-text text-transparent">
               BeatDrop
-            </span>
-            <span
-              className="text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded-full hidden sm:inline-block border"
-              style={{
-                backgroundColor: 'color-mix(in srgb, var(--song-accent) 15%, transparent)',
-                borderColor: 'var(--song-accent)',
-                color: 'var(--song-accent-text)',
-              }}
-            >
-              TH & INTL
             </span>
           </div>
         </button>
@@ -725,283 +732,290 @@ export const Navbar: React.FC<NavbarProps> = ({
         </div>
       </div>
 
-      {/* Mobile Drawer Backdrop & Drawer */}
-      {activeMenu === 'mobile' && (
-        <div
-          className="fixed inset-0 z-40 bg-black/75 backdrop-blur-sm max-[1140px]:block min-[1141px]:hidden animate-in fade-in duration-200"
-          onClick={() => setActiveMenu(null)}
-        />
-      )}
+      {/* Mobile Drawer Backdrop & Full-Height Drawer (Portalled to document.body to escape header backdrop-filter) */}
+      {mounted &&
+        activeMenu === 'mobile' &&
+        createPortal(
+          <div className="fixed inset-0 z-[100] max-[1140px]:block min-[1141px]:hidden animate-in fade-in duration-200">
+            {/* Full-screen Dark Blurred Backdrop */}
+            <div
+              className="fixed inset-0 bg-black/80 backdrop-blur-md"
+              onClick={() => setActiveMenu(null)}
+              aria-hidden="true"
+            />
 
-      <div
-        className={`fixed top-14 right-0 bottom-0 w-[min(88vw,360px)] border-l z-50 p-4 overflow-y-auto max-[1140px]:flex min-[1141px]:hidden transition-transform duration-300 flex-col gap-4 shadow-2xl ${
-          activeMenu === 'mobile' ? 'translate-x-0' : 'translate-x-full'
-        }`}
-        style={{
-          backgroundColor: 'var(--song-surface)',
-          borderColor: 'var(--song-border)',
-          color: 'var(--song-text)',
-        }}
-      >
-        <div className="flex items-center justify-between pb-3 border-b border-[var(--song-border)]">
-          <span className="text-xs font-extrabold uppercase tracking-wider" style={{ color: 'var(--song-muted)' }}>
-            เมนูหลัก (Navigation)
-          </span>
-          <button
-            type="button"
-            onClick={() => setActiveMenu(null)}
-            className="p-1 rounded-lg border"
-            style={{ backgroundColor: 'var(--song-surface-soft)', borderColor: 'var(--song-border)' }}
-          >
-            <X className="w-4 h-4" />
-          </button>
-        </div>
-
-        {/* Primary Links */}
-        <div className="space-y-1.5">
-          <button
-            type="button"
-            onClick={() => {
-              setActiveMenu(null);
-              navigate('/play');
-            }}
-            className="w-full px-3 py-2.5 rounded-xl text-left text-sm font-bold flex items-center justify-between"
-            style={
-              isPlayActive
-                ? {
-                    backgroundColor: 'var(--song-accent)',
-                    color: 'var(--song-accent-on)',
-                  }
-                : {
-                    backgroundColor: 'var(--song-surface-soft)',
-                    color: 'var(--song-text)',
-                  }
-            }
-          >
-            <span className="flex items-center gap-2">
-              <Play className="w-4 h-4" />
-              <span>Play (Clip Challenge)</span>
-            </span>
-            <ArrowRight className="w-4 h-4 opacity-70" />
-          </button>
-
-          <button
-            type="button"
-            onClick={() => {
-              setActiveMenu(null);
-              navigate('/daily');
-            }}
-            className="w-full px-3 py-2.5 rounded-xl text-left text-sm font-bold flex items-center justify-between"
-            style={
-              isDailyActive
-                ? {
-                    backgroundColor: 'var(--song-accent)',
-                    color: 'var(--song-accent-on)',
-                  }
-                : {
-                    backgroundColor: 'var(--song-surface-soft)',
-                    color: 'var(--song-text)',
-                  }
-            }
-          >
-            <span className="flex items-center gap-2">
-              <CalendarDays className="w-4 h-4" />
-              <span>Daily Challenge (5 เพลง)</span>
-            </span>
-            <ArrowRight className="w-4 h-4 opacity-70" />
-          </button>
-
-          <button
-            type="button"
-            onClick={() => {
-              setActiveMenu(null);
-              navigate('/guesser');
-            }}
-            className="w-full px-3 py-2.5 rounded-xl text-left text-sm font-bold flex items-center justify-between"
-            style={
-              isGuesserActive
-                ? {
-                    backgroundColor: '#b57aff',
-                    color: '#07110c',
-                  }
-                : {
-                    backgroundColor: 'var(--song-surface-soft)',
-                    color: 'var(--song-text)',
-                  }
-            }
-          >
-            <span className="flex items-center gap-2">
-              <ListChecks className="w-4 h-4" />
-              <span>Song Guesser (4 ตัวเลือก)</span>
-            </span>
-            <ArrowRight className="w-4 h-4 opacity-70" />
-          </button>
-
-          <button
-            type="button"
-            onClick={() => {
-              setActiveMenu(null);
-              navigate('/quizzes');
-            }}
-            className="w-full px-3 py-2.5 rounded-xl text-left text-sm font-bold flex items-center justify-between"
-            style={
-              isQuizzesActive
-                ? {
-                    backgroundColor: 'var(--song-accent)',
-                    color: 'var(--song-accent-on)',
-                  }
-                : {
-                    backgroundColor: 'var(--song-surface-soft)',
-                    color: 'var(--song-text)',
-                  }
-            }
-          >
-            <span className="flex items-center gap-2">
-              <Compass className="w-4 h-4" />
-              <span>Music Quizzes Hub (รวมหมวดหมู่)</span>
-            </span>
-            <ArrowRight className="w-4 h-4 opacity-70" />
-          </button>
-        </div>
-
-        {/* Accordion Topics for Clip Quizzes */}
-        <details className="border-t border-[var(--song-border)] pt-2 group">
-          <summary className="flex items-center justify-between py-2 text-xs font-bold cursor-pointer select-none">
-            <span>Music Quizzes topics</span>
-            <ChevronDown className="w-4 h-4 transition-transform group-open:rotate-180" />
-          </summary>
-          <div className="py-2 space-y-3">
-            <div>
-              <div className="text-[10px] font-bold uppercase tracking-wider mb-1" style={{ color: 'var(--song-muted)' }}>
-                Genres
-              </div>
-              <div className="flex flex-wrap gap-1">
-                {topGenres.map((g) => (
-                  <button
-                    key={g}
-                    type="button"
-                    onClick={() => handleSelectGenreQuiz('genre', g)}
-                    className="px-2 py-1 rounded-lg border text-xs font-medium"
-                    style={{ backgroundColor: 'var(--song-surface-soft)', borderColor: 'var(--song-border)' }}
-                  >
-                    {g}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div>
-              <div className="text-[10px] font-bold uppercase tracking-wider mb-1" style={{ color: 'var(--song-muted)' }}>
-                Decades
-              </div>
-              <div className="flex flex-wrap gap-1">
-                {topEras.map((e) => (
-                  <button
-                    key={e.value}
-                    type="button"
-                    onClick={() => handleSelectEraQuiz('year', e.value)}
-                    className="px-2 py-1 rounded-lg border text-xs font-medium"
-                    style={{ backgroundColor: 'var(--song-surface-soft)', borderColor: 'var(--song-border)' }}
-                  >
-                    {e.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div>
-              <div className="text-[10px] font-bold uppercase tracking-wider mb-1" style={{ color: 'var(--song-muted)' }}>
-                Artists
-              </div>
-              <div className="flex flex-wrap gap-1">
-                {topArtists.map((a) => (
-                  <button
-                    key={a}
-                    type="button"
-                    onClick={() => handleSelectArtistQuiz('artist', a)}
-                    className="px-2 py-1 rounded-lg border text-xs font-medium"
-                    style={{ backgroundColor: 'var(--song-surface-soft)', borderColor: 'var(--song-border)' }}
-                  >
-                    {a}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-        </details>
-
-        {/* Mobile Quick Action Buttons (Rankings & Artists) */}
-        <div className="space-y-1.5 border-t border-[var(--song-border)] pt-3">
-          <button
-            type="button"
-            onClick={() => {
-              setActiveMenu(null);
-              onOpenLeaderboard();
-            }}
-            className="w-full px-3 py-2 rounded-xl text-xs font-bold flex items-center justify-between border transition hover:brightness-110"
-            style={{
-              backgroundColor: 'var(--song-surface-soft)',
-              borderColor: 'var(--song-border)',
-              color: 'var(--song-text)',
-            }}
-          >
-            <span className="flex items-center gap-2">
-              <Trophy className="w-4 h-4 text-amber-400" />
-              <span>ตารางอันดับผู้เล่น (Rankings)</span>
-            </span>
-            <ArrowRight className="w-3.5 h-3.5 opacity-60" />
-          </button>
-
-          <button
-            type="button"
-            onClick={() => {
-              setActiveMenu(null);
-              onOpenAddArtist();
-            }}
-            className="w-full px-3 py-2 rounded-xl text-xs font-bold flex items-center justify-between border transition hover:brightness-110"
-            style={{
-              backgroundColor: 'var(--song-surface-soft)',
-              borderColor: 'var(--song-border)',
-              color: 'var(--song-text)',
-            }}
-          >
-            <span className="flex items-center gap-2">
-              <PlusCircle className="w-4 h-4" style={{ color: 'var(--song-accent-text)' }} />
-              <span>จัดการศิลปินในคลัง</span>
-            </span>
-            <span
-              className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold"
+            {/* Full-Height Slide Drawer */}
+            <div
+              className="fixed top-0 right-0 bottom-0 w-[min(88vw,360px)] h-full border-l z-[101] p-4 sm:p-5 overflow-y-auto flex flex-col gap-4 shadow-2xl animate-in slide-in-from-right duration-250 ease-out"
               style={{
-                backgroundColor: 'var(--song-surface)',
-                color: 'var(--song-accent-text)',
+                backgroundColor: 'var(--song-surface, #0c110d)',
+                borderColor: 'var(--song-border, rgba(255, 255, 255, 0.1))',
+                color: 'var(--song-text, #f3f7f4)',
               }}
             >
-              {artistCount} ศิลปิน
-            </span>
-          </button>
-        </div>
+              <div className="flex items-center justify-between pb-3 border-b border-[var(--song-border)]">
+                <span className="text-xs font-extrabold uppercase tracking-wider" style={{ color: 'var(--song-muted)' }}>
+                  เมนูหลัก (Navigation)
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setActiveMenu(null)}
+                  className="p-1.5 rounded-xl border hover:bg-white/10 transition"
+                  style={{ backgroundColor: 'var(--song-surface-soft)', borderColor: 'var(--song-border)' }}
+                  aria-label="Close menu"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
 
-        {/* Stats Pill in Mobile */}
-        <div
-          className="p-3 rounded-xl border flex items-center justify-between text-xs font-bold mt-auto"
-          style={{ backgroundColor: 'var(--song-surface-soft)', borderColor: 'var(--song-border)' }}
-        >
-          <span className="flex items-center gap-1 text-orange-400">
-            <Flame className="w-3.5 h-3.5" />
-            <span>Streak: {streak}</span>
-          </span>
-          <span className="flex items-center gap-1 text-amber-400">
-            <Trophy className="w-3.5 h-3.5" />
-            <span>Best: {bestStreak}</span>
-          </span>
-          {fastestTime !== null && (
-            <span className="flex items-center gap-1 text-emerald-400">
-              <Zap className="w-3.5 h-3.5" />
-              <span>{fastestTime}s</span>
-            </span>
-          )}
-        </div>
-      </div>
+              {/* Primary Links */}
+              <div className="space-y-1.5">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveMenu(null);
+                    navigate('/play');
+                  }}
+                  className="w-full px-3 py-2.5 rounded-xl text-left text-sm font-bold flex items-center justify-between transition hover:brightness-110"
+                  style={
+                    isPlayActive
+                      ? {
+                          backgroundColor: 'var(--song-accent)',
+                          color: 'var(--song-accent-on)',
+                        }
+                      : {
+                          backgroundColor: 'var(--song-surface-soft)',
+                          color: 'var(--song-text)',
+                        }
+                  }
+                >
+                  <span className="flex items-center gap-2">
+                    <Play className="w-4 h-4" />
+                    <span>Play (Clip Challenge)</span>
+                  </span>
+                  <ArrowRight className="w-4 h-4 opacity-70" />
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveMenu(null);
+                    navigate('/daily');
+                  }}
+                  className="w-full px-3 py-2.5 rounded-xl text-left text-sm font-bold flex items-center justify-between transition hover:brightness-110"
+                  style={
+                    isDailyActive
+                      ? {
+                          backgroundColor: 'var(--song-accent)',
+                          color: 'var(--song-accent-on)',
+                        }
+                      : {
+                          backgroundColor: 'var(--song-surface-soft)',
+                          color: 'var(--song-text)',
+                        }
+                  }
+                >
+                  <span className="flex items-center gap-2">
+                    <CalendarDays className="w-4 h-4" />
+                    <span>Daily Challenge (5 เพลง)</span>
+                  </span>
+                  <ArrowRight className="w-4 h-4 opacity-70" />
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveMenu(null);
+                    navigate('/guesser');
+                  }}
+                  className="w-full px-3 py-2.5 rounded-xl text-left text-sm font-bold flex items-center justify-between transition hover:brightness-110"
+                  style={
+                    isGuesserActive
+                      ? {
+                          backgroundColor: '#b57aff',
+                          color: '#07110c',
+                        }
+                      : {
+                          backgroundColor: 'var(--song-surface-soft)',
+                          color: 'var(--song-text)',
+                        }
+                  }
+                >
+                  <span className="flex items-center gap-2">
+                    <ListChecks className="w-4 h-4" />
+                    <span>Song Guesser (4 ตัวเลือก)</span>
+                  </span>
+                  <ArrowRight className="w-4 h-4 opacity-70" />
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveMenu(null);
+                    navigate('/quizzes');
+                  }}
+                  className="w-full px-3 py-2.5 rounded-xl text-left text-sm font-bold flex items-center justify-between transition hover:brightness-110"
+                  style={
+                    isQuizzesActive
+                      ? {
+                          backgroundColor: 'var(--song-accent)',
+                          color: 'var(--song-accent-on)',
+                        }
+                      : {
+                          backgroundColor: 'var(--song-surface-soft)',
+                          color: 'var(--song-text)',
+                        }
+                  }
+                >
+                  <span className="flex items-center gap-2">
+                    <Compass className="w-4 h-4" />
+                    <span>Music Quizzes Hub (รวมหมวดหมู่)</span>
+                  </span>
+                  <ArrowRight className="w-4 h-4 opacity-70" />
+                </button>
+              </div>
+
+              {/* Accordion Topics for Clip Quizzes */}
+              <details className="border-t border-[var(--song-border)] pt-2 group">
+                <summary className="flex items-center justify-between py-2 text-xs font-bold cursor-pointer select-none">
+                  <span>Music Quizzes topics</span>
+                  <ChevronDown className="w-4 h-4 transition-transform group-open:rotate-180" />
+                </summary>
+                <div className="py-2 space-y-3">
+                  <div>
+                    <div className="text-[10px] font-bold uppercase tracking-wider mb-1" style={{ color: 'var(--song-muted)' }}>
+                      Genres
+                    </div>
+                    <div className="flex flex-wrap gap-1">
+                      {topGenres.map((g) => (
+                        <button
+                          key={g}
+                          type="button"
+                          onClick={() => handleSelectGenreQuiz('genre', g)}
+                          className="px-2 py-1 rounded-lg border text-xs font-medium"
+                          style={{ backgroundColor: 'var(--song-surface-soft)', borderColor: 'var(--song-border)' }}
+                        >
+                          {g}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div>
+                    <div className="text-[10px] font-bold uppercase tracking-wider mb-1" style={{ color: 'var(--song-muted)' }}>
+                      Decades
+                    </div>
+                    <div className="flex flex-wrap gap-1">
+                      {topEras.map((e) => (
+                        <button
+                          key={e.value}
+                          type="button"
+                          onClick={() => handleSelectEraQuiz('year', e.value)}
+                          className="px-2 py-1 rounded-lg border text-xs font-medium"
+                          style={{ backgroundColor: 'var(--song-surface-soft)', borderColor: 'var(--song-border)' }}
+                        >
+                          {e.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div>
+                    <div className="text-[10px] font-bold uppercase tracking-wider mb-1" style={{ color: 'var(--song-muted)' }}>
+                      Artists
+                    </div>
+                    <div className="flex flex-wrap gap-1">
+                      {topArtists.map((a) => (
+                        <button
+                          key={a}
+                          type="button"
+                          onClick={() => handleSelectArtistQuiz('artist', a)}
+                          className="px-2 py-1 rounded-lg border text-xs font-medium"
+                          style={{ backgroundColor: 'var(--song-surface-soft)', borderColor: 'var(--song-border)' }}
+                        >
+                          {a}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </details>
+
+              {/* Mobile Quick Action Buttons (Rankings & Artists) */}
+              <div className="space-y-1.5 border-t border-[var(--song-border)] pt-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveMenu(null);
+                    onOpenLeaderboard();
+                  }}
+                  className="w-full px-3 py-2 rounded-xl text-xs font-bold flex items-center justify-between border transition hover:brightness-110"
+                  style={{
+                    backgroundColor: 'var(--song-surface-soft)',
+                    borderColor: 'var(--song-border)',
+                    color: 'var(--song-text)',
+                  }}
+                >
+                  <span className="flex items-center gap-2">
+                    <Trophy className="w-4 h-4 text-amber-400" />
+                    <span>ตารางอันดับผู้เล่น (Rankings)</span>
+                  </span>
+                  <ArrowRight className="w-3.5 h-3.5 opacity-60" />
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveMenu(null);
+                    onOpenAddArtist();
+                  }}
+                  className="w-full px-3 py-2 rounded-xl text-xs font-bold flex items-center justify-between border transition hover:brightness-110"
+                  style={{
+                    backgroundColor: 'var(--song-surface-soft)',
+                    borderColor: 'var(--song-border)',
+                    color: 'var(--song-text)',
+                  }}
+                >
+                  <span className="flex items-center gap-2">
+                    <PlusCircle className="w-4 h-4" style={{ color: 'var(--song-accent-text)' }} />
+                    <span>จัดการศิลปินในคลัง</span>
+                  </span>
+                  <span
+                    className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold"
+                    style={{
+                      backgroundColor: 'var(--song-surface)',
+                      color: 'var(--song-accent-text)',
+                    }}
+                  >
+                    {artistCount} ศิลปิน
+                  </span>
+                </button>
+              </div>
+
+              {/* Stats Pill in Mobile */}
+              <div
+                className="p-3 rounded-xl border flex items-center justify-between text-xs font-bold mt-auto"
+                style={{ backgroundColor: 'var(--song-surface-soft)', borderColor: 'var(--song-border)' }}
+              >
+                <span className="flex items-center gap-1 text-orange-400">
+                  <Flame className="w-3.5 h-3.5" />
+                  <span>Streak: {streak}</span>
+                </span>
+                <span className="flex items-center gap-1 text-amber-400">
+                  <Trophy className="w-3.5 h-3.5" />
+                  <span>Best: {bestStreak}</span>
+                </span>
+                {fastestTime !== null && (
+                  <span className="flex items-center gap-1 text-emerald-400">
+                    <Zap className="w-3.5 h-3.5" />
+                    <span>{fastestTime}s</span>
+                  </span>
+                )}
+              </div>
+            </div>
+          </div>,
+          document.body
+        )}
     </header>
   );
 };
