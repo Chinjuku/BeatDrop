@@ -4,6 +4,8 @@ node_modules/
 .pnp.js
 
 # Production / Build output
+.next/
+next-env.d.ts
 dist/
 client/dist/
 build/
@@ -28,12 +30,11 @@ lerna-debug.log*
 
 # Runtime / Data
 *.sqlite
-*.db
 *.db-wal
 *.db-shm
-*.db-*
-server/data/*.db*
-server/data/*.sqlite*
+data/*.db-wal
+data/*.db-shm
+!data/beatdrop.db
 
 # OS / Editor files
 .DS_Store
@@ -46,3 +47,4 @@ Thumbs.db
 *.sln
 *.sw?
 
+.vercel
