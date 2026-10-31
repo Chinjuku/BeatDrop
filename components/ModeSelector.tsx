@@ -168,7 +168,7 @@ const GenrePickerModal: React.FC<{
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="ค้นหาแนวเพลง (เช่น Pop, Rock, Indie, T-Pop)..."
-            className="w-full pl-9 pr-3 py-2 rounded-xl border text-xs font-medium focus:outline-none"
+            className="w-full pl-9 pr-3 py-2 rounded-xl border text-base sm:text-xs font-medium focus:outline-none"
             style={{
               backgroundColor: 'var(--song-surface-soft)',
               borderColor: 'var(--song-border)',

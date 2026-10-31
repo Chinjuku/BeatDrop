@@ -239,7 +239,7 @@ const MusicQuizzesPage: React.FC = () => {
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="ค้นหาชื่อศิลปิน (เช่น Illslick, Bodyslam, Taylor Swift)..."
-            className="w-full bg-transparent border-0 outline-none text-xs sm:text-sm font-semibold placeholder:opacity-50"
+            className="w-full bg-transparent border-0 outline-none text-base sm:text-sm font-semibold placeholder:opacity-50"
             style={{ color: 'var(--song-text)' }}
           />
           {isSearchingRemote ? (

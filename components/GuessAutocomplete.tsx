@@ -223,7 +223,7 @@ export const GuessAutocomplete: React.FC<GuessAutocompleteProps> = ({
                 ? `เลือกเพลงของ ${artistFilter}...`
                 : 'พิมพ์ชื่อเพลง หรือ ศิลปิน เพื่อทายคำตอบ...'
             }
-            className="w-full bg-transparent border-0 outline-none text-xs sm:text-sm font-semibold placeholder:opacity-60"
+            className="w-full bg-transparent border-0 outline-none text-base sm:text-sm font-semibold placeholder:opacity-60"
             style={{ color: 'var(--song-text)' }}
           />
           {loading && (

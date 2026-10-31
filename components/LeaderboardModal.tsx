@@ -266,7 +266,7 @@ export const LeaderboardModal: React.FC<LeaderboardModalProps> = ({
               onChange={(e) => setPlayerName(e.target.value)}
               placeholder="กรอกชื่อของคุณเพื่อส่งคะแนน..."
               maxLength={24}
-              className="w-full px-3 py-2 rounded-xl border text-xs font-semibold focus:outline-none"
+              className="w-full px-3 py-2 rounded-xl border text-base sm:text-xs font-semibold focus:outline-none"
               style={{
                 backgroundColor: 'var(--song-surface-soft)',
                 borderColor: 'var(--song-border)',

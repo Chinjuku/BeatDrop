@@ -316,7 +316,7 @@ export const TimeRangeSelector: React.FC<TimeRangeSelectorProps> = ({
                   setValidationError(null);
                 }}
                 placeholder="เช่น 0.5, 1.5, 3, 6, 10"
-                className="w-full px-3 py-2 rounded-xl border text-sm font-mono focus:outline-none focus:border-[var(--song-accent)]"
+                className="w-full px-3 py-2 rounded-xl border text-base sm:text-sm font-mono focus:outline-none focus:border-[var(--song-accent)]"
                 style={{
                   backgroundColor: 'var(--song-surface-soft)',
                   borderColor: 'var(--song-border)',

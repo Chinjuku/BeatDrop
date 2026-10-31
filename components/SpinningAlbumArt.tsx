@@ -82,10 +82,11 @@ export const SpinningAlbumArt: React.FC<SpinningAlbumArtProps> = ({
       ? `ทายถูกใน ${guessedAtSeconds} วินาที! (${difficulty.toUpperCase()})`
       : `รอบนี้เกือบได้! (${difficulty.toUpperCase()})`;
     const shareText = [
-      `🎧 songspot TH • ${song.category === 'thai' ? '🇹🇭 เพลงไทย' : '🌍 เพลงสากล'}`,
+      `🎧 BeatDrop • ${song.category === 'thai' ? '🇹🇭 เพลงไทย' : '🌍 เพลงสากล'}`,
       `${grid}`,
       `${resultLine} | 🔥 Streak: ${streak}`,
       `🎵 เพลง: ${song.title} — ${song.artistName} (${song.releaseYear})`,
+      `https://beatdrop-self.vercel.app #beatdrop`,
     ].join('\n');
 
     try {

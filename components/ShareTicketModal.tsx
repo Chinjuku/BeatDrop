@@ -73,11 +73,11 @@ export const ShareTicketModal: React.FC<ShareTicketModalProps> = ({
   });
 
   const shareText = [
-    `Songspot • ${category === 'thai' ? '🇹🇭 เพลงไทย' : '🌍 เพลงสากล'}`,
+    `BeatDrop • ${category === 'thai' ? '🇹🇭 เพลงไทย' : '🌍 เพลงสากล'}`,
     `HEAR LESS. KNOW MORE.`,
     isWon ? `🟩 ${guessedAtSeconds}s • ${points} points` : `❌ ${stages[stages.length - 1]}s (Game Over)`,
     emojiBoxes.join(''),
-    `https://songspot.co #songspot #beatdrop`,
+    `https://beatdrop-self.vercel.app #beatdrop`,
   ].join('\n');
 
   const handleCopyResult = async () => {
@@ -94,7 +94,7 @@ export const ShareTicketModal: React.FC<ShareTicketModalProps> = ({
     if (navigator.share) {
       try {
         await navigator.share({
-          title: 'Songspot Music Ticket',
+          title: 'BeatDrop Music Ticket',
           text: shareText,
           url: window.location.origin,
         });
@@ -129,7 +129,7 @@ export const ShareTicketModal: React.FC<ShareTicketModalProps> = ({
       // 2. Top Header Row
       ctx.fillStyle = '#0b150f';
       ctx.font = 'italic 800 18px Poppins, sans-serif';
-      ctx.fillText('songspot', 32, 44);
+      ctx.fillText('BeatDrop', 32, 44);
 
       ctx.fillStyle = '#657060';
       ctx.font = '700 9.5px Poppins, sans-serif';
@@ -148,7 +148,7 @@ export const ShareTicketModal: React.FC<ShareTicketModalProps> = ({
       // 3. Game Title & Big Punchy Headline
       ctx.fillStyle = '#0b150f';
       ctx.font = '800 20px Poppins, sans-serif';
-      ctx.fillText('Songspot', 32, 90);
+      ctx.fillText('BeatDrop', 32, 90);
 
       ctx.font = '900 36px "Barlow Condensed", Poppins, sans-serif';
       ctx.fillText('HEAR LESS.', 32, 132);
@@ -248,11 +248,11 @@ export const ShareTicketModal: React.FC<ShareTicketModalProps> = ({
 
       ctx.fillStyle = '#008349';
       ctx.font = '800 16px Poppins, sans-serif';
-      ctx.fillText('songspot.co', 32, 510);
+      ctx.fillText('beatdrop-self.vercel.app', 32, 510);
 
       ctx.fillStyle = '#535d51';
       ctx.font = '600 12px Poppins, sans-serif';
-      ctx.fillText('#songspot', 145, 510);
+      ctx.fillText('#beatdrop', 260, 510);
 
       // Vertical divider in stub
       ctx.strokeStyle = '#858e80';
@@ -269,7 +269,7 @@ export const ShareTicketModal: React.FC<ShareTicketModalProps> = ({
       // 8. Download PNG
       const dataUrl = canvas.toDataURL('image/png');
       const link = document.createElement('a');
-      link.download = `songspot-music-ticket-${Date.now()}.png`;
+      link.download = `beatdrop-music-ticket-${Date.now()}.png`;
       link.href = dataUrl;
       link.click();
     } catch (err) {
@@ -316,13 +316,13 @@ export const ShareTicketModal: React.FC<ShareTicketModalProps> = ({
             <div className="sst-brand-row">
               <div className="sst-brand">
                 <BeatDropLogo className="w-5 h-5 text-emerald-600" />
-                <span>songspot</span>
+                <span>BeatDrop</span>
               </div>
               <span className="sst-kicker">MUSIC CHALLENGE</span>
             </div>
 
             {/* Game Title & Big Punchy Headlines */}
-            <div className="sst-game-title">Songspot</div>
+            <div className="sst-game-title">BeatDrop</div>
             <div className="sst-headline">
               HEAR LESS.
               <br />
@@ -383,8 +383,8 @@ export const ShareTicketModal: React.FC<ShareTicketModalProps> = ({
             <div className="sst-stub-copy">
               <p>{headlineCopy}</p>
               <div className="sst-signoff">
-                <strong>songspot.co</strong>
-                <span>#songspot</span>
+                <strong>beatdrop-self.vercel.app</strong>
+                <span>#beatdrop</span>
               </div>
             </div>
             <div className="sst-stub-note">
@@ -413,7 +413,7 @@ export const ShareTicketModal: React.FC<ShareTicketModalProps> = ({
                 <div className="font-bold">
                   {copied ? 'Copied! ✓' : 'Copy result'}
                 </div>
-                <small>Score + link + #songspot</small>
+                <small>Score + link + #beatdrop</small>
               </div>
             </button>
 

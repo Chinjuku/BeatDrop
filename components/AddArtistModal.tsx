@@ -265,7 +265,7 @@ export const AddArtistModal: React.FC<AddArtistModalProps> = ({
                   }
                 }}
                 placeholder="ค้นหาชื่อศิลปิน เช่น NONT TANONT, Bodyslam, Three Man Down, Taylor Swift..."
-                className="w-full pl-10 pr-10 py-3 rounded-xl border text-sm font-semibold focus:outline-none transition shadow-inner"
+                className="w-full pl-10 pr-10 py-3 rounded-xl border text-base sm:text-sm font-semibold focus:outline-none transition shadow-inner"
                 style={{
                   backgroundColor: 'var(--song-surface-soft)',
                   borderColor: searchQuery.trim().length >= 2 ? 'var(--song-accent)' : 'var(--song-border)',
