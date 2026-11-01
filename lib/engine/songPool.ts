@@ -2,6 +2,7 @@ import { Artist, Song } from '../../shared/types';
 import { isDbLocal, isSupabaseConfigured } from '../supabase';
 import { dbService } from '../db';
 import { checkArtistStrictMatch, isJunkTrack } from '../itunes';
+import { redis, isRedisConfigured } from '../redis';
 import {
   CURATED_ARTISTS,
   customArtists,
@@ -45,6 +46,11 @@ interface ItunesRawTrack {
   trackViewUrl?: string;
 }
 
+// In-memory cache for iTunes search to prevent HTTP 429 bans (2 hours TTL, bounded)
+const itunesSearchCache = new Map<string, { expiresAt: number; data: Song[] }>();
+const ITUNES_CACHE_TTL_MS = 2 * 60 * 60 * 1000;
+const MAX_ITUNES_CACHE_SIZE = 500;
+
 export async function fetchItunesSongs(
   term: string,
   country: 'TH' | 'US',
@@ -53,6 +59,25 @@ export async function fetchItunesSongs(
   overrideGenre?: string,
   byArtist = false
 ): Promise<Song[]> {
+  const cacheKey = `${term.toLowerCase().trim()}|${country}|${category}|${limit}|${byArtist}|${overrideGenre || ''}`;
+  
+  // 1. L1 In-Memory Cache (0ms instant response)
+  const cached = itunesSearchCache.get(cacheKey);
+  if (cached && Date.now() < cached.expiresAt) {
+    return cached.data;
+  }
+
+  // 2. L2 Upstash Redis Distributed Cache (cross-container/serverless)
+  if (isRedisConfigured && redis) {
+    try {
+      const redisCached = await redis.get<Song[]>(`itunes:${cacheKey}`);
+      if (redisCached && Array.isArray(redisCached) && redisCached.length > 0) {
+        itunesSearchCache.set(cacheKey, { expiresAt: Date.now() + ITUNES_CACHE_TTL_MS, data: redisCached });
+        return redisCached;
+      }
+    } catch {}
+  }
+
   try {
     const attrParam = byArtist ? '&attribute=artistTerm' : '';
     const url = `https://itunes.apple.com/search?term=${encodeURIComponent(term)}&country=${country}&entity=song${attrParam}&limit=${limit}`;
@@ -61,7 +86,7 @@ export async function fetchItunesSongs(
     const data = (await res.json()) as { results?: ItunesRawTrack[] };
     const results = data.results || [];
 
-    return results
+    const mappedSongs: Song[] = results
       .filter(
         (t): t is Required<Pick<ItunesRawTrack, 'trackId' | 'trackName' | 'artistName' | 'previewUrl'>> & ItunesRawTrack =>
           Boolean(t.trackId && t.trackName && t.artistName && t.previewUrl)
@@ -99,6 +124,18 @@ export async function fetchItunesSongs(
           popularityScore: Math.max(10, 100 - index * 3),
         };
       });
+
+    if (itunesSearchCache.size >= MAX_ITUNES_CACHE_SIZE) {
+      const oldestKey = itunesSearchCache.keys().next().value;
+      if (oldestKey) itunesSearchCache.delete(oldestKey);
+    }
+    itunesSearchCache.set(cacheKey, { expiresAt: Date.now() + ITUNES_CACHE_TTL_MS, data: mappedSongs });
+
+    if (isRedisConfigured && redis) {
+      redis.set(`itunes:${cacheKey}`, mappedSongs, { ex: 7200 }).catch(() => {});
+    }
+
+    return mappedSongs;
   } catch (err) {
     console.error(`iTunes fetch error for "${term}":`, (err as Error).message);
     return [];

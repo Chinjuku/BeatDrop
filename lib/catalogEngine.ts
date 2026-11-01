@@ -18,28 +18,96 @@ import {
   handleGetLeaderboard,
   handlePostLeaderboard,
 } from './engine/leaderboard';
+import {
+  generalLimiter,
+  roundLimiter,
+  artistDiscoverLimiter,
+  artistSyncLimiter,
+} from './engine/rateLimiter';
 
 const app = express();
 const PORT = Number(process.env.PORT) || 3001;
 
-app.use(cors());
+// Phase 1: Lock CORS Origin in Production
+const allowedOrigins = [
+  process.env.NEXT_PUBLIC_APP_URL,
+  process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : undefined,
+  'http://localhost:3000',
+  'http://localhost:3001',
+].filter(Boolean) as string[];
+
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      if (!origin || process.env.NODE_ENV !== 'production') return callback(null, true);
+      if (allowedOrigins.includes(origin) || origin.endsWith('.vercel.app')) {
+        return callback(null, true);
+      }
+      return callback(new Error(`Blocked by CORS: origin ${origin} is not allowed`));
+    },
+    credentials: true,
+  })
+);
+
 app.use(express.json());
 app.use((_req, _res, next) => {
   ensureCatalogLoaded();
   next();
 });
 
-// 1. Artists Endpoints
-app.get('/api/artists', handleGetArtists);
-app.post('/api/artists/add', handleAddArtist);
-app.post('/api/artists/sync', handleSyncArtist);
-app.delete('/api/artists/:id', handleDeleteArtist);
+// Phase 1: Admin Secret Guard for sensitive catalog operations
+const adminSecretGuard = (req: express.Request, res: express.Response, next: express.NextFunction): void => {
+  const configuredAdminKey = process.env.ADMIN_API_KEY;
+  if (configuredAdminKey) {
+    const providedKey = req.headers['x-admin-key'] || req.headers['authorization']?.replace(/^Bearer\s+/i, '');
+    if (providedKey !== configuredAdminKey) {
+      res.status(403).json({
+        code: 403,
+        message: 'Forbidden: Valid x-admin-key header is required for administrative operations.',
+      });
+      return;
+    }
+  }
+  next();
+};
 
-// 2. Round & Songpool Endpoints
-app.get('/api/songs', handleStartRound);
-app.get('/api/round/start', handleStartRound);
-app.post('/api/round/start', handleStartRound);
-app.get('/api/songspot/round', handleStartRound);
+// Apply baseline rate limiter across all API routes (60 req/min per IP)
+app.use('/api', generalLimiter);
+
+// 1. Artists Endpoints (Discovery limited to 15 req/min, Sync limited to 5 req/min, Guarded by Admin Key)
+app.post('/api/admin/verify', (req, res) => {
+  const configuredAdminKey = process.env.ADMIN_API_KEY;
+  if (!configuredAdminKey) {
+    res.status(500).json({ code: -1, message: 'ADMIN_API_KEY is not configured on server' });
+    return;
+  }
+  const providedKey =
+    req.body?.adminKey ||
+    req.headers['x-admin-key'] ||
+    req.headers['authorization']?.replace(/^Bearer\s+/i, '');
+
+  if (providedKey === configuredAdminKey) {
+    res.json({ code: 0, message: 'Authenticated' });
+  } else {
+    res.status(403).json({ code: 403, message: 'รหัสผ่าน Admin Key ไม่ถูกต้อง' });
+  }
+});
+
+app.get('/api/artists', (req, res, next) => {
+  if (req.query.discover === 'true') {
+    return artistDiscoverLimiter(req, res, next);
+  }
+  next();
+}, handleGetArtists);
+app.post('/api/artists/add', handleAddArtist);
+app.post('/api/artists/sync', adminSecretGuard, artistSyncLimiter, handleSyncArtist);
+app.delete('/api/artists/:id', adminSecretGuard, handleDeleteArtist);
+
+// 2. Round & Songpool Endpoints (Throttled to 40 req/min per IP)
+app.get('/api/songs', roundLimiter, handleStartRound);
+app.get('/api/round/start', roundLimiter, handleStartRound);
+app.post('/api/round/start', roundLimiter, handleStartRound);
+app.get('/api/songspot/round', roundLimiter, handleStartRound);
 
 // 3. Autocomplete Endpoints
 app.get('/api/autocomplete', handleAutocomplete);

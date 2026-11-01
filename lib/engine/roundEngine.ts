@@ -15,6 +15,7 @@ import { dbService } from '../db';
 import { checkArtistStrictMatch, isJunkTrack } from '../itunes';
 import { songPool, ingestArtistSongs, fetchItunesSongs } from './songPool';
 import { getAllArtists, normalizeText } from './artists';
+import { redis, isRedisConfigured } from '../redis';
 
 export interface ActiveRoundState {
   track: Song;
@@ -26,9 +27,39 @@ export interface ActiveRoundState {
   category: CategoryType;
   mode: GameMode;
   artistFilter?: string;
+  startedAt?: number;
 }
 
 export const activeRounds = new Map<string, ActiveRoundState>();
+
+// Replay attack protection: record tokens once consumed to prevent duplicate guessing/score pumping
+const consumedRoundTokens = new Set<string>();
+const MAX_CONSUMED_TOKENS = 10_000;
+
+async function isTokenConsumed(token: string): Promise<boolean> {
+  if (!token) return true;
+  if (consumedRoundTokens.has(token)) return true;
+  if (isRedisConfigured && redis) {
+    try {
+      const exists = await redis.get(`beatdrop:token:${token}`);
+      if (exists) return true;
+    } catch {}
+  }
+  return false;
+}
+
+function consumeToken(token: string) {
+  if (!token) return;
+  if (consumedRoundTokens.size >= MAX_CONSUMED_TOKENS) {
+    const oldest = consumedRoundTokens.keys().next().value;
+    if (oldest) consumedRoundTokens.delete(oldest);
+  }
+  consumedRoundTokens.add(token);
+
+  if (isRedisConfigured && redis) {
+    redis.set(`beatdrop:token:${token}`, '1', { ex: 3600 }).catch(() => {});
+  }
+}
 
 export function parseCustomStages(raw: unknown): number[] | null {
   if (typeof raw !== 'string' || !raw.trim()) return null;
@@ -115,7 +146,8 @@ export async function handleStartRound(req: Request, res: Response): Promise<voi
     const existingForArtist = Array.from(songPool.values()).filter((s) =>
       matchesArtistFilter(s, artistFilter)
     );
-    if (existingForArtist.length < 50) {
+    // Cache-first: only query external iTunes if zero songs exist in memory/DB
+    if (existingForArtist.length === 0) {
       const knownArtist = getAllArtists(songPool).find((a) =>
         matchesArtistFilter({ artistName: a.name } as Song, artistFilter)
       );
@@ -130,24 +162,8 @@ export async function handleStartRound(req: Request, res: Response): Promise<voi
           mainGenre: knownArtist?.mainGenre || (genreFilter !== 'any' ? genreFilter : 'Pop'),
           avatarUrl: knownArtist?.avatarUrl || '',
         },
-        200
+        50
       );
-      const afterFirstFetch = Array.from(songPool.values()).filter((s) =>
-        matchesArtistFilter(s, artistFilter)
-      );
-      if (afterFirstFetch.length < 20) {
-        const altCat = targetCat === 'thai' ? 'international' : 'thai';
-        await ingestArtistSongs(
-          {
-            id: 'temp-alt',
-            name: artistFilter,
-            category: altCat,
-            mainGenre: knownArtist?.mainGenre || 'Pop',
-            avatarUrl: '',
-          },
-          100
-        );
-      }
     }
   }
 
@@ -246,6 +262,7 @@ export async function handleStartRound(req: Request, res: Response): Promise<voi
     category,
     mode,
     artistFilter: artistFilter && artistFilter !== 'any' ? artistFilter : undefined,
+    startedAt: Date.now(),
   };
   const roundToken = signRoundToken(roundState);
   const roundKey = `rk_${crypto.randomUUID()}`;
@@ -322,7 +339,8 @@ export async function handleAutocomplete(req: Request, res: Response): Promise<v
 
   if (artistFilter && artistFilter !== 'any') {
     const existing = Array.from(songPool.values()).filter((s) => matchesArtistFilter(s, artistFilter));
-    if (existing.length < 30) {
+    // Cache-first: do not hit iTunes during autocomplete if songs already exist in library
+    if (existing.length === 0) {
       const knownArtist = getAllArtists(songPool).find((a) => matchesArtistFilter({ artistName: a.name } as Song, artistFilter));
       const targetCat = knownArtist?.category || (category === 'international' ? 'international' : 'thai');
       await ingestArtistSongs(
@@ -333,7 +351,7 @@ export async function handleAutocomplete(req: Request, res: Response): Promise<v
           mainGenre: knownArtist?.mainGenre || 'Pop',
           avatarUrl: knownArtist?.avatarUrl || '',
         },
-        100
+        50
       );
     }
   }
@@ -425,12 +443,24 @@ export async function handleAutocomplete(req: Request, res: Response): Promise<v
   });
 }
 
-export function handleGuess(req: Request, res: Response): void {
+export async function handleGuess(req: Request, res: Response): Promise<void> {
   const { roundToken, candidateTrackId, candidateTitle, candidateArtist } = req.body || {};
+
+  if (!roundToken || (await isTokenConsumed(roundToken))) {
+    res.status(400).json({ code: -1, message: 'Invalid or already used round token (replay detected)' });
+    return;
+  }
+
   const active = activeRounds.get(roundToken) || verifyRoundToken(roundToken);
 
   if (!active) {
     res.status(400).json({ code: -1, message: 'Invalid or expired round token' });
+    return;
+  }
+
+  // Anti-cheat: Bot detection (human reaction time cannot be < 50ms)
+  if (active.startedAt && Date.now() - active.startedAt < 50) {
+    res.status(400).json({ code: -1, message: 'Guess submitted too fast (< 50ms). Automated script detected.' });
     return;
   }
 
@@ -447,6 +477,7 @@ export function handleGuess(req: Request, res: Response): void {
       normalizeText(guessedArtist).includes(normalizeText(active.track.artistName)));
 
   if (exactIdMatch || titleMatch) {
+    consumeToken(roundToken);
     activeRounds.delete(roundToken);
     const payload: RoundActionResponse = {
       outcome: 'correct',
@@ -460,6 +491,7 @@ export function handleGuess(req: Request, res: Response): void {
   }
 
   if (active.mode === 'guesser') {
+    consumeToken(roundToken);
     activeRounds.delete(roundToken);
     const payload: RoundActionResponse = {
       outcome: 'failed',
@@ -476,6 +508,7 @@ export function handleGuess(req: Request, res: Response): void {
   active.stage += 1;
 
   if (active.stage >= active.stages.length) {
+    consumeToken(roundToken);
     activeRounds.delete(roundToken);
     const payload: RoundActionResponse = {
       outcome: 'failed',
@@ -490,6 +523,7 @@ export function handleGuess(req: Request, res: Response): void {
 
   active.clipSeconds = active.stages[active.stage];
   const nextToken = signRoundToken(active);
+  consumeToken(roundToken);
   activeRounds.delete(roundToken);
   activeRounds.set(nextToken, active);
 
@@ -503,8 +537,14 @@ export function handleGuess(req: Request, res: Response): void {
   res.json({ code: 0, message: 'ok', data: payload });
 }
 
-export function handleSkip(req: Request, res: Response): void {
+export async function handleSkip(req: Request, res: Response): Promise<void> {
   const { roundToken, giveUp } = req.body || {};
+
+  if (!roundToken || (await isTokenConsumed(roundToken))) {
+    res.status(400).json({ code: -1, message: 'Invalid or already used round token (replay detected)' });
+    return;
+  }
+
   const active = activeRounds.get(roundToken) || verifyRoundToken(roundToken);
 
   if (!active) {
@@ -515,6 +555,7 @@ export function handleSkip(req: Request, res: Response): void {
   active.stage += 1;
 
   if (giveUp || active.stage >= active.stages.length) {
+    consumeToken(roundToken);
     activeRounds.delete(roundToken);
     const payload: RoundActionResponse = {
       outcome: 'failed',
@@ -529,6 +570,7 @@ export function handleSkip(req: Request, res: Response): void {
 
   active.clipSeconds = active.stages[active.stage];
   const nextToken = signRoundToken(active);
+  consumeToken(roundToken);
   activeRounds.delete(roundToken);
   activeRounds.set(nextToken, active);
 

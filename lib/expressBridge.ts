@@ -29,6 +29,11 @@ export async function forwardToExpress(req: Request, overridePath?: string): Pro
     headersObj[key.toLowerCase()] = value;
   });
 
+  const clientIp =
+    headersObj['x-forwarded-for']?.split(',')[0].trim() ||
+    headersObj['x-real-ip'] ||
+    '127.0.0.1';
+
   return new Promise<Response>((resolve) => {
     const stream = bodyBuffer ? Readable.from([bodyBuffer]) : Readable.from([]);
     const mockReq = Object.assign(stream, {
@@ -37,8 +42,9 @@ export async function forwardToExpress(req: Request, overridePath?: string): Pro
       originalUrl: pathAndQuery,
       headers: headersObj,
       body: parsedBody,
-      socket: { remoteAddress: '127.0.0.1', destroy: () => {} },
-      connection: { remoteAddress: '127.0.0.1', destroy: () => {} },
+      ip: clientIp,
+      socket: { remoteAddress: clientIp, destroy: () => {} },
+      connection: { remoteAddress: clientIp, destroy: () => {} },
       get(name: string) {
         return headersObj[name.toLowerCase()];
       },

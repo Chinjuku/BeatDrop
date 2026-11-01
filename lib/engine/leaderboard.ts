@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { CategoryType, DifficultyLevel, LeaderboardEntry } from '../../shared/types';
 import { dbService } from '../db';
+import { redis, isRedisConfigured } from '../redis';
 
 const DATA_DIR = path.resolve(process.cwd(), 'data');
 const LEADERBOARD_FILE = path.join(DATA_DIR, 'leaderboard.json');
@@ -50,10 +51,22 @@ export function saveLeaderboard(): void {
   }
 }
 
-export function handleGetLeaderboard(req: Request, res: Response): void {
-  loadLeaderboard();
+export async function handleGetLeaderboard(req: Request, res: Response): Promise<void> {
   const category = (req.query.category as CategoryType) || 'all';
   const mode = (req.query.mode as string) || 'all';
+  const cacheKey = `beatdrop:lb:${category}:${mode}`;
+
+  if (isRedisConfigured && redis) {
+    try {
+      const cached = await redis.get<LeaderboardEntry[]>(cacheKey);
+      if (cached && Array.isArray(cached)) {
+        res.json({ code: 0, message: 'ok', data: cached });
+        return;
+      }
+    } catch {}
+  }
+
+  loadLeaderboard();
 
   let list = [...leaderboardEntries];
   if (category === 'thai' || category === 'international') {
@@ -69,7 +82,12 @@ export function handleGetLeaderboard(req: Request, res: Response): void {
     return a.fastestSeconds - b.fastestSeconds;
   });
 
-  res.json({ code: 0, message: 'ok', data: list.slice(0, 50) });
+  const topList = list.slice(0, 50);
+  if (isRedisConfigured && redis) {
+    redis.set(cacheKey, topList, { ex: 30 }).catch(() => {});
+  }
+
+  res.json({ code: 0, message: 'ok', data: topList });
 }
 
 export function handlePostLeaderboard(req: Request, res: Response): void {
@@ -92,6 +110,15 @@ export function handlePostLeaderboard(req: Request, res: Response): void {
     day: '2-digit',
   }).format(new Date());
 
+  // Anti-cheat validation: clamp impossible scores, streaks, and reaction times
+  const rawScore = Number(score) || 0;
+  const rawStreak = Number(streak) || 0;
+  const rawFastest = Number(fastestSeconds) || 1;
+  const maxPossibleScore = isDaily ? 1000 : Math.max(200, (rawStreak + 1) * 200);
+  const validatedScore = Math.min(Math.max(0, rawScore), maxPossibleScore);
+  const validatedStreak = Math.max(0, Math.min(rawStreak, 500));
+  const validatedFastest = Math.max(0.05, Math.min(rawFastest, 30));
+
   const existingIdx = leaderboardEntries.findIndex(
     (e) => e.playerName.toLowerCase() === cleanName.toLowerCase() && Boolean(e.isDaily) === Boolean(isDaily)
   );
@@ -99,9 +126,9 @@ export function handlePostLeaderboard(req: Request, res: Response): void {
   const entry: LeaderboardEntry = {
     id: `lb-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
     playerName: cleanName,
-    score: Number(score) || 0,
-    streak: Number(streak) || 0,
-    fastestSeconds: Number(fastestSeconds) || 1,
+    score: validatedScore,
+    streak: validatedStreak,
+    fastestSeconds: validatedFastest,
     difficulty: difficulty as DifficultyLevel,
     category: category as CategoryType,
     isDaily: Boolean(isDaily),
@@ -127,6 +154,20 @@ export function handlePostLeaderboard(req: Request, res: Response): void {
 
   saveLeaderboard();
   dbService.addLeaderboardEntry(entry);
+
+  if (isRedisConfigured && redis) {
+    redis
+      .del(
+        'beatdrop:lb:all:all',
+        'beatdrop:lb:thai:all',
+        'beatdrop:lb:international:all',
+        'beatdrop:lb:all:daily',
+        'beatdrop:lb:thai:daily',
+        'beatdrop:lb:international:daily'
+      )
+      .catch(() => {});
+  }
+
   res.json({ code: 0, message: 'ok', data: entry });
 }
 

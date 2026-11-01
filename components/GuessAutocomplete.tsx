@@ -43,6 +43,8 @@ export const GuessAutocomplete: React.FC<GuessAutocompleteProps> = ({
       return;
     }
 
+    const abortController = new AbortController();
+
     const timer = setTimeout(async () => {
       setLoading(true);
       try {
@@ -54,7 +56,9 @@ export const GuessAutocomplete: React.FC<GuessAutocompleteProps> = ({
         if (isArtistScoped && artistFilter) {
           params.set('artist', artistFilter);
         }
-        const res = await fetch(`/api/autocomplete?${params.toString()}`);
+        const res = await fetch(`/api/autocomplete?${params.toString()}`, {
+          signal: abortController.signal,
+        });
         const json = await res.json();
         if (json.code === 0) {
           const list: Song[] = json.data || [];
@@ -64,14 +68,20 @@ export const GuessAutocomplete: React.FC<GuessAutocompleteProps> = ({
             setIsOpen(true);
           }
         }
-      } catch (err) {
+      } catch (err: unknown) {
+        if ((err as Error)?.name === 'AbortError') return;
         console.error('Autocomplete error:', err);
       } finally {
-        setLoading(false);
+        if (!abortController.signal.aborted) {
+          setLoading(false);
+        }
       }
-    }, 180);
+    }, 300);
 
-    return () => clearTimeout(timer);
+    return () => {
+      clearTimeout(timer);
+      abortController.abort();
+    };
   }, [query, category, isArtistScoped, artistFilter]);
 
   useEffect(() => {

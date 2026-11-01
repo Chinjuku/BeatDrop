@@ -58,26 +58,35 @@ const MusicCategoriesPage: React.FC = () => {
       return;
     }
 
+    const abortCtrl = new AbortController();
+
     const timer = setTimeout(async () => {
       setIsSearchingRemote(true);
       try {
         const catParam =
           artistCategoryFilter !== 'all' ? `&category=${artistCategoryFilter}` : '';
         const res = await fetch(
-          `/api/artists?q=${encodeURIComponent(trimmed)}&discover=true${catParam}`
+          `/api/artists?q=${encodeURIComponent(trimmed)}&discover=true${catParam}`,
+          { signal: abortCtrl.signal }
         );
         const json = await res.json();
         if (json.code === 0 && Array.isArray(json.data)) {
           setDiscoveredArtists(json.data);
         }
-      } catch (err) {
+      } catch (err: unknown) {
+        if ((err as Error)?.name === 'AbortError') return;
         console.warn('Failed to discover artists:', err);
       } finally {
-        setIsSearchingRemote(false);
+        if (!abortCtrl.signal.aborted) {
+          setIsSearchingRemote(false);
+        }
       }
     }, 280);
 
-    return () => clearTimeout(timer);
+    return () => {
+      clearTimeout(timer);
+      abortCtrl.abort();
+    };
   }, [searchQuery, artistCategoryFilter]);
 
   // Combined Artists filtered by category and search query

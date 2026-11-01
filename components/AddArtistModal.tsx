@@ -90,10 +90,13 @@ export const AddArtistModal: React.FC<AddArtistModalProps> = ({
     }
 
     let isMounted = true;
+    const abortCtrl = new AbortController();
     setSearching(true);
     setSearchError(null);
 
-    fetch(`/api/artists?q=${encodeURIComponent(debouncedQuery)}&discover=true`)
+    fetch(`/api/artists?q=${encodeURIComponent(debouncedQuery)}&discover=true`, {
+      signal: abortCtrl.signal,
+    })
       .then((res) => {
         if (!res.ok) throw new Error(`ค้นหาไม่สำเร็จ (HTTP ${res.status})`);
         return res.json();
@@ -106,18 +109,19 @@ export const AddArtistModal: React.FC<AddArtistModalProps> = ({
           setDiscovered([]);
         }
       })
-      .catch((err) => {
-        if (!isMounted) return;
+      .catch((err: unknown) => {
+        if (!isMounted || (err as Error)?.name === 'AbortError') return;
         console.error('Artist discovery error:', err);
         setSearchError((err as Error).message || 'เกิดข้อผิดพลาดในการเชื่อมต่อ');
         setDiscovered([]);
       })
       .finally(() => {
-        if (isMounted) setSearching(false);
+        if (isMounted && !abortCtrl.signal.aborted) setSearching(false);
       });
 
     return () => {
       isMounted = false;
+      abortCtrl.abort();
     };
   }, [debouncedQuery, isOpen]);
 
@@ -187,34 +191,6 @@ export const AddArtistModal: React.FC<AddArtistModalProps> = ({
       });
     } finally {
       setAddingName(null);
-    }
-  };
-
-  const handleSyncExisting = async (artist: Artist) => {
-    setToast(null);
-    try {
-      const result = await syncArtist({
-        id: artist.id,
-        name: artist.name,
-        category: artist.category,
-        mainGenre: artist.mainGenre,
-        avatarUrl: artist.avatarUrl,
-      });
-      onArtistAdded(result.artist);
-      setToast({
-        type: 'success',
-        title: `ดึงเพลงเพิ่มของ "${artist.name}" สำเร็จ!`,
-        detail:
-          result.added > 0
-            ? `เพิ่มเพลงใหม่เข้า DB +${result.added} เพลง (รวมทั้งหมด ${result.newCount} เพลง)`
-            : `เพลงในคลังครบถ้วนแล้ว (รวมทั้งหมด ${result.newCount} เพลงใน DB)`,
-      });
-    } catch (err) {
-      setToast({
-        type: 'error',
-        title: `ดึงเพลงของ "${artist.name}" ไม่สำเร็จ`,
-        detail: (err as Error).message,
-      });
     }
   };
 
@@ -470,37 +446,41 @@ export const AddArtistModal: React.FC<AddArtistModalProps> = ({
                         </div>
 
                         <div className="flex items-center gap-1.5 flex-shrink-0">
-                          <button
-                            type="button"
-                            disabled={isBusy || syncingArtistId !== null}
-                            onClick={() =>
-                              handleAddOrSync(art.name, art.category, art.mainGenre, art.avatarUrl)
-                            }
-                            className="px-3 py-1.5 rounded-lg text-xs font-extrabold flex items-center gap-1 transition disabled:opacity-50"
-                            style={{
-                              backgroundColor: existingArtist
-                                ? 'var(--song-surface)'
-                                : 'var(--song-accent)',
-                              color: existingArtist
-                                ? 'var(--song-accent-text)'
-                                : 'var(--song-accent-on)',
-                              border: existingArtist ? '1px solid var(--song-border)' : 'none',
-                            }}
-                          >
-                            {isBusy ? (
-                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                            ) : existingArtist ? (
-                              <>
-                                <RefreshCw className="w-3.5 h-3.5" />
-                                <span>Sync</span>
-                              </>
-                            ) : (
-                              <>
-                                <Plus className="w-3.5 h-3.5" />
-                                <span>เพิ่มศิลปิน</span>
-                              </>
-                            )}
-                          </button>
+                          {existingArtist ? (
+                            <span
+                              className="px-2.5 py-1 rounded-lg text-xs font-bold flex items-center gap-1 border opacity-80"
+                              style={{
+                                backgroundColor: 'var(--song-surface)',
+                                borderColor: 'var(--song-border)',
+                                color: 'var(--song-accent-text)',
+                              }}
+                            >
+                              <Check className="w-3.5 h-3.5 text-emerald-400" />
+                              <span>ในคลังแล้ว</span>
+                            </span>
+                          ) : (
+                            <button
+                              type="button"
+                              disabled={isBusy || syncingArtistId !== null}
+                              onClick={() =>
+                                handleAddOrSync(art.name, art.category, art.mainGenre, art.avatarUrl)
+                              }
+                              className="px-3 py-1.5 rounded-lg text-xs font-extrabold flex items-center gap-1 transition disabled:opacity-50 hover:brightness-110"
+                              style={{
+                                backgroundColor: 'var(--song-accent)',
+                                color: 'var(--song-accent-on)',
+                              }}
+                            >
+                              {isBusy ? (
+                                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                              ) : (
+                                <>
+                                  <Plus className="w-3.5 h-3.5" />
+                                  <span>เพิ่มศิลปิน</span>
+                                </>
+                              )}
+                            </button>
+                          )}
                         </div>
                       </div>
                     );
@@ -530,12 +510,9 @@ export const AddArtistModal: React.FC<AddArtistModalProps> = ({
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-64 overflow-y-auto pr-1">
                 {filteredLibrary.map((artist) => {
-                const trackCount = artist.trackCount ?? 10;
-                const canSyncMore = trackCount < 200;
-                const isSyncing =
-                  syncingArtistId === artist.id || syncingArtistId === artist.name;
+                  const trackCount = artist.trackCount ?? 10;
 
-                return (
+                  return (
                   <div
                     key={artist.id + artist.name}
                     className="p-2.5 rounded-xl border flex items-center justify-between gap-2"
@@ -574,46 +551,6 @@ export const AddArtistModal: React.FC<AddArtistModalProps> = ({
                     </div>
 
                     <div className="flex items-center gap-1.5 flex-shrink-0">
-                      {canSyncMore ? (
-                        <button
-                          type="button"
-                          onClick={() => handleSyncExisting(artist)}
-                          disabled={syncingArtistId !== null}
-                          className="px-2 py-1 rounded-lg text-[10px] font-bold flex items-center gap-1 border transition hover:brightness-110 disabled:opacity-50"
-                          style={{
-                            backgroundColor: 'color-mix(in srgb, var(--song-accent) 14%, var(--song-surface))',
-                            borderColor: 'var(--song-accent)',
-                            color: 'var(--song-accent-text)',
-                          }}
-                          title={`ดึงเพลงเพิ่ม (Sync 200 เพลง) สำหรับ ${artist.name}`}
-                        >
-                          {isSyncing ? (
-                            <>
-                              <Loader2 className="w-3 h-3 animate-spin" />
-                              <span>Syncing...</span>
-                            </>
-                          ) : (
-                            <>
-                              <RefreshCw className="w-3 h-3" />
-                              <span>Sync</span>
-                            </>
-                          )}
-                        </button>
-                      ) : (
-                        <span
-                          className="px-2 py-1 rounded-lg text-[10px] font-bold flex items-center gap-1 border opacity-75"
-                          style={{
-                            backgroundColor: 'var(--song-surface)',
-                            borderColor: 'var(--song-border)',
-                            color: 'var(--song-muted)',
-                          }}
-                          title="มีเพลงในคลังครบ 200 เพลงแล้ว"
-                        >
-                          <Check className="w-3 h-3" />
-                          <span>200</span>
-                        </span>
-                      )}
-
                       <button
                         type="button"
                         onClick={() => {

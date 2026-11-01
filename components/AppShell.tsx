@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { Navbar } from './Navbar';
 import { AddArtistModal } from './AddArtistModal';
@@ -133,7 +134,9 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
           <div className="flex items-center gap-3 text-[11px] opacity-60">
             <span>🇹🇭 Thai & International Music Challenge</span>
             <span>•</span>
-            <span>songspot.co design</span>
+            <Link href="/admin" className="hover:text-emerald-400 transition" title="Admin Console">
+              Admin
+            </Link>
           </div>
         </div>
       </footer>
@@ -148,7 +151,12 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
         }}
         onArtistRemoved={async (id) => {
           try {
-            await fetch(`/api/artists/${id}`, { method: 'DELETE' });
+            const headers: Record<string, string> = {};
+            if (typeof window !== 'undefined') {
+              const adminKey = sessionStorage.getItem('beatdrop_admin_key');
+              if (adminKey) headers['x-admin-key'] = adminKey;
+            }
+            await fetch(`/api/artists/${id}`, { method: 'DELETE', headers });
             await invalidateArtists();
             await invalidateSongs();
           } catch {}

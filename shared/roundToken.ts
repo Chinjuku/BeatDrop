@@ -11,10 +11,21 @@ export interface StatelessRoundPayload {
   category: CategoryType;
   mode: GameMode;
   exp: number;
+  startedAt?: number;
 }
 
-const getSecret = (): string =>
-  process.env.GAME_TOKEN_SECRET || 'beatdrop-stateless-round-secret-2026';
+const getSecret = (): string => {
+  const secret = process.env.GAME_TOKEN_SECRET || process.env.ROUND_TOKEN_SECRET;
+  if (!secret) {
+    if (process.env.NODE_ENV === 'production') {
+      throw new Error(
+        '[SECURITY CRITICAL] GAME_TOKEN_SECRET (or ROUND_TOKEN_SECRET) must be set in production to prevent token forging!'
+      );
+    }
+    return 'beatdrop-stateless-round-secret-2026';
+  }
+  return secret;
+};
 
 export function signRoundToken(state: Omit<StatelessRoundPayload, 'exp'>, ttlMs = 1000 * 60 * 60 * 12): string {
   const payload: StatelessRoundPayload = {

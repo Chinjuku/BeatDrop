@@ -71,19 +71,34 @@ const PlayPage: React.FC = () => {
           >
             <span className="flex items-center gap-1" title="ชนะติดต่อกันรอบปัจจุบัน (Current Streak)">
               <Flame className="w-3.5 h-3.5 text-orange-400" />
-              <span>Streak: <span className="font-extrabold text-orange-400">{streak}</span></span>
+              <span>
+                Streak:{' '}
+                <span className="font-extrabold text-orange-400" suppressHydrationWarning>
+                  {streak}
+                </span>
+              </span>
             </span>
             <span className="opacity-30">|</span>
             <span className="flex items-center gap-1" title="สถิติชนะติดต่อกันสูงสุด (Best Streak)">
               <Trophy className="w-3.5 h-3.5 text-amber-400" />
-              <span>Best: <span className="font-extrabold text-amber-400">{bestStreak}</span></span>
+              <span>
+                Best:{' '}
+                <span className="font-extrabold text-amber-400" suppressHydrationWarning>
+                  {bestStreak}
+                </span>
+              </span>
             </span>
             {fastestTime !== null && (
               <>
                 <span className="opacity-30">|</span>
                 <span className="flex items-center gap-1" title="เวลาทายถูกเร็วที่สุด (Fastest Guess)">
                   <Zap className="w-3.5 h-3.5 text-emerald-400" />
-                  <span>Fastest: <span className="font-extrabold text-emerald-400">{fastestTime}s</span></span>
+                  <span>
+                    Fastest:{' '}
+                    <span className="font-extrabold text-emerald-400" suppressHydrationWarning>
+                      {fastestTime}s
+                    </span>
+                  </span>
                 </span>
               </>
             )}

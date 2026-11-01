@@ -25,7 +25,8 @@ import {
   TimeRangePresetId,
 } from '../types';
 import { useTheme } from './ThemeContext';
-import { useAudioController, AudioPlaybackState } from '../hooks/useAudioController';
+import { useAudioController, prefetchAudio, AudioPlaybackState } from '../hooks/useAudioController';
+import { getCachedArtists, setCachedArtists } from '../lib/clientDb';
 import { useQuery } from '@tanstack/react-query';
 import {
   QUERY_KEYS,
@@ -123,40 +124,14 @@ export const useGame = (): GameContextType => {
 export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const { setActiveDifficulty } = useTheme();
 
-  const [config, setConfig] = useState<GameConfig>(() => {
-    let savedPreset: TimeRangePresetId = 'songspot';
-    try {
-      const p = localStorage.getItem(STORAGE_TIME_PRESET_KEY) as TimeRangePresetId | null;
-      if (p && (p === 'relaxed' || p === 'standard' || p === 'songspot' || p === 'custom')) {
-        savedPreset = p;
-      }
-    } catch {}
-
-    let savedStages = DEFAULT_TIME_STAGES;
-    try {
-      const raw = localStorage.getItem(STORAGE_CUSTOM_STAGES_KEY);
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed) && parsed.length >= 2) {
-          savedStages = parsed;
-        }
-      }
-    } catch {}
-
-    const initialStages =
-      savedPreset === 'custom'
-        ? savedStages
-        : (TIME_RANGE_PRESETS[savedPreset]?.stages || DEFAULT_TIME_STAGES);
-
-    return {
-      category: 'thai',
-      difficulty: 'easy',
-      mode: 'standard',
-      yearFilter: 'any',
-      genreFilter: 'any',
-      timeRangePreset: savedPreset,
-      customStages: initialStages,
-    };
+  const [config, setConfig] = useState<GameConfig>({
+    category: 'thai',
+    difficulty: 'easy',
+    mode: 'standard',
+    yearFilter: 'any',
+    genreFilter: 'any',
+    timeRangePreset: 'songspot',
+    customStages: DEFAULT_TIME_STAGES,
   });
 
   const [artists, setArtists] = useState<Artist[]>([]);
@@ -179,30 +154,44 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [volume, setVolume] = useState<number>(85);
   const [playedIds, setPlayedIds] = useState<string[]>([]);
   const hasAutoPlayedRevealRef = useRef(false);
+  const roundAbortControllerRef = useRef<AbortController | null>(null);
+  const lastRoundStartRef = useRef<number>(0);
 
-  // Player stats persisted in localStorage
-  const [streak, setStreak] = useState<number>(() => {
+  // Player stats persisted in localStorage (hydrated on client mount to prevent SSR mismatch)
+  const [streak, setStreak] = useState<number>(0);
+  const [bestStreak, setBestStreak] = useState<number>(0);
+  const [fastestTime, setFastestTime] = useState<number | null>(null);
+
+  // Safe client hydration from localStorage
+  useEffect(() => {
     try {
-      return Number(localStorage.getItem(STORAGE_STREAK_KEY) || 0);
-    } catch {
-      return 0;
-    }
-  });
-  const [bestStreak, setBestStreak] = useState<number>(() => {
-    try {
-      return Number(localStorage.getItem(STORAGE_BEST_STREAK_KEY) || 0);
-    } catch {
-      return 0;
-    }
-  });
-  const [fastestTime, setFastestTime] = useState<number | null>(() => {
-    try {
-      const val = localStorage.getItem(STORAGE_FASTEST_KEY);
-      return val ? Number(val) : null;
-    } catch {
-      return null;
-    }
-  });
+      const s = Number(localStorage.getItem(STORAGE_STREAK_KEY) || 0);
+      const bs = Number(localStorage.getItem(STORAGE_BEST_STREAK_KEY) || 0);
+      const ft = localStorage.getItem(STORAGE_FASTEST_KEY);
+      if (s) setStreak(s);
+      if (bs) setBestStreak(bs);
+      if (ft) setFastestTime(Number(ft));
+
+      const p = localStorage.getItem(STORAGE_TIME_PRESET_KEY) as TimeRangePresetId | null;
+      let savedStages = DEFAULT_TIME_STAGES;
+      const raw = localStorage.getItem(STORAGE_CUSTOM_STAGES_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed) && parsed.length >= 2) {
+          savedStages = parsed;
+        }
+      }
+      if (p && (p === 'relaxed' || p === 'standard' || p === 'songspot' || p === 'custom')) {
+        const stages =
+          p === 'custom' ? savedStages : (TIME_RANGE_PRESETS[p]?.stages || DEFAULT_TIME_STAGES);
+        setConfig((prev) => ({
+          ...prev,
+          timeRangePreset: p,
+          customStages: stages,
+        }));
+      }
+    } catch {}
+  }, []);
 
   const activeAudioUrl = revealSong?.previewUrl || round?.audioUrl || null;
 
@@ -259,10 +248,20 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     staleTime: 1000 * 60 * 2,
   });
 
-  // Keep artists state synchronized with TanStack Query cache
+  // Phase 2: Instant offline mount from browser IndexedDB
+  useEffect(() => {
+    getCachedArtists().then((cached) => {
+      if (cached && cached.length > 0 && artists.length === 0) {
+        setArtists(cached);
+      }
+    });
+  }, [artists.length]);
+
+  // Keep artists state synchronized with TanStack Query cache and persist to IndexedDB
   useEffect(() => {
     if (queryArtists && queryArtists.length > 0) {
       setArtists(queryArtists);
+      setCachedArtists(queryArtists).catch(() => {});
     }
   }, [queryArtists]);
 
@@ -283,9 +282,15 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       const targetKey = payload.id || payload.name;
       setSyncingArtistId(targetKey);
       try {
+        const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+        if (typeof window !== 'undefined') {
+          const adminKey = sessionStorage.getItem('beatdrop_admin_key');
+          if (adminKey) headers['x-admin-key'] = adminKey;
+        }
+
         const res = await fetch('/api/artists/sync', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers,
           body: JSON.stringify({
             ...payload,
             artistName: payload.name,
@@ -338,6 +343,20 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   // Start a new round
   const startNewRound = useCallback(
     async (activeCfg: GameConfig = config) => {
+      // Cooldown throttle: prevent double-clicks within 600ms
+      const now = Date.now();
+      if (now - lastRoundStartRef.current < 600) {
+        return;
+      }
+      lastRoundStartRef.current = now;
+
+      // Abort previous in-flight round requests to avoid race conditions
+      if (roundAbortControllerRef.current) {
+        roundAbortControllerRef.current.abort();
+      }
+      const controller = new AbortController();
+      roundAbortControllerRef.current = controller;
+
       stop();
       hasAutoPlayedRevealRef.current = false;
       setLoadingRound(true);
@@ -359,7 +378,9 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           if (stagesParam) {
             dailyParams.set('customStages', stagesParam);
           }
-          const res = await fetch(`/api/daily?${dailyParams.toString()}`);
+          const res = await fetch(`/api/daily?${dailyParams.toString()}`, {
+            signal: controller.signal,
+          });
           const json = await res.json();
           if (json.code === 0 && json.data) {
             const info: DailyChallengeInfo = json.data;
@@ -368,6 +389,10 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             setDailyResults(Array(info.rounds.length).fill('pending'));
             setDailyScore(0);
             setRound(info.rounds[0] || null);
+            // Pre-buffer next track for zero delay
+            if (info.rounds[1]?.audioUrl) {
+              prefetchAudio(info.rounds[1].audioUrl);
+            }
           }
           return;
         }
@@ -393,15 +418,20 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           params.set('exclude', playedIds.slice(-40).join(','));
         }
 
-        const res = await fetch(`/api/songs?${params.toString()}`);
+        const res = await fetch(`/api/songs?${params.toString()}`, {
+          signal: controller.signal,
+        });
         const json = await res.json();
         if (json.code === 0 && json.data) {
           setRound(json.data);
         }
-      } catch (err) {
+      } catch (err: unknown) {
+        if ((err as Error)?.name === 'AbortError') return;
         console.error('Failed to start round:', err);
       } finally {
-        setLoadingRound(false);
+        if (!controller.signal.aborted) {
+          setLoadingRound(false);
+        }
       }
     },
     [config, playedIds, stop]
@@ -535,6 +565,7 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           ]);
           setOutcome('correct');
           setRevealSong(data.reveal);
+          if (data.reveal.previewUrl) prefetchAudio(data.reveal.previewUrl);
           setPlayedIds((prev) => [...prev, data.reveal!.id]);
 
           const newStreak = streak + 1;
@@ -578,6 +609,7 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           ]);
           setOutcome('failed');
           setRevealSong(data.reveal);
+          if (data.reveal.previewUrl) prefetchAudio(data.reveal.previewUrl);
           setPlayedIds((prev) => [...prev, data.reveal!.id]);
           setStreak(0);
           try {
@@ -650,6 +682,7 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           ]);
           setOutcome('failed');
           setRevealSong(data.reveal);
+          if (data.reveal.previewUrl) prefetchAudio(data.reveal.previewUrl);
           setPlayedIds((prev) => [...prev, data.reveal!.id]);
           setStreak(0);
           try {
@@ -703,6 +736,9 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         setHistory([]);
         setDailyIndex(nextIdx);
         setRound(dailyInfo.rounds[nextIdx]);
+        if (nextIdx + 1 < dailyInfo.rounds.length && dailyInfo.rounds[nextIdx + 1].audioUrl) {
+          prefetchAudio(dailyInfo.rounds[nextIdx + 1].audioUrl);
+        }
       } else {
         setLeaderboardOpen(true);
       }

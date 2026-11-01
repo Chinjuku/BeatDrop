@@ -10,6 +10,7 @@ import {
 } from '../../shared/types';
 import { signRoundToken, getBangkokDateKey } from '../token';
 import { isSupabaseConfigured, supabaseAdmin } from '../supabase';
+import { redis, isRedisConfigured } from '../redis';
 import { songPool } from './songPool';
 import { activeRounds, parseCustomStages } from './roundEngine';
 import { normalizeText } from './artists';
@@ -33,8 +34,19 @@ export async function handleDaily(req: Request, res: Response): Promise<void> {
 
   let dailySongs: Song[] = [];
   let poolCount = songPool.size;
+  const redisDailyKey = `beatdrop:daily:${dateKey}:${category}`;
 
-  if (isSupabaseConfigured()) {
+  // Check Upstash Redis cache first for High Availability / instant cold start
+  if (isRedisConfigured && redis) {
+    try {
+      const cached = await redis.get<Song[]>(redisDailyKey);
+      if (cached && Array.isArray(cached) && cached.length >= 5) {
+        dailySongs = cached;
+      }
+    } catch {}
+  }
+
+  if (dailySongs.length < 5 && isSupabaseConfigured()) {
     try {
       const sbSongs = await supabaseAdmin.getOrCreateDailyChallengeSongs(dateKey, category);
       if (sbSongs.length >= 5) {
@@ -75,6 +87,11 @@ export async function handleDaily(req: Request, res: Response): Promise<void> {
       if (next) dailySongs.push(next);
       else break;
     }
+  }
+
+  // Persist computed daily challenge to Redis for fast multi-pod reuse (24hr TTL)
+  if (isRedisConfigured && redis && dailySongs.length >= 5) {
+    redis.set(redisDailyKey, dailySongs, { ex: 86400 }).catch(() => {});
   }
 
   const rounds: RoundStartResponse[] = dailySongs.map((track, idx) => {

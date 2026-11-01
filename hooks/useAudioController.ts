@@ -3,6 +3,27 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 export type AudioPlaybackState = 'idle' | 'loading' | 'ready' | 'playing' | 'paused' | 'ended' | 'error';
 
+// Phase 2: Audio Pre-buffering Cache (Zero-delay instant audio playback)
+const audioBufferCache = new Map<string, AudioBuffer>();
+const MAX_AUDIO_CACHE = 25;
+
+export async function prefetchAudio(url: string | null | undefined, ctx?: AudioContext): Promise<void> {
+  if (!url || typeof window === 'undefined' || audioBufferCache.has(url)) return;
+  try {
+    const res = await fetch(url);
+    if (!res.ok) return;
+    const arrBuf = await res.arrayBuffer();
+    const Ctx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+    const context = ctx || new Ctx();
+    const decoded = await context.decodeAudioData(arrBuf.slice(0));
+    if (audioBufferCache.size >= MAX_AUDIO_CACHE) {
+      const oldest = audioBufferCache.keys().next().value;
+      if (oldest) audioBufferCache.delete(oldest);
+    }
+    audioBufferCache.set(url, decoded);
+  } catch {}
+}
+
 interface UseAudioControllerOptions {
   audioUrl: string | null;
   volume: number; // 0 to 100
@@ -89,6 +110,16 @@ export function useAudioController({ audioUrl, volume }: UseAudioControllerOptio
       return;
     }
 
+    // 1. Instant hit from audio pre-buffer cache (Zero audio delay)
+    const cachedBuffer = audioBufferCache.get(audioUrl);
+    if (cachedBuffer) {
+      stopInternal(true);
+      bufferRef.current = cachedBuffer;
+      setTotalDuration(Math.min(30, cachedBuffer.duration));
+      setState('ready');
+      return;
+    }
+
     let cancelled = false;
     stopInternal(true);
     setState('loading');
@@ -104,6 +135,11 @@ export function useAudioController({ audioUrl, volume }: UseAudioControllerOptio
       })
       .then((decoded) => {
         if (cancelled) return;
+        if (audioBufferCache.size >= MAX_AUDIO_CACHE) {
+          const oldest = audioBufferCache.keys().next().value;
+          if (oldest) audioBufferCache.delete(oldest);
+        }
+        audioBufferCache.set(audioUrl, decoded);
         bufferRef.current = decoded;
         setTotalDuration(Math.min(30, decoded.duration));
         setState('ready');

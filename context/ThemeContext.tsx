@@ -24,22 +24,17 @@ const STORAGE_THEME_KEY = 'songspot:theme-id';
 const STORAGE_SYNC_DIFF_KEY = 'songspot:sync-difficulty-accent';
 
 export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [themeId, setThemeIdState] = useState<ThemeId>(() => {
+  const [themeId, setThemeIdState] = useState<ThemeId>('songspot-dark');
+  const [syncDifficultyAccent, setSyncDifficultyAccentState] = useState<boolean>(true);
+
+  useEffect(() => {
     try {
       const saved = localStorage.getItem(STORAGE_THEME_KEY) as ThemeId | null;
-      if (saved && THEME_PRESETS[saved]) return saved;
+      if (saved && THEME_PRESETS[saved]) setThemeIdState(saved);
+      const syncSaved = localStorage.getItem(STORAGE_SYNC_DIFF_KEY);
+      if (syncSaved) setSyncDifficultyAccentState(syncSaved === 'true');
     } catch {}
-    return 'songspot-dark';
-  });
-
-  const [syncDifficultyAccent, setSyncDifficultyAccentState] = useState<boolean>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_SYNC_DIFF_KEY);
-      return saved ? saved === 'true' : true;
-    } catch {
-      return true;
-    }
-  });
+  }, []);
 
   const [activeDifficulty, setActiveDifficulty] = useState<DifficultyLevel>('medium');
 

@@ -18,6 +18,7 @@ import {
   PlusCircle,
   Search,
   Settings,
+  Shield,
   Sparkles,
   Trophy,
   X,
@@ -711,6 +712,28 @@ export const Navbar: React.FC<NavbarProps> = ({
                     />
                   </label>
                 )}
+
+                {/* 3. Admin Console */}
+                <div className="border-t mt-2 pt-2" style={{ borderColor: 'var(--song-border)' }}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActiveMenu(null);
+                      navigate('/admin');
+                    }}
+                    className="w-full px-3 py-2 rounded-xl text-left flex items-center justify-between text-xs font-bold transition hover:brightness-110"
+                    style={{
+                      backgroundColor: 'var(--song-surface-soft)',
+                      color: 'var(--song-text)',
+                    }}
+                  >
+                    <div className="flex items-center gap-2">
+                      <Shield className="w-3.5 h-3.5 text-emerald-400" />
+                      <span>Admin Console</span>
+                    </div>
+                    <span className="text-[10px] text-emerald-400 font-mono font-bold">Key Locked</span>
+                  </button>
+                </div>
               </div>
             )}
           </div>
