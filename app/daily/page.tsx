@@ -5,7 +5,6 @@ import { useGame } from '../../context/GameContext';
 import { AudioPlayer } from '../../components/AudioPlayer';
 import { GuessAutocomplete } from '../../components/GuessAutocomplete';
 import { SpinningAlbumArt } from '../../components/SpinningAlbumArt';
-import { TimeRangeSelector } from '../../components/TimeRangeSelector';
 import {
   CalendarDays,
   Trophy,
@@ -51,13 +50,15 @@ const DailyChallengePage: React.FC = () => {
     setLeaderboardOpen,
   } = useGame();
 
-  // Ensure config mode is daily
+  // Ensure config mode is daily, stages are default, and daily challenge is loaded
   useEffect(() => {
-    if (config.mode !== 'daily') {
+    if (config.mode !== 'daily' || !dailyInfo || dailyInfo.category !== config.category) {
       handleConfigChange(
         {
           ...config,
           mode: 'daily',
+          customStages: undefined,
+          timeRangePreset: 'standard',
           artistName: undefined,
           yearFilter: 'any',
           genreFilter: 'any',
@@ -65,13 +66,13 @@ const DailyChallengePage: React.FC = () => {
         true
       );
     }
-  }, [config.mode]);
+  }, [config.mode, config.category, dailyInfo]);
 
   // Check if all 5 daily songs have been finished
   const isDailyFinished =
     dailyResults.length === 5 &&
     dailyResults.every((r) => r !== 'pending') &&
-    !outcome;
+    (!outcome || dailyIndex >= 5);
 
   return (
     <div className="w-full flex flex-col items-center my-auto">
@@ -198,7 +199,8 @@ const DailyChallengePage: React.FC = () => {
               <button
                 key={lvl}
                 type="button"
-                className="songspot-difficulty-tab"
+                disabled={isDailyFinished}
+                className={`songspot-difficulty-tab ${isDailyFinished ? 'opacity-40 cursor-not-allowed pointer-events-none' : ''}`}
                 aria-pressed={isSelected}
                 style={
                   {
@@ -208,28 +210,12 @@ const DailyChallengePage: React.FC = () => {
                   } as React.CSSProperties
                 }
                 onClick={() => handleDailyDifficultySelect(lvl)}
-                title={preset.description}
+                title={isDailyFinished ? 'คุณทำภารกิจครบ 5 เพลงของวันนี้แล้ว' : preset.description}
               >
                 {preset.label}
               </button>
             );
           })}
-        </div>
-
-        {/* Row 3: Time Range Selector */}
-        <div className="w-full flex items-center justify-center">
-          <TimeRangeSelector
-            currentPreset={config.timeRangePreset}
-            stages={config.customStages}
-            onChangePreset={(presetId, nextStages) => {
-              const nextCfg: GameConfig = {
-                ...config,
-                timeRangePreset: presetId,
-                customStages: nextStages,
-              };
-              handleConfigChange(nextCfg, true);
-            }}
-          />
         </div>
       </div>
 
@@ -310,14 +296,14 @@ const DailyChallengePage: React.FC = () => {
               </button>
             </div>
           </div>
-        ) : loadingRound ? (
+        ) : loadingRound || !dailyInfo || config.mode !== 'daily' || !round ? (
           <div className="py-20 flex flex-col items-center justify-center gap-3">
             <Loader2
               className="w-10 h-10 animate-spin"
               style={{ color: 'var(--song-accent-text)' }}
             />
             <p className="text-xs font-bold uppercase tracking-wider" style={{ color: 'var(--song-muted)' }}>
-              กำลังโหลดโจทย์เพลงประจำวัน...
+              กำลังโหลดโจทย์เพลงประจำวัน (5 เพลง)...
             </p>
           </div>
         ) : outcome && revealSong ? (

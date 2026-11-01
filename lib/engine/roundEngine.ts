@@ -16,6 +16,7 @@ import { checkArtistStrictMatch, isJunkTrack } from '../itunes';
 import { songPool, ingestArtistSongs, fetchItunesSongs } from './songPool';
 import { getAllArtists, normalizeText } from './artists';
 import { redis, isRedisConfigured } from '../redis';
+import { isSupabaseConfigured, supabaseAdmin } from '../supabase';
 
 export interface ActiveRoundState {
   track: Song;
@@ -143,10 +144,24 @@ export async function handleStartRound(req: Request, res: Response): Promise<voi
   const roundStages = customStagesParam || (req.query.difficulty ? preset.stages : DEFAULT_TIME_STAGES);
 
   if (artistFilter && artistFilter !== 'any') {
-    const existingForArtist = Array.from(songPool.values()).filter((s) =>
+    let existingForArtist = Array.from(songPool.values()).filter((s) =>
       matchesArtistFilter(s, artistFilter)
     );
-    // Cache-first: only query external iTunes if zero songs exist in memory/DB
+    // 1. Try preloading from Supabase if songs already exist in Cloud DB
+    if (existingForArtist.length === 0 && isSupabaseConfigured()) {
+      try {
+        const supaSongs = await supabaseAdmin.findSongsByArtist(artistFilter, 200);
+        for (const s of supaSongs) {
+          songPool.set(s.id, s);
+        }
+        existingForArtist = Array.from(songPool.values()).filter((s) =>
+          matchesArtistFilter(s, artistFilter)
+        );
+      } catch (err) {
+        console.warn('[RoundEngine] Supabase song lookup failed:', err);
+      }
+    }
+    // 2. Cache-first: only query external iTunes if zero songs exist in memory/DB
     if (existingForArtist.length === 0) {
       const knownArtist = getAllArtists(songPool).find((a) =>
         matchesArtistFilter({ artistName: a.name } as Song, artistFilter)

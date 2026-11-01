@@ -32,13 +32,12 @@ export async function GET(req: Request) {
     const difficulty = ((parsedUrl.searchParams.get('difficulty') as DifficultyLevel) || 'medium') as DifficultyLevel;
     const preset = DIFFICULTY_PRESETS[difficulty] || DIFFICULTY_PRESETS.medium;
     const customStagesParam = parseCustomStages(parsedUrl.searchParams.get('customStages'));
-    const roundStages =
-      customStagesParam || (parsedUrl.searchParams.get('difficulty') ? preset.stages : DEFAULT_TIME_STAGES);
+    const roundStages = customStagesParam || DEFAULT_TIME_STAGES;
 
     const dateKey = getBangkokDateKey();
     const dailySongs = await supabaseAdmin.getOrCreateDailyChallengeSongs(dateKey, category);
 
-    if (dailySongs.length === 0) {
+    if (dailySongs.length < 5) {
       return forwardToExpress(req, '/api/daily');
     }
 

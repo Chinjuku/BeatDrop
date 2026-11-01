@@ -187,6 +187,49 @@ export const supabaseAdmin = {
   },
 
   /**
+   * Fetch all registered artists from Supabase
+   */
+  async getArtists(): Promise<Artist[]> {
+    if (!isSupabaseConfigured()) return [];
+    try {
+      const res = await fetch(getRestUrl('artists?select=*&order=name.asc'), {
+        headers: getSupabaseHeaders(),
+      });
+      if (!res.ok) return [];
+      const rows = (await res.json()) as SupabaseArtistRow[];
+      return rows.map((r) => ({
+        id: r.id,
+        name: r.name,
+        category: r.category,
+        mainGenre: r.main_genre || 'Pop',
+        avatarUrl: r.avatar_url || '',
+        isCustom: r.is_custom,
+        trackCount: r.track_count ?? 0,
+      }));
+    } catch (err) {
+      console.error('[Supabase getArtists] Error:', err);
+      return [];
+    }
+  },
+
+  /**
+   * Fetch songs for a given artist from Supabase
+   */
+  async findSongsByArtist(artistName: string, limit = 200): Promise<Song[]> {
+    if (!isSupabaseConfigured()) return [];
+    try {
+      const query = `songs?artist_name=ilike.*${encodeURIComponent(artistName)}*&limit=${limit}`;
+      const res = await fetch(getRestUrl(query), { headers: getSupabaseHeaders() });
+      if (!res.ok) return [];
+      const rows = (await res.json()) as SupabaseSongRow[];
+      return rows.map(rowToSong);
+    } catch (err) {
+      console.error('[Supabase findSongsByArtist] Error:', err);
+      return [];
+    }
+  },
+
+  /**
    * Count total songs matching artistName in Supabase and update artists.track_count
    */
   async refreshArtistTrackCount(artistName: string, avatarUrl?: string): Promise<number> {
@@ -293,10 +336,58 @@ export const supabaseAdmin = {
     });
     if (!songsRes.ok) return [];
     const rows = (await songsRes.json()) as SupabaseSongRow[];
-    return dailyRow.song_ids
+    const existingSongs = dailyRow.song_ids
       .map((id) => rows.find((r) => r.id === id))
       .filter((r): r is SupabaseSongRow => Boolean(r))
       .map(rowToSong);
+
+    // Self-healing: if some song IDs are missing or row has < 5 songs, backfill up to 5 songs
+    if (existingSongs.length < 5) {
+      const catFilter = category === 'thai' || category === 'international' ? `&category=eq.${category}` : '';
+      const candRes = await fetch(
+        getRestUrl(`songs?select=*${catFilter}&order=popularity_score.desc&limit=150`),
+        { headers: getSupabaseHeaders() }
+      );
+      if (candRes.ok) {
+        const candidates = ((await candRes.json()) as SupabaseSongRow[]).map(rowToSong);
+        const seenArtists = new Set(existingSongs.map((s) => s.artistName.toLowerCase()));
+        const seenIds = new Set(existingSongs.map((s) => s.id));
+
+        for (const s of candidates) {
+          if (existingSongs.length >= 5) break;
+          const aKey = s.artistName.toLowerCase();
+          if (!seenIds.has(s.id) && !seenArtists.has(aKey)) {
+            seenArtists.add(aKey);
+            seenIds.add(s.id);
+            existingSongs.push(s);
+          }
+        }
+
+        for (const s of candidates) {
+          if (existingSongs.length >= 5) break;
+          if (!seenIds.has(s.id)) {
+            seenIds.add(s.id);
+            existingSongs.push(s);
+          }
+        }
+
+        // Persist the repaired 5 song IDs to daily_challenges table
+        if (existingSongs.length === 5) {
+          await fetch(
+            getRestUrl(`daily_challenges?date_key=eq.${encodeURIComponent(dateKey)}&category=eq.${encodeURIComponent(category)}`),
+            {
+              method: 'PATCH',
+              headers: getSupabaseHeaders('return=minimal'),
+              body: JSON.stringify({
+                song_ids: existingSongs.map((s) => s.id),
+              }),
+            }
+          );
+        }
+      }
+    }
+
+    return existingSongs;
   },
 
   /**

@@ -1,66 +1,93 @@
 [
   {
-    "id": "custom-1793251066862",
-    "name": "PUN & THE TOYS",
-    "category": "thai",
-    "mainGenre": "T-Pop",
-    "avatarUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music211/v4/1f/6e/26/1f6e26a6-f165-3785-f1a4-1a54c6e6ddf7/26UM1IM26484.rgb.jpg/600x600bb.jpg",
+    "id": "artist_jack_skrillex_diplo",
+    "name": "Jack Ü, Skrillex & Diplo",
+    "category": "international",
+    "mainGenre": "EDM",
+    "avatarUrl": "",
     "isCustom": true,
     "trackCount": 1
   },
   {
-    "id": "custom-1793251165258",
-    "name": "Dupla Real",
+    "id": "artist_clean_bandit",
+    "name": "Clean Bandit",
     "category": "international",
-    "mainGenre": "Pop",
-    "avatarUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music115/v4/f9/54/f0/f954f0c1-7cca-bee1-4343-bb6cb9b5f761/1963620110964_cover.jpg/600x600bb.jpg",
+    "mainGenre": "EDM",
+    "avatarUrl": "",
     "isCustom": true,
-    "trackCount": 38
+    "trackCount": 30
   },
   {
-    "id": "custom-1793290883985",
-    "name": "Big Ass",
-    "category": "thai",
-    "mainGenre": "T-Pop",
-    "avatarUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music7/v4/db/c9/15/dbc915b1-9d3a-df14-9349-c79aa661b145/cover.jpg/600x600bb.jpg",
-    "isCustom": true,
-    "trackCount": 40
-  },
-  {
-    "id": "custom-1793290909998",
-    "name": "Carabao",
-    "category": "thai",
-    "mainGenre": "T-Pop",
-    "avatarUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music/5c/15/14/mzi.eooggnxj.jpg/600x600bb.jpg",
-    "isCustom": true,
-    "trackCount": 38
-  },
-  {
-    "id": "custom-1793290914070",
-    "name": "GUNNER",
+    "id": "artist_baby_mannie_fresh",
+    "name": "Baby & Mannie Fresh",
     "category": "thai",
     "mainGenre": "Hip-Hop/Rap",
-    "avatarUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music112/v4/a0/dd/63/a0dd6368-7c5a-a593-c488-25b3f5170d2a/cover.jpg/600x600bb.jpg",
+    "avatarUrl": "",
+    "isCustom": true,
+    "trackCount": 0
+  },
+  {
+    "id": "artist_urboytj",
+    "name": "URBOYTJ",
+    "category": "thai",
+    "mainGenre": "T-Pop",
+    "avatarUrl": "artist_urboytj",
+    "isCustom": true,
+    "trackCount": 94
+  },
+  {
+    "id": "artist_maroon_5",
+    "name": "Maroon 5",
+    "category": "international",
+    "mainGenre": "Pop",
+    "avatarUrl": "artist_maroon_5",
+    "isCustom": true,
+    "trackCount": 113
+  },
+  {
+    "id": "artist_lisa",
+    "name": "LISA",
+    "category": "international",
+    "mainGenre": "K-Pop",
+    "avatarUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music125/v4/ee/8a/62/ee8a62ef-d973-b255-204e-be6a1fad0da7/21UMGIM86117.rgb.jpg/600x600bb.jpg",
     "isCustom": true,
     "trackCount": 25
   },
   {
-    "id": "custom-1793380845663",
-    "name": "One Direction",
-    "category": "international",
-    "mainGenre": "Pop",
-    "avatarUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music125/v4/45/ac/db/45acdb3d-1a85-52e3-43d5-195f8f58067d/mzm.qyfviqnb.jpg/600x600bb.jpg",
+    "id": "artist_taitosmith",
+    "name": "TAITOSMITH",
+    "category": "thai",
+    "mainGenre": "T-Pop",
+    "avatarUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music211/v4/cd/74/67/cd74673e-914a-3f8e-5e96-8dffa2b356d1/888332886062.jpg/600x600bb.jpg",
     "isCustom": true,
-    "trackCount": 33
+    "trackCount": 45
   },
   {
-    "id": "custom-1793381205176",
-    "name": "Safeplanet",
+    "id": "artist_stamp",
+    "name": "Stamp",
     "category": "thai",
-    "mainGenre": "Indie",
-    "avatarUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music113/v4/a3/d0/4c/a3d04ca7-a2ad-5798-e891-63990c40f9a4/cover.jpg/600x600bb.jpg",
+    "mainGenre": "T-Pop",
+    "avatarUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music211/v4/31/72/1e/31721e19-9943-9910-839a-c4ec770743df/884977685602.jpg/600x600bb.jpg",
     "isCustom": true,
-    "trackCount": 37
+    "trackCount": 44
+  },
+  {
+    "id": "th-illslick",
+    "name": "Illslick",
+    "category": "thai",
+    "mainGenre": "Hip-Hop/Rap",
+    "avatarUrl": "",
+    "isCustom": false,
+    "trackCount": 108
+  },
+  {
+    "id": "artist_bodyslam",
+    "name": "Bodyslam",
+    "category": "thai",
+    "mainGenre": "T-Pop",
+    "avatarUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music124/v4/e2/3e/40/e23e40b6-5e1c-d7a9-222e-fcc97d8f1e08/cover.jpg/600x600bb.jpg",
+    "isCustom": true,
+    "trackCount": 195
   },
   {
     "id": "custom-1793381528647",
@@ -69,6 +96,60 @@
     "mainGenre": "T-Pop",
     "avatarUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music221/v4/40/ac/fc/40acfc41-065e-0f49-d5f1-b01bbca0d6c4/cover.jpg/600x600bb.jpg",
     "isCustom": true,
+    "trackCount": 56
+  },
+  {
+    "id": "custom-1793381205176",
+    "name": "Safeplanet",
+    "category": "thai",
+    "mainGenre": "Indie",
+    "avatarUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music113/v4/a3/d0/4c/a3d04ca7-a2ad-5798-e891-63990c40f9a4/cover.jpg/600x600bb.jpg",
+    "isCustom": true,
+    "trackCount": 75
+  },
+  {
+    "id": "custom-1793380845663",
+    "name": "One Direction",
+    "category": "international",
+    "mainGenre": "Pop",
+    "avatarUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music125/v4/45/ac/db/45acdb3d-1a85-52e3-43d5-195f8f58067d/mzm.qyfviqnb.jpg/600x600bb.jpg",
+    "isCustom": true,
+    "trackCount": 229
+  },
+  {
+    "id": "custom-1793290883985",
+    "name": "Big Ass",
+    "category": "thai",
+    "mainGenre": "T-Pop",
+    "avatarUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music7/v4/db/c9/15/dbc915b1-9d3a-df14-9349-c79aa661b145/cover.jpg/600x600bb.jpg",
+    "isCustom": true,
+    "trackCount": 43
+  },
+  {
+    "id": "custom-1793290909998",
+    "name": "Carabao",
+    "category": "thai",
+    "mainGenre": "T-Pop",
+    "avatarUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music/5c/15/14/mzi.eooggnxj.jpg/600x600bb.jpg",
+    "isCustom": true,
+    "trackCount": 40
+  },
+  {
+    "id": "custom-1793290914070",
+    "name": "GUNNER",
+    "category": "thai",
+    "mainGenre": "Hip-Hop/Rap",
+    "avatarUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music112/v4/a0/dd/63/a0dd6368-7c5a-a593-c488-25b3f5170d2a/cover.jpg/600x600bb.jpg",
+    "isCustom": true,
     "trackCount": 34
+  },
+  {
+    "id": "artist_ros_bruno_mars",
+    "name": "ROSÉ & Bruno Mars",
+    "category": "international",
+    "mainGenre": "Pop",
+    "avatarUrl": "",
+    "isCustom": true,
+    "trackCount": 2
   }
 ]

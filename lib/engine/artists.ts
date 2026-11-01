@@ -41,6 +41,8 @@ export const CURATED_ARTISTS: Artist[] = [
   { id: 'th-thetoys', name: 'THE TOYS', category: 'thai', mainGenre: 'T-Pop', avatarUrl: '' },
   { id: 'th-pun', name: 'PUN', category: 'thai', mainGenre: 'T-Pop', avatarUrl: '' },
   { id: 'th-gunner', name: 'GUNNER', category: 'thai', mainGenre: 'Hip-Hop/Rap', avatarUrl: '' },
+  { id: 'th-stamp', name: 'Stamp', category: 'thai', mainGenre: 'T-Pop', avatarUrl: '' },
+  { id: 'th-taitosmith', name: 'TaitosmitH', category: 'thai', mainGenre: 'Rock', avatarUrl: '' },
 
   // International Artists
   { id: 'intl-queen', name: 'Queen', category: 'international', mainGenre: 'Rock', avatarUrl: '' },
@@ -68,8 +70,18 @@ export const CURATED_ARTISTS: Artist[] = [
 
 export let customArtists: Artist[] = [];
 
+let cachedAllArtists: Artist[] | null = null;
+let lastAllArtistsTime = 0;
+const ALL_ARTISTS_CACHE_TTL = 15_000;
+
+export function invalidateAllArtistsCache(): void {
+  cachedAllArtists = null;
+  lastAllArtistsTime = 0;
+}
+
 export function loadCustomArtists(): void {
   try {
+    invalidateAllArtistsCache();
     const dbArtists = dbService.getCustomArtists();
     if (dbArtists.length > 0) {
       customArtists = dbArtists;
@@ -92,6 +104,7 @@ export function loadCustomArtists(): void {
 
 export function saveCustomArtists(): void {
   try {
+    invalidateAllArtistsCache();
     fs.writeFileSync(CUSTOM_ARTISTS_FILE, JSON.stringify(customArtists, null, 2), 'utf-8');
   } catch (err) {
     console.error('Failed to save custom artists:', err);
@@ -178,6 +191,18 @@ export function normalizeGenre(
 }
 
 export function getAllArtists(songPool?: Map<string, Song>): Artist[] {
+  const now = Date.now();
+  if (cachedAllArtists && now - lastAllArtistsTime < ALL_ARTISTS_CACHE_TTL) {
+    return cachedAllArtists;
+  }
+
+  try {
+    const dbArtists = dbService.getCustomArtists();
+    if (dbArtists && dbArtists.length > 0) {
+      customArtists = dbArtists;
+    }
+  } catch {}
+
   const map = new Map<string, Artist>();
   const poolValues = songPool ? Array.from(songPool.values()) : [];
 
@@ -188,16 +213,32 @@ export function getAllArtists(songPool?: Map<string, Song>): Artist[] {
         checkArtistStrictMatch(s.artistName, a.name, undefined, undefined, s.title) &&
         !isJunkTrack(s.title, s.albumName, s.artistName)
     );
+    const effectiveCount =
+      a.trackCount && a.trackCount > 0
+        ? a.trackCount
+        : tracks.length > 0
+        ? tracks.length
+        : dbService.searchSongs('', { artist: a.name, limit: 250 }).length;
+
+    const hasValidAvatar = Boolean(
+      a.avatarUrl &&
+        (a.avatarUrl.startsWith('http://') ||
+          a.avatarUrl.startsWith('https://') ||
+          a.avatarUrl.startsWith('/'))
+    );
     const avatar =
-      a.avatarUrl ||
+      (hasValidAvatar ? a.avatarUrl : '') ||
       tracks[0]?.artworkUrl ||
       'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=300&auto=format&fit=crop&q=80';
     map.set(norm, {
       ...a,
       avatarUrl: avatar,
-      trackCount: songPool ? tracks.length : a.trackCount || 0,
+      trackCount: effectiveCount,
     });
   }
-  return Array.from(map.values());
+  const result = Array.from(map.values());
+  cachedAllArtists = result;
+  lastAllArtistsTime = now;
+  return result;
 }
 

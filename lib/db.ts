@@ -4,6 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { Artist, CategoryType, LeaderboardEntry, Song } from '../shared/types';
 import { isDbLocal, isSupabaseConfigured, supabaseAdmin } from './supabase';
+import { getArtistCandidateTokens } from './itunes';
 
 const DATA_DIR = path.resolve(process.cwd(), 'data');
 const LOCAL_DB_FILE = path.join(DATA_DIR, 'beatdrop.db');
@@ -318,13 +319,21 @@ export const dbService = {
     }
 
     if (artist && artist !== 'any') {
-      conditions.push('(artist_name LIKE ? OR artist_name LIKE ?)');
-      params.push(`%${artist}%`, `${artist}%`);
+      const tokens = getArtistCandidateTokens(artist);
+      if (tokens.length > 0) {
+        const artistConds = tokens.map(() => 'artist_name LIKE ?').join(' OR ');
+        conditions.push(`(${artistConds})`);
+        params.push(...tokens.map((t) => `%${t}%`));
+      } else {
+        conditions.push('(artist_name LIKE ? OR artist_name LIKE ?)');
+        params.push(`%${artist}%`, `${artist}%`);
+      }
     }
 
-    if (query.trim()) {
+    const trimmedQuery = query.trim();
+    if (trimmedQuery && (!artist || trimmedQuery.toLowerCase() !== artist.toLowerCase())) {
       conditions.push('(title LIKE ? OR artist_name LIKE ?)');
-      params.push(`%${query.trim()}%`, `%${query.trim()}%`);
+      params.push(`%${trimmedQuery}%`, `%${trimmedQuery}%`);
     }
 
     const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
@@ -429,6 +438,12 @@ export const dbService = {
 
   addLeaderboardEntry(entry: LeaderboardEntry): void {
     try {
+      // Upsert: prevent duplicate entries for the same player, category, and difficulty
+      db.prepare(`
+        DELETE FROM leaderboard
+        WHERE LOWER(player_name) = LOWER(?) AND difficulty = ? AND category = ?
+      `).run(entry.playerName, entry.difficulty, entry.category);
+
       insertLeaderboardStmt.run(
         entry.id,
         entry.playerName,

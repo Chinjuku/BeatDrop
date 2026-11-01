@@ -31,13 +31,101 @@ export function hasThaiScript(text: string): boolean {
 }
 
 export function normalizeText(value: string): string {
-  return value
+  return (value || '')
     .toLowerCase()
     .replace(/\(.*?\)|\[.*?\]/g, '')
     .replace(/feat\.?|ft\.?/gi, '')
     .replace(/[^a-z0-9\u0E00-\u0E7F\s]/gi, '')
     .replace(/\s+/g, ' ')
     .trim();
+}
+
+export const KNOWN_ARTIST_ALIASES: Record<string, string[]> = {
+  // TaitosmitH
+  taitosmith: ['ไททศสมิธ', 'ไททศมิตร', 'ไททศ'],
+  'ไททศสมิธ': ['taitosmith', 'ไททศมิตร'],
+  'ไททศมิตร': ['taitosmith', 'ไททศสมิธ'],
+
+  // Stamp
+  stamp: ['แสตมป์', 'แสตมป์ อภิวัชร์', 'stamp apiwat'],
+  'stamp apiwat': ['stamp', 'แสตมป์', 'แสตมป์ อภิวัชร์'],
+  'แสตมป์': ['stamp', 'stamp apiwat', 'แสตมป์ อภิวัชร์'],
+  'แสตมป์ อภิวัชร์': ['stamp', 'stamp apiwat', 'แสตมป์'],
+
+  // Common popular Thai artists with English & Thai spellings
+  bodyslam: ['บอดี้สแลม'],
+  'บอดี้สแลม': ['bodyslam'],
+  'tilly birds': ['ทิลลี่เบิร์ด', 'ทิลลี่เบิร์ดส์'],
+  'three man down': ['ทรีแมนดาวน์', 'ทรี แมน ดาวน์'],
+  cocktail: ['ค็อกเทล'],
+  bowkylion: ['โบกี้ไลอ้อน', 'โบกี้ ไลอ้อน'],
+  'nont tanont': ['นนท์ ธนนท์', 'นนท์'],
+  potato: ['โปเตโต้'],
+  'slot machine': ['สล็อตแมชชีน', 'สล็อต แมชชีน'],
+  'jeff satur': ['เจฟ ซาเตอร์'],
+  milli: ['มิลลิ'],
+  'tattoo colour': ['แทททูคัลเลอร์', 'แทททู คัลเลอร์'],
+  polycat: ['โพลีแคต', 'โพลี่แคท'],
+  'ink waruntorn': ['อิ้งค์ วรันธร', 'อิ้งค์'],
+  palmy: ['ปาล์มมี่'],
+  '4eve': ['โฟร์อีฟ'],
+  billkin: ['บิวกิ้น'],
+  'violette wautier': ['วิโอเลต วอเทียร์', 'วี วิโอเลต'],
+  illslick: ['อิลสลิก', 'อิล'],
+  carabao: ['คาราบาว'],
+  'big ass': ['บิ๊กแอส'],
+  'the toys': ['เดอะทอยส์', 'ทอยส์'],
+  pun: ['ปัน'],
+  gunner: ['กันเนอร์'],
+  'the parkinson': ['เดอะพาร์กินสัน', 'เดอะ พาร์กินสัน'],
+  'safeplanet': ['เซฟแพลนเน็ต'],
+  'purpeech': ['เพอร์พีช'],
+  'fellow fellow': ['เฟลโล่ว เฟลโล่ว'],
+  'scrubb': ['สครับบ์', 'สครับ'],
+  'paradox': ['พาราด็อกซ์'],
+  'loso': ['โลโซ', 'เสก โลโซ', 'sek loso'],
+  'labanoon': ['ลาบานูน'],
+  'silly fools': ['ซิลลี่ ฟูลส์', 'ซิลลี่ฟูลส์'],
+  'moderndog': ['โมเดิร์นด็อก'],
+};
+
+export function getArtistCandidateTokens(name: string): string[] {
+  if (!name) return [];
+  const result = new Set<string>();
+
+  const baseNorm = normalizeText(name);
+  if (baseNorm) result.add(baseNorm);
+
+  // Extract from parentheses e.g. "ไททศสมิธ (TaitosmitH)" -> ["ไททศสมิธ", "TaitosmitH"]
+  const parenMatches = name.match(/\((.*?)\)|\[(.*?)\]/g);
+  if (parenMatches) {
+    for (const m of parenMatches) {
+      const inside = m.replace(/[()[\]]/g, '').trim();
+      const normInside = normalizeText(inside);
+      if (normInside) result.add(normInside);
+    }
+    const withoutParen = name.replace(/\(.*?\)|\[.*?\]/g, '').trim();
+    const normWithout = normalizeText(withoutParen);
+    if (normWithout) result.add(normWithout);
+  }
+
+  // Also split by / or & or | if present in name
+  const slashes = name.split(/[\/|]/).map((s) => normalizeText(s.trim())).filter(Boolean);
+  for (const s of slashes) result.add(s);
+
+  // Add all known aliases for all candidate tokens
+  const currentTokens = Array.from(result);
+  for (const tok of currentTokens) {
+    const aliases = KNOWN_ARTIST_ALIASES[tok];
+    if (aliases) {
+      for (const a of aliases) {
+        const normA = normalizeText(a);
+        if (normA) result.add(normA);
+      }
+    }
+  }
+
+  return Array.from(result);
 }
 
 export function cleanTrackTitle(rawTitle: string): string {
@@ -80,32 +168,45 @@ export function checkArtistStrictMatch(
   if (targetArtistId && trackArtistId && targetArtistId === trackArtistId) {
     return true;
   }
-  const target = normalizeText(targetArtist);
+
+  const targetTokens = getArtistCandidateTokens(targetArtist);
   const actual = normalizeText(trackArtist);
-  if (!target || !actual) return false;
-  if (actual === target) return true;
+  if (!actual || targetTokens.length === 0) return false;
 
-  // Reject imposter patterns e.g. "Illslick Music", "Taylor Swift Songs", "Taylor Swift Tribute Band"
-  const imposter = new RegExp(`^${target}\\s+(music|song|songs|band|orchestra|project|experience|records|tribute|cover|soundtrack)$`, 'i');
-  if (imposter.test(actual)) return false;
+  // Direct token match & prefix/suffix match (e.g. "Stamp Apiwat" matches "Stamp")
+  for (const target of targetTokens) {
+    if (actual === target) return true;
 
-  // Tokenized collaboration match (e.g. "ILLSLICK, SANTAZ & DM", "ZAYN & Taylor Swift")
-  const tokens = trackArtist
+    if (actual.startsWith(target + ' ') || actual.endsWith(' ' + target)) {
+      // Reject imposter patterns e.g. "Illslick Music", "Taylor Swift Songs", "Taylor Swift Tribute Band"
+      const imposter = new RegExp(`^${target}\\s+(music|song|songs|band|orchestra|project|experience|records|tribute|cover|soundtrack)$`, 'i');
+      if (!imposter.test(actual)) {
+        return true;
+      }
+    }
+  }
+
+  // Tokenized collaboration match (e.g. "TAITOSMITH & MILLI", "ILLSLICK, SANTAZ & DM", "ZAYN & Taylor Swift")
+  const trackTokens = trackArtist
     .split(/[,&/]|\b(?:feat\.?|ft\.?|featuring|with|x|and|ร่วมกับ)\b/i)
-    .map((t) => normalizeText(t))
+    .flatMap((t) => getArtistCandidateTokens(t))
     .filter(Boolean);
 
-  if (tokens.includes(target)) return true;
+  for (const target of targetTokens) {
+    if (trackTokens.includes(target)) return true;
+  }
 
-  // Check feat in track title e.g. "ชุดวิวาห์ (feat. Illslick)"
+  // Check feat in track title e.g. "ชุดวิวาห์ (feat. Illslick)" or "กาลครั้งหนึ่ง (feat. ปาล์มมี่)"
   if (trackTitle) {
-    const featMatch = trackTitle.match(/\((?:feat\.?|ft\.?|featuring|with)\s+([^)]+)\)/i);
+    const featMatch = trackTitle.match(/\((?:feat\.?|ft\.?|featuring|with|ร่วมกับ)\s+([^)]+)\)/i);
     if (featMatch && featMatch[1]) {
       const featTokens = featMatch[1]
         .split(/[,&/]|\b(?:feat\.?|ft\.?|featuring|with|x|and|ร่วมกับ)\b/i)
-        .map((t) => normalizeText(t))
+        .flatMap((t) => getArtistCandidateTokens(t))
         .filter(Boolean);
-      if (featTokens.includes(target)) return true;
+      for (const target of targetTokens) {
+        if (featTokens.includes(target)) return true;
+      }
     }
   }
 
@@ -169,8 +270,10 @@ async function fetchItunesWithRetry(
 
 export async function fetchArtistSongsUpTo200(
   artistQuery: string,
-  preferredCategory?: CategoryType
+  preferredCategory?: CategoryType,
+  maxLimit = 200
 ): Promise<{ songs: Song[]; rateLimited: boolean }> {
+  const targetLimit = Math.min(200, Math.max(10, maxLimit));
   const autoCategory: CategoryType =
     preferredCategory && preferredCategory !== 'all'
       ? preferredCategory
@@ -184,7 +287,7 @@ export async function fetchArtistSongsUpTo200(
   let rateLimited = false;
 
   for (const country of countries) {
-    if (collected.size >= 200) break;
+    if (collected.size >= targetLimit) break;
 
     const artistSearchUrl = `https://itunes.apple.com/search?term=${encodeURIComponent(
       artistQuery
@@ -195,8 +298,7 @@ export async function fetchArtistSongsUpTo200(
     let resolvedArtistId: number | null = null;
     for (const a of artistRes.results || []) {
       const aName = String(a.artistName || '');
-      const normA = normalizeText(aName);
-      if (normA && (normA === normQuery || normA.includes(normQuery) || normQuery.includes(normA))) {
+      if (checkArtistStrictMatch(aName, artistQuery)) {
         resolvedArtistId = Number(a.artistId) || null;
         break;
       }
@@ -205,7 +307,7 @@ export async function fetchArtistSongsUpTo200(
     const rawTracks: ItunesTrackItem[] = [];
 
     if (resolvedArtistId) {
-      const lookupUrl = `https://itunes.apple.com/lookup?id=${resolvedArtistId}&entity=song&country=${country}&limit=200`;
+      const lookupUrl = `https://itunes.apple.com/lookup?id=${resolvedArtistId}&entity=song&country=${country}&limit=${targetLimit}`;
       const lookupRes = await fetchItunesWithRetry(lookupUrl);
       if (lookupRes.rateLimited) rateLimited = true;
       for (const item of lookupRes.results || []) {
@@ -215,17 +317,23 @@ export async function fetchArtistSongsUpTo200(
       }
     }
 
-    if (rawTracks.length < 200) {
-      const songSearchUrl = `https://itunes.apple.com/search?term=${encodeURIComponent(
-        artistQuery
-      )}&country=${country}&media=music&entity=song&limit=200`;
-      const songRes = await fetchItunesWithRetry(songSearchUrl);
-      if (songRes.rateLimited) rateLimited = true;
-      rawTracks.push(...(songRes.results || []));
+    if (rawTracks.length < targetLimit) {
+      const candidateTokens = getArtistCandidateTokens(artistQuery);
+      const searchTerms = Array.from(new Set([artistQuery, ...candidateTokens.slice(0, 3)]));
+
+      for (const term of searchTerms) {
+        if (rawTracks.length >= targetLimit) break;
+        const songSearchUrl = `https://itunes.apple.com/search?term=${encodeURIComponent(
+          term
+        )}&country=${country}&media=music&entity=song&limit=${targetLimit}`;
+        const songRes = await fetchItunesWithRetry(songSearchUrl);
+        if (songRes.rateLimited) rateLimited = true;
+        rawTracks.push(...(songRes.results || []));
+      }
     }
 
     rawTracks.forEach((item, idx) => {
-      if (collected.size >= 200) return;
+      if (collected.size >= targetLimit) return;
       if (!item.trackId || !item.trackName || !item.artistName || !item.previewUrl) return;
 
       // Discard junk tracks (karaoke, tribute, lullaby, sleep, music box, etc.)
@@ -272,12 +380,13 @@ export async function fetchArtistSongsUpTo200(
     });
   }
 
-  return { songs: Array.from(collected.values()).slice(0, 200), rateLimited };
+  return { songs: Array.from(collected.values()).slice(0, targetLimit), rateLimited };
 }
 
 export async function syncArtistSongs(
   query: string,
-  preferredCategory?: CategoryType
+  preferredCategory?: CategoryType,
+  maxLimit = 200
 ): Promise<{
   status: number;
   body: {
@@ -292,7 +401,7 @@ export async function syncArtistSongs(
   };
 }> {
   const startedAt = Date.now();
-  const { songs: fetchedSongs, rateLimited } = await fetchArtistSongsUpTo200(query, preferredCategory);
+  const { songs: fetchedSongs, rateLimited } = await fetchArtistSongsUpTo200(query, preferredCategory, maxLimit);
 
   if (fetchedSongs.length === 0) {
     if (rateLimited) {
@@ -405,6 +514,19 @@ export async function syncArtistSongs(
     trackCount: totalArtistTracks,
   };
   dbService.saveCustomArtist(customArtist);
+
+  // Synchronize in-memory songPool and customArtists immediately
+  try {
+    const { songPool } = await import('./engine/songPool');
+    for (const s of fetchedSongs) {
+      songPool.set(s.id, s);
+    }
+    const { addCustomArtist, loadCustomArtists } = await import('./engine/artists');
+    addCustomArtist(customArtist);
+    loadCustomArtists();
+  } catch (err) {
+    console.error('Failed to sync in-memory songPool/customArtists:', err);
+  }
 
   return {
     status: 200,

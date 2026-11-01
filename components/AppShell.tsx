@@ -141,10 +141,6 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
           </div>
           <div className="flex items-center gap-3 text-[11px] opacity-60">
             <span>🇹🇭 Thai & International Music Challenge</span>
-            <span>•</span>
-            <Link href="/admin" className="hover:text-emerald-400 transition" title="Admin Console">
-              Admin
-            </Link>
           </div>
         </div>
       </footer>

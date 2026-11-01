@@ -39,7 +39,7 @@ export const AddArtistModal: React.FC<AddArtistModalProps> = ({
   onArtistRemoved,
   onPlayArtist,
 }) => {
-  const { syncArtist, syncingArtistId } = useGame();
+  const { syncArtist, syncingArtistId, fetchArtists } = useGame();
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedQuery, setDebouncedQuery] = useState('');
   const [discovered, setDiscovered] = useState<Artist[]>([]);
@@ -47,6 +47,13 @@ export const AddArtistModal: React.FC<AddArtistModalProps> = ({
   const [searchError, setSearchError] = useState<string | null>(null);
   const [addingName, setAddingName] = useState<string | null>(null);
   const [toast, setToast] = useState<ToastState | null>(null);
+
+  // Refresh library artists from database immediately when opening modal
+  useEffect(() => {
+    if (isOpen) {
+      fetchArtists();
+    }
+  }, [isOpen, fetchArtists]);
 
   // Auto-dismiss toast after 5 seconds
   useEffect(() => {
@@ -72,11 +79,11 @@ export const AddArtistModal: React.FC<AddArtistModalProps> = ({
     return false;
   };
 
-  // Debounce search query input (350ms)
+  // Debounce search query input (250ms for responsive typing)
   useEffect(() => {
     const timer = setTimeout(() => {
       setDebouncedQuery(searchQuery.trim());
-    }, 350);
+    }, 250);
     return () => clearTimeout(timer);
   }, [searchQuery]);
 
@@ -91,6 +98,7 @@ export const AddArtistModal: React.FC<AddArtistModalProps> = ({
 
     let isMounted = true;
     const abortCtrl = new AbortController();
+    const timeoutId = setTimeout(() => abortCtrl.abort(), 5000);
     setSearching(true);
     setSearchError(null);
 
@@ -116,11 +124,13 @@ export const AddArtistModal: React.FC<AddArtistModalProps> = ({
         setDiscovered([]);
       })
       .finally(() => {
+        clearTimeout(timeoutId);
         if (isMounted && !abortCtrl.signal.aborted) setSearching(false);
       });
 
     return () => {
       isMounted = false;
+      clearTimeout(timeoutId);
       abortCtrl.abort();
     };
   }, [debouncedQuery, isOpen]);
@@ -221,7 +231,7 @@ export const AddArtistModal: React.FC<AddArtistModalProps> = ({
                 เพิ่มและจัดการศิลปิน (Add / Manage Artists)
               </h2>
               <p className="text-[10px] sm:text-xs truncate" style={{ color: 'var(--song-muted)' }}>
-                ค้นหาชื่อศิลปินเพื่อดึงเพลงสูงสุด 200 เพลงเข้าคลังอัตโนมัติ
+                ค้นหาชื่อศิลปินเพื่อดึงเพลงเข้าคลังอัตโนมัติ
               </p>
             </div>
           </div>
@@ -249,7 +259,7 @@ export const AddArtistModal: React.FC<AddArtistModalProps> = ({
               }}
             >
               <Loader2 className="w-4 h-4 animate-spin flex-shrink-0" />
-              <span>กำลังดึงเพลงจาก iTunes API (สูงสุด 200 เพลง) และบันทึกลงฐานข้อมูล...</span>
+              <span>กำลังดึงเพลงจาก iTunes API และบันทึกลงฐานข้อมูล...</span>
             </div>
           )}
 
@@ -392,7 +402,7 @@ export const AddArtistModal: React.FC<AddArtistModalProps> = ({
               >
                 <div className="flex items-center gap-2">
                   <Plus className="w-4 h-4" />
-                  <span>ดึงเพลงของ <strong>"{extractSoloArtistName(searchQuery.trim())}"</strong> เข้าคลังทันที (200 เพลง)</span>
+                  <span>ดึงเพลงของ <strong>"{extractSoloArtistName(searchQuery.trim())}"</strong> เข้าคลังทันที</span>
                 </div>
                 {addingName === extractSoloArtistName(searchQuery.trim()) && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
               </button>

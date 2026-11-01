@@ -55,18 +55,23 @@ app.use((_req, _res, next) => {
   next();
 });
 
-// Phase 1: Admin Secret Guard for sensitive catalog operations
+// Phase 1: Admin Secret Guard for sensitive administrative operations (e.g. deleting artists)
 const adminSecretGuard = (req: express.Request, res: express.Response, next: express.NextFunction): void => {
   const configuredAdminKey = process.env.ADMIN_API_KEY;
-  if (configuredAdminKey) {
-    const providedKey = req.headers['x-admin-key'] || req.headers['authorization']?.replace(/^Bearer\s+/i, '');
-    if (providedKey !== configuredAdminKey) {
-      res.status(403).json({
-        code: 403,
-        message: 'Forbidden: Valid x-admin-key header is required for administrative operations.',
-      });
-      return;
-    }
+  if (!configuredAdminKey) {
+    res.status(403).json({
+      code: 403,
+      message: 'Forbidden: ADMIN_API_KEY is not configured on server.',
+    });
+    return;
+  }
+  const providedKey = req.headers['x-admin-key'] || req.headers['authorization']?.replace(/^Bearer\s+/i, '');
+  if (providedKey !== configuredAdminKey) {
+    res.status(403).json({
+      code: 403,
+      message: 'Forbidden: Valid x-admin-key header is required for administrative operations.',
+    });
+    return;
   }
   next();
 };
@@ -74,7 +79,7 @@ const adminSecretGuard = (req: express.Request, res: express.Response, next: exp
 // Apply baseline rate limiter across all API routes (60 req/min per IP)
 app.use('/api', generalLimiter);
 
-// 1. Artists Endpoints (Discovery limited to 15 req/min, Sync limited to 5 req/min, Guarded by Admin Key)
+// 1. Artists Endpoints (Discovery limited to 15 req/min, Sync limited to 5 req/min, Delete guarded by Admin Key)
 app.post('/api/admin/verify', (req, res) => {
   const configuredAdminKey = process.env.ADMIN_API_KEY;
   if (!configuredAdminKey) {
@@ -99,8 +104,8 @@ app.get('/api/artists', (req, res, next) => {
   }
   next();
 }, handleGetArtists);
-app.post('/api/artists/add', handleAddArtist);
-app.post('/api/artists/sync', adminSecretGuard, artistSyncLimiter, handleSyncArtist);
+app.post('/api/artists/add', artistSyncLimiter, handleAddArtist);
+app.post('/api/artists/sync', artistSyncLimiter, handleSyncArtist);
 app.delete('/api/artists/:id', adminSecretGuard, handleDeleteArtist);
 
 // 2. Round & Songpool Endpoints (Throttled to 40 req/min per IP)

@@ -85,20 +85,7 @@
     "difficulty": "easy",
     "category": "international",
     "isDaily": false,
-    "dateKey": "2026-10-29",
     "createdAt": "2026-10-29T07:19:35.980Z"
-  },
-  {
-    "id": "lb-1793258367506-b8hh",
-    "playerName": "Chinjuku",
-    "score": 200,
-    "streak": 4,
-    "fastestSeconds": 1,
-    "difficulty": "easy",
-    "category": "international",
-    "isDaily": true,
-    "dateKey": "2026-10-29",
-    "createdAt": "2026-10-29T07:19:32.115Z"
   },
   {
     "id": "lb-1793258681692-r0cq",
@@ -109,7 +96,18 @@
     "difficulty": "easy",
     "category": "thai",
     "isDaily": false,
-    "dateKey": "2026-10-29",
     "createdAt": "2026-10-29T07:24:41.692Z"
+  },
+  {
+    "id": "lb-1793549709671-blfk",
+    "playerName": "Chinjuku",
+    "score": 200,
+    "streak": 5,
+    "fastestSeconds": 0.1,
+    "difficulty": "easy",
+    "category": "thai",
+    "isDaily": true,
+    "createdAt": "2026-11-01T16:35:22.304Z",
+    "dateKey": "2026-11-01"
   }
 ]

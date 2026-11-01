@@ -13,21 +13,20 @@ import {
   Search,
   Loader2,
   X,
+  Plus,
 } from 'lucide-react';
 import { Artist, CategoryType, GameMode } from '../../types';
 
 const MusicCategoriesPage: React.FC = () => {
   const router = useRouter();
   const navigate = (p: string) => router.push(p);
-  const { config, handleConfigChange, artists } = useGame();
+  const { config, handleConfigChange, artists, setAddArtistOpen } = useGame();
 
   const [selectedTab, setSelectedTab] = useState<'genres' | 'eras' | 'artists'>('artists');
   const [searchQuery, setSearchQuery] = useState('');
   const [artistCategoryFilter, setArtistCategoryFilter] = useState<CategoryType>(
     config.category || 'all'
   );
-  const [isSearchingRemote, setIsSearchingRemote] = useState(false);
-  const [discoveredArtists, setDiscoveredArtists] = useState<Artist[]>([]);
 
   const genres = [
     { name: 'T-Pop', icon: '🇹🇭', desc: 'เพลงป๊อปไทยยอดฮิตติดชาร์ต ทั้งกระแสใหม่และคุ้นหู' },
@@ -49,47 +48,7 @@ const MusicCategoriesPage: React.FC = () => {
     { label: 'Classic', value: 'classic', desc: 'เพลงระดับตำนานเหนือกาลเวลา' },
   ];
 
-  // Live remote discovery search (e.g. searching "Illslick" or any artist)
-  useEffect(() => {
-    const trimmed = searchQuery.trim();
-    if (trimmed.length < 2) {
-      setDiscoveredArtists([]);
-      setIsSearchingRemote(false);
-      return;
-    }
-
-    const abortCtrl = new AbortController();
-
-    const timer = setTimeout(async () => {
-      setIsSearchingRemote(true);
-      try {
-        const catParam =
-          artistCategoryFilter !== 'all' ? `&category=${artistCategoryFilter}` : '';
-        const res = await fetch(
-          `/api/artists?q=${encodeURIComponent(trimmed)}&discover=true${catParam}`,
-          { signal: abortCtrl.signal }
-        );
-        const json = await res.json();
-        if (json.code === 0 && Array.isArray(json.data)) {
-          setDiscoveredArtists(json.data);
-        }
-      } catch (err: unknown) {
-        if ((err as Error)?.name === 'AbortError') return;
-        console.warn('Failed to discover artists:', err);
-      } finally {
-        if (!abortCtrl.signal.aborted) {
-          setIsSearchingRemote(false);
-        }
-      }
-    }, 280);
-
-    return () => {
-      clearTimeout(timer);
-      abortCtrl.abort();
-    };
-  }, [searchQuery, artistCategoryFilter]);
-
-  // Combined Artists filtered by category and search query
+  // Instant In-Memory Library Artists filtered by category and search query
   const displayArtists = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
 
@@ -105,8 +64,8 @@ const MusicCategoriesPage: React.FC = () => {
 
     const qNoVowels = q.replace(/[^a-z0-9\u0E00-\u0E7F]/g, '').replace(/[aeiou]/g, '');
 
-    // 2. Filter local artists
-    const localMatches = base.filter((a) => {
+    // 2. Filter local artists in library
+    return base.filter((a) => {
       const aLower = a.name.toLowerCase();
       if (aLower.includes(q) || (a.mainGenre || '').toLowerCase().includes(q)) return true;
       const aNoVowels = aLower.replace(/[^a-z0-9\u0E00-\u0E7F]/g, '').replace(/[aeiou]/g, '');
@@ -115,17 +74,18 @@ const MusicCategoriesPage: React.FC = () => {
       }
       return false;
     });
+  }, [artists, artistCategoryFilter, searchQuery]);
 
-    // 3. Merge discovered artists from API without duplicate names
-    const existingNames = new Set(localMatches.map((a) => a.name.toLowerCase()));
-    const newDiscovered = discoveredArtists.filter((a) => {
-      const matchCat =
-        artistCategoryFilter === 'all' || a.category === artistCategoryFilter;
-      return matchCat && !existingNames.has(a.name.toLowerCase());
+  // Matches in other category when current filter produces zero results
+  const otherCategoryMatches = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q || artistCategoryFilter === 'all') return [];
+    return artists.filter((a) => {
+      if (a.category === artistCategoryFilter) return false;
+      const aLower = a.name.toLowerCase();
+      return aLower.includes(q) || (a.mainGenre || '').toLowerCase().includes(q);
     });
-
-    return [...localMatches, ...newDiscovered];
-  }, [artists, artistCategoryFilter, searchQuery, discoveredArtists]);
+  }, [artists, searchQuery, artistCategoryFilter]);
 
   const handleLaunchQuiz = (
     mode: GameMode,
@@ -253,17 +213,15 @@ const MusicCategoriesPage: React.FC = () => {
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="ค้นหาชื่อศิลปิน (เช่น Illslick, Bodyslam, Taylor Swift)..."
+            placeholder="ค้นหาชื่อศิลปินในคลัง (เช่น Illslick, Bodyslam, LISA, Taylor Swift)..."
             className="w-full bg-transparent border-0 outline-none text-base sm:text-sm font-semibold placeholder:opacity-50"
             style={{ color: 'var(--song-text)' }}
           />
-          {isSearchingRemote ? (
-            <Loader2 className="w-4 h-4 animate-spin shrink-0 text-emerald-400" />
-          ) : searchQuery ? (
+          {searchQuery ? (
             <button
               type="button"
               onClick={() => setSearchQuery('')}
-              className="p-1 rounded-full hover:bg-white/10 shrink-0"
+              className="p-1 rounded-full hover:bg-white/10 shrink-0 cursor-pointer"
               aria-label="Clear search"
             >
               <X className="w-3.5 h-3.5 opacity-60 hover:opacity-100" />
@@ -282,15 +240,26 @@ const MusicCategoriesPage: React.FC = () => {
               borderColor: 'var(--song-border)',
             }}
           >
-            <div>
-              <h3 className="text-sm font-extrabold flex items-center gap-1.5">
-                <span>ทายเพลงเฉพาะศิลปินคนโปรด</span>
-                <span className="text-xs font-mono font-bold text-emerald-400">
-                  ({displayArtists.length} ศิลปิน)
-                </span>
-              </h3>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2">
+                <h3 className="text-sm font-extrabold flex items-center gap-1.5">
+                  <span>ทายเพลงเฉพาะศิลปินคนโปรด</span>
+                  <span className="text-xs font-mono font-bold text-emerald-400">
+                    ({displayArtists.length} ศิลปิน)
+                  </span>
+                </h3>
+                <button
+                  type="button"
+                  onClick={() => setAddArtistOpen(true)}
+                  className="ml-auto sm:ml-2 inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-bold rounded-lg bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/25 transition cursor-pointer"
+                  title="เพิ่มศิลปินใหม่จาก Apple iTunes"
+                >
+                  <Plus className="w-3 h-3" />
+                  <span>เพิ่มศิลปินใหม่</span>
+                </button>
+              </div>
               <p className="text-xs opacity-75 mt-0.5" style={{ color: 'var(--song-muted)' }}>
-                เลือกศิลปินเพื่อทายเฉพาะเพลงในผลงานของศิลปินท่านนั้น หรือค้นหาชื่อศิลปินใดๆ ได้ทันที
+                เลือกศิลปินในคลังเพื่อทายเฉพาะเพลง หรือค้นหาเพื่อเล่นได้ทันที
               </p>
             </div>
 
@@ -408,36 +377,46 @@ const MusicCategoriesPage: React.FC = () => {
                   </div>
                 </div>
               ))
-            ) : isSearchingRemote ? (
-              Array.from({ length: 4 }).map((_, i) => (
-                <div
-                  key={`search-skeleton-${i}`}
-                  className="p-2.5 sm:p-3 rounded-xl border flex items-center gap-2.5 animate-pulse"
-                  style={{
-                    backgroundColor: 'var(--song-surface)',
-                    borderColor: 'var(--song-border)',
-                  }}
-                >
-                  <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-emerald-500/10 shrink-0" />
-                  <div className="flex-1 space-y-1.5 min-w-0">
-                    <div className="h-3 w-2/3 rounded bg-emerald-500/20" />
-                    <div className="h-2 w-1/3 rounded bg-white/5" />
-                  </div>
-                </div>
-              ))
             ) : displayArtists.length === 0 ? (
               <div
-                className="col-span-full p-8 text-center rounded-2xl border text-xs sm:text-sm space-y-1"
+                className="col-span-full p-8 text-center rounded-2xl border text-xs sm:text-sm space-y-3"
                 style={{
                   backgroundColor: 'var(--song-surface)',
                   borderColor: 'var(--song-border)',
                   color: 'var(--song-muted)',
                 }}
               >
-                <p className="font-bold text-white">ไม่พบศิลปินที่ตรงกับ &ldquo;{searchQuery}&rdquo;</p>
-                <p className="text-xs">
-                  ลองพิมพ์ชื่อภาษาไทยหรืออังกฤษอย่างน้อย 2 ตัวอักษร เพื่อให้ระบบค้นหาจาก iTunes โดยอัตโนมัติ
+                <p className="font-bold text-white">
+                  ไม่พบศิลปินที่ตรงกับ &ldquo;{searchQuery}&rdquo; ในหมวด &ldquo;{artistCategoryFilter === 'thai' ? 'เพลงไทย' : artistCategoryFilter === 'international' ? 'เพลงสากล' : 'ทั้งหมด'}&rdquo;
                 </p>
+                {otherCategoryMatches.length > 0 ? (
+                  <div className="pt-1">
+                    <p className="text-xs text-emerald-400 mb-2">
+                      💡 พบ {otherCategoryMatches.length} ศิลปินในหมวด &ldquo;{artistCategoryFilter === 'thai' ? 'เพลงสากล' : 'เพลงไทย'}&rdquo; ({otherCategoryMatches.map((m) => m.name).join(', ')})
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => setArtistCategoryFilter(artistCategoryFilter === 'thai' ? 'international' : 'thai')}
+                      className="px-3.5 py-1.5 text-xs font-semibold rounded-lg bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 hover:bg-emerald-500/30 transition-colors cursor-pointer"
+                    >
+                      สลับไปดูหมวด {artistCategoryFilter === 'thai' ? '🌍 เพลงสากล' : '🇹🇭 เพลงไทย'} ทันที
+                    </button>
+                  </div>
+                ) : (
+                  <div className="pt-2 flex flex-col items-center gap-2">
+                    <p className="text-xs">
+                      ยังไม่มีศิลปินนี้ในคลังเพลงของคุณ
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => setAddArtistOpen(true)}
+                      className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-bold rounded-xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 hover:bg-emerald-500/30 transition shadow-sm cursor-pointer"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      ค้นหาและเพิ่มศิลปินใหม่จาก Apple iTunes
+                    </button>
+                  </div>
+                )}
               </div>
             ) : null}
           </div>

@@ -29,7 +29,7 @@ export async function handleDaily(req: Request, res: Response): Promise<void> {
   const difficulty = ((req.query.difficulty as DifficultyLevel) || 'medium') as DifficultyLevel;
   const preset = DIFFICULTY_PRESETS[difficulty] || DIFFICULTY_PRESETS.medium;
   const customStagesParam = parseCustomStages(req.query.customStages);
-  const roundStages = customStagesParam || (req.query.difficulty ? preset.stages : DEFAULT_TIME_STAGES);
+  const roundStages = customStagesParam || DEFAULT_TIME_STAGES;
   const dateKey = getBangkokDateKey();
 
   let dailySongs: Song[] = [];

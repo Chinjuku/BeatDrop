@@ -132,14 +132,14 @@ export const TimeRangeSelector: React.FC<TimeRangeSelectorProps> = ({
     {
       id: 'standard',
       label: 'Standard',
-      sub: '1s → 15s',
-      tooltip: 'Standard (1s → 2s → 4s → 8s → 15s)',
+      sub: '0.5s → 15s',
+      tooltip: 'Standard Default (0.5s → 2s → 6s → 8s → 15s)',
     },
     {
       id: 'songspot',
       label: 'Songspot',
-      sub: '0.5s → 10s',
-      tooltip: 'Songspot Default (0.5s → 1.5s → 3s → 6s → 10s)',
+      sub: '0.5s → 15s',
+      tooltip: 'Songspot (0.5s → 2s → 6s → 8s → 15s)',
     },
     {
       id: 'custom',

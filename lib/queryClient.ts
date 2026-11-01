@@ -12,7 +12,7 @@ export const queryClient = new QueryClient({
 
 export const QUERY_KEYS = {
   artists: ['artists'] as const,
-  leaderboard: (category = 'all', mode = 'standard') => ['leaderboard', category, mode] as const,
+  leaderboard: (category = 'all', difficulty = 'all') => ['leaderboard', category, difficulty] as const,
   daily: ['daily'] as const,
   songs: ['songs'] as const,
 };

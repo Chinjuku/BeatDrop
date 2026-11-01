@@ -2,6 +2,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import {
   Award,
+  Check,
   Crown,
   Flame,
   Loader2,
@@ -34,6 +35,14 @@ interface LeaderboardModalProps {
 }
 
 const STORAGE_PLAYER_NAME = 'songspot:player-name';
+const DIFFICULTY_FILTER_OPTIONS: Array<DifficultyLevel | 'all'> = [
+  'all',
+  'easy',
+  'medium',
+  'hard',
+  'expert',
+  'impossible',
+];
 
 export const LeaderboardModal: React.FC<LeaderboardModalProps> = ({
   isOpen,
@@ -46,14 +55,15 @@ export const LeaderboardModal: React.FC<LeaderboardModalProps> = ({
   dailyScore,
   isDailyMode = false,
 }) => {
-  const [tab, setTab] = useState<'all' | 'daily'>(isDailyMode ? 'daily' : 'all');
-  const [catFilter, setCatFilter] = useState<CategoryType>(category);
+  const [diffFilter, setDiffFilter] = useState<DifficultyLevel | 'all'>(currentDifficulty);
+  const [hasSubmitted, setHasSubmitted] = useState(false);
 
-  // TanStack Query: Real-time leaderboard with auto-invalidation
+  // TanStack Query: Real-time leaderboard filtered by category and difficulty
   const { data: entries = [], isLoading: loading } = useQuery<LeaderboardEntry[]>({
-    queryKey: QUERY_KEYS.leaderboard(catFilter, tab),
+    queryKey: QUERY_KEYS.leaderboard(category, diffFilter),
     queryFn: async () => {
-      const res = await fetch(`/api/leaderboard?category=${catFilter}&mode=${tab}`);
+      const diffParam = diffFilter !== 'all' ? `&difficulty=${diffFilter}` : '';
+      const res = await fetch(`/api/leaderboard?category=${category}${diffParam}`);
       const json = await res.json();
       if (json.code === 0 && Array.isArray(json.data)) {
         return json.data;
@@ -74,16 +84,27 @@ export const LeaderboardModal: React.FC<LeaderboardModalProps> = ({
   const [submitting, setSubmitting] = useState(false);
   const [submittedMsg, setSubmittedMsg] = useState('');
 
-  // Sync category and tab default when modal opens
+  const calculatedScore =
+    isDailyMode && dailyScore != null
+      ? dailyScore
+      : Math.max(100, bestStreak * 85 + (fastestTime ? Math.round((15 - fastestTime) * 15) : 0));
+
+  // Unique session key for current score to prevent duplicate submissions
+  const scoreSessionKey = `beatdrop_lb_sub_${category}_${currentDifficulty}_${calculatedScore}`;
+
+  // Sync state when modal opens
   useEffect(() => {
     if (isOpen) {
-      setCatFilter(category);
-      if (isDailyMode) {
-        setTab('daily');
-      }
+      setDiffFilter(currentDifficulty);
       setSubmittedMsg('');
+      try {
+        const alreadySubmitted = sessionStorage.getItem(scoreSessionKey) === 'true';
+        setHasSubmitted(alreadySubmitted);
+      } catch {
+        setHasSubmitted(false);
+      }
     }
-  }, [isOpen, category, isDailyMode]);
+  }, [isOpen, currentDifficulty, scoreSessionKey]);
 
   const fetchLeaderboard = useCallback(async () => {
     await invalidateLeaderboard();
@@ -91,14 +112,9 @@ export const LeaderboardModal: React.FC<LeaderboardModalProps> = ({
 
   if (!isOpen) return null;
 
-  const calculatedScore =
-    tab === 'daily' && dailyScore != null
-      ? dailyScore
-      : Math.max(100, bestStreak * 85 + (fastestTime ? Math.round((15 - fastestTime) * 15) : 0));
-
   const handleSubmitScore = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!playerName.trim()) return;
+    if (!playerName.trim() || submitting || hasSubmitted) return;
     setSubmitting(true);
     try {
       localStorage.setItem(STORAGE_PLAYER_NAME, playerName.trim());
@@ -113,14 +129,18 @@ export const LeaderboardModal: React.FC<LeaderboardModalProps> = ({
           score: calculatedScore,
           streak: Math.max(currentStreak, bestStreak, 1),
           fastestSeconds: fastestTime ?? 3,
-          difficulty: currentDifficulty,
-          category: catFilter === 'all' ? category : catFilter,
-          isDaily: tab === 'daily',
+          difficulty: currentDifficulty, // Strictly locked to current game difficulty (cannot create cross-difficulty)
+          category,
+          isDaily: Boolean(isDailyMode),
         }),
       });
       const json = await res.json();
       if (json.code === 0) {
+        setHasSubmitted(true);
         setSubmittedMsg('บันทึกคะแนนขึ้นตารางอันดับสำเร็จ!');
+        try {
+          sessionStorage.setItem(scoreSessionKey, 'true');
+        } catch {}
         await invalidateLeaderboard();
       } else {
         setSubmittedMsg(json.message || 'เกิดข้อผิดพลาดในการส่งคะแนน');
@@ -177,7 +197,7 @@ export const LeaderboardModal: React.FC<LeaderboardModalProps> = ({
           </button>
         </div>
 
-        {/* Mode & Category Filter Tabs */}
+        {/* Filter Bar: Difficulty Tabs & Locked Category Badge */}
         <div
           className="px-3.5 py-2.5 sm:px-6 sm:py-3 border-b flex flex-wrap items-center justify-between gap-2"
           style={{
@@ -185,62 +205,50 @@ export const LeaderboardModal: React.FC<LeaderboardModalProps> = ({
             borderColor: 'var(--song-border)',
           }}
         >
-          <div className="flex items-center gap-1 sm:gap-1.5">
-            <button
-              type="button"
-              onClick={() => setTab('all')}
-              className="px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-xl text-[11px] sm:text-xs font-bold transition"
-              style={
-                tab === 'all'
-                  ? {
-                      backgroundColor: 'var(--song-accent)',
-                      color: 'var(--song-accent-on)',
-                    }
-                  : { color: 'var(--song-muted)' }
-              }
-            >
-              🏆 รวม (Global)
-            </button>
-            <button
-              type="button"
-              onClick={() => setTab('daily')}
-              className="px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-xl text-[11px] sm:text-xs font-bold transition"
-              style={
-                tab === 'daily'
-                  ? {
-                      backgroundColor: 'var(--song-accent)',
-                      color: 'var(--song-accent-on)',
-                    }
-                  : { color: 'var(--song-muted)' }
-              }
-            >
-              📅 รายวัน (Daily)
-            </button>
-          </div>
-
-          <div className="flex items-center gap-1">
-            {(['all', 'thai', 'international'] as CategoryType[]).map((c) => (
+          {/* Difficulty Filter Tabs */}
+          <div className="flex items-center gap-1 sm:gap-1.5 overflow-x-auto py-0.5 max-w-full">
+            {DIFFICULTY_FILTER_OPTIONS.map((d) => (
               <button
-                key={c}
+                key={d}
                 type="button"
-                onClick={() => setCatFilter(c)}
-                className="px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-lg text-[10px] sm:text-[11px] font-bold border transition"
+                onClick={() => setDiffFilter(d)}
+                className="px-2.5 sm:px-3 py-1 rounded-xl text-[10px] sm:text-xs font-bold transition shrink-0"
                 style={
-                  catFilter === c
+                  diffFilter === d
                     ? {
-                        borderColor: 'var(--song-accent)',
-                        color: 'var(--song-accent-text)',
-                        backgroundColor: 'var(--song-surface)',
+                        backgroundColor: 'var(--song-accent)',
+                        color: 'var(--song-accent-on)',
                       }
                     : {
-                        borderColor: 'transparent',
                         color: 'var(--song-muted)',
+                        backgroundColor: 'var(--song-surface)',
                       }
                 }
               >
-                {c === 'all' ? 'ทั้งหมด' : c === 'thai' ? '🇹🇭 ไทย' : '🌍 สากล'}
+                {d === 'all' ? 'ทั้งหมด' : DIFFICULTY_PRESETS[d]?.label || d}
               </button>
             ))}
+          </div>
+
+          <div className="flex items-center gap-2">
+            <div
+              className="flex items-center gap-1.5 px-3 py-1 rounded-full border text-[11px] font-bold shadow-sm"
+              style={{
+                backgroundColor: 'var(--song-surface)',
+                borderColor: 'var(--song-border)',
+                color: 'var(--song-accent-text)',
+              }}
+              title="ตารางอันดับถูกล็อกตามหมวดหมู่เพลงที่เลือกเล่น"
+            >
+              <span style={{ color: 'var(--song-muted)' }}>หมวดหมู่:</span>
+              <span>
+                {category === 'thai'
+                  ? '🇹🇭 เพลงไทย'
+                  : category === 'international'
+                    ? '🌍 เพลงสากล'
+                    : '🎵 ทั้งหมด'}
+              </span>
+            </div>
             <button
               type="button"
               onClick={fetchLeaderboard}
@@ -252,41 +260,76 @@ export const LeaderboardModal: React.FC<LeaderboardModalProps> = ({
           </div>
         </div>
 
-        {/* Submit Player Score Form */}
-        <form
-          onSubmit={handleSubmitScore}
-          className="px-3.5 py-2.5 sm:px-6 sm:py-3 border-b flex flex-col sm:flex-row items-stretch sm:items-center gap-2"
-          style={{ borderColor: 'var(--song-border)' }}
-        >
-          <div className="flex-1">
-            <input
-              type="text"
-              value={playerName}
-              onChange={(e) => setPlayerName(e.target.value)}
-              placeholder="กรอกชื่อของคุณเพื่อส่งคะแนน..."
-              maxLength={24}
-              className="w-full px-3 py-2 rounded-xl border text-base sm:text-xs font-semibold focus:outline-none"
-              style={{
-                backgroundColor: 'var(--song-surface-soft)',
-                borderColor: 'var(--song-border)',
-                color: 'var(--song-text)',
-              }}
-            />
-          </div>
-          <button
-            type="submit"
-            disabled={submitting || !playerName.trim()}
-            className="px-3.5 py-2 rounded-xl text-xs font-extrabold flex items-center justify-center gap-1.5 transition hover:brightness-110 disabled:opacity-50 min-h-[38px] active:scale-95"
+        {/* Submit Player Score Section (Allowed only ONCE per round/session) */}
+        {hasSubmitted ? (
+          <div
+            className="px-4 py-3 sm:px-6 sm:py-3.5 border-b flex items-center justify-between gap-2"
             style={{
-              backgroundColor: 'var(--song-accent)',
-              color: 'var(--song-accent-on)',
+              backgroundColor: 'color-mix(in srgb, #22c55e 12%, var(--song-surface))',
+              borderColor: 'rgba(34, 197, 94, 0.3)',
+              color: '#4ade80',
             }}
           >
-            <Send className="w-3.5 h-3.5" />
-            <span>ส่งคะแนน ({calculatedScore} pts)</span>
-          </button>
-        </form>
-        {submittedMsg && (
+            <div className="flex items-center gap-2 text-xs sm:text-sm font-bold">
+              <Check className="w-4 h-4 shrink-0 text-emerald-400" />
+              <span>คุณได้ส่งคะแนนของรอบนี้แล้ว ({calculatedScore} pts)</span>
+            </div>
+            <span
+              className="text-[11px] font-bold px-2 py-0.5 rounded-lg border border-emerald-500/30 bg-emerald-500/20"
+            >
+              ระดับ: {DIFFICULTY_PRESETS[currentDifficulty]?.label || currentDifficulty}
+            </span>
+          </div>
+        ) : (
+          <form
+            onSubmit={handleSubmitScore}
+            className="px-3.5 py-2.5 sm:px-6 sm:py-3 border-b flex flex-col sm:flex-row items-stretch sm:items-center gap-2"
+            style={{ borderColor: 'var(--song-border)' }}
+          >
+            <div className="flex-1 flex items-center gap-2">
+              <input
+                type="text"
+                value={playerName}
+                onChange={(e) => setPlayerName(e.target.value)}
+                placeholder="กรอกชื่อของคุณเพื่อส่งคะแนน..."
+                maxLength={24}
+                disabled={submitting}
+                className="flex-1 px-3 py-2 rounded-xl border text-base sm:text-xs font-semibold focus:outline-none"
+                style={{
+                  backgroundColor: 'var(--song-surface-soft)',
+                  borderColor: 'var(--song-border)',
+                  color: 'var(--song-text)',
+                }}
+              />
+              <div
+                className="px-2.5 py-1 rounded-lg border text-[11px] font-bold shrink-0 flex items-center gap-1"
+                style={{
+                  backgroundColor: 'var(--song-surface-soft)',
+                  borderColor: 'var(--song-border)',
+                  color: DIFFICULTY_PRESETS[currentDifficulty]?.accentText || 'var(--song-accent-text)',
+                }}
+                title={`คะแนนของคุณจะถูกบันทึกในระดับ ${currentDifficulty} เท่านั้น`}
+              >
+                <span className="opacity-60 text-[10px]">ระดับ:</span>
+                <span>{DIFFICULTY_PRESETS[currentDifficulty]?.label || currentDifficulty}</span>
+              </div>
+            </div>
+            <button
+              type="submit"
+              disabled={submitting || !playerName.trim()}
+              className="px-3.5 py-2 rounded-xl text-xs font-extrabold flex items-center justify-center gap-1.5 transition hover:brightness-110 disabled:opacity-50 min-h-[38px] active:scale-95"
+              style={{
+                backgroundColor: 'var(--song-accent)',
+                color: 'var(--song-accent-on)',
+              }}
+            >
+              <Send className="w-3.5 h-3.5" />
+              <span>ส่งคะแนน ({calculatedScore} pts)</span>
+            </button>
+          </form>
+        )}
+
+        {submittedMsg && !hasSubmitted && (
           <div
             className="px-4 py-1.5 text-center text-xs font-bold"
             style={{
@@ -325,69 +368,99 @@ export const LeaderboardModal: React.FC<LeaderboardModalProps> = ({
                       rank <= 3
                         ? 'color-mix(in srgb, var(--song-accent) 7%, var(--song-surface-soft))'
                         : 'var(--song-surface-soft)',
-                    borderColor: rank === 1 ? 'var(--song-accent)' : 'var(--song-border)',
+                    borderColor:
+                      rank === 1
+                        ? 'color-mix(in srgb, #eab308 50%, var(--song-border))'
+                        : rank === 2
+                          ? 'color-mix(in srgb, #94a3b8 40%, var(--song-border))'
+                          : rank === 3
+                            ? 'color-mix(in srgb, #b45309 40%, var(--song-border))'
+                            : 'var(--song-border)',
                   }}
                 >
-                  <div className="flex items-center gap-3 min-w-0">
-                    <div className="w-7 text-center font-extrabold text-sm flex justify-center">
+                  {/* Rank Badge & Player Info */}
+                  <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+                    <div
+                      className="w-6 h-6 sm:w-7 sm:h-7 rounded-lg sm:rounded-xl flex items-center justify-center font-black text-xs shrink-0"
+                      style={
+                        rank === 1
+                          ? { backgroundColor: '#eab308', color: '#000' }
+                          : rank === 2
+                            ? { backgroundColor: '#94a3b8', color: '#000' }
+                            : rank === 3
+                              ? { backgroundColor: '#b45309', color: '#fff' }
+                              : {
+                                  backgroundColor: 'rgba(255, 255, 255, 0.06)',
+                                  color: 'var(--song-muted)',
+                                }
+                      }
+                    >
                       {rank === 1 ? (
-                        <Crown className="w-5 h-5 text-amber-400 fill-amber-400/20" />
+                        <Crown className="w-3.5 h-3.5" />
                       ) : rank === 2 ? (
-                        <Medal className="w-5 h-5 text-slate-300" />
+                        <Medal className="w-3.5 h-3.5" />
                       ) : rank === 3 ? (
-                        <Award className="w-5 h-5 text-amber-600" />
+                        <Award className="w-3.5 h-3.5" />
                       ) : (
-                        <span style={{ color: 'var(--song-muted)' }}>#{rank}</span>
+                        `#${rank}`
                       )}
                     </div>
 
                     <div className="min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs sm:text-sm font-extrabold truncate">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="font-extrabold text-xs sm:text-sm truncate">
                           {entry.playerName}
                         </span>
                         <span
-                          className="text-[10px] font-bold px-2 py-0.5 rounded-full"
+                          className="text-[9px] sm:text-[10px] font-bold px-1.5 py-0.5 rounded border"
                           style={{
-                            backgroundColor: `color-mix(in srgb, ${diffPreset.accent} 18%, transparent)`,
+                            backgroundColor: 'color-mix(in srgb, var(--badge-rgb, #ffffff) 15%, transparent)',
+                            borderColor: 'color-mix(in srgb, var(--badge-rgb, #ffffff) 30%, transparent)',
                             color: diffPreset.accentText,
+                            ['--badge-rgb' as any]: diffPreset.accent,
                           }}
                         >
                           {diffPreset.label}
                         </span>
-                        <span className="text-[10px]">
-                          {entry.category === 'thai'
-                            ? '🇹🇭'
-                            : entry.category === 'international'
-                              ? '🌍'
-                              : '🔥'}
-                        </span>
+                        {entry.category === 'thai' ? (
+                          <span className="text-[10px]" title="เพลงไทย">
+                            🇹🇭
+                          </span>
+                        ) : entry.category === 'international' ? (
+                          <span className="text-[10px]" title="เพลงสากล">
+                            🌍
+                          </span>
+                        ) : null}
+                        {rank <= 3 && <Flame className="w-3 h-3 text-orange-400 fill-orange-400 shrink-0" />}
                       </div>
+
                       <div
-                        className="flex items-center gap-3 text-[11px] mt-0.5"
+                        className="text-[10px] sm:text-[11px] flex items-center gap-2 mt-0.5"
                         style={{ color: 'var(--song-muted)' }}
                       >
-                        <span className="flex items-center gap-1">
-                          <Flame className="w-3 h-3 text-orange-400" />
-                          Streak: {entry.streak}
+                        <span className="flex items-center gap-0.5">
+                          <Zap className="w-2.5 h-2.5" />
+                          <span>Streak: {entry.streak}</span>
                         </span>
-                        <span className="flex items-center gap-1">
-                          <Zap className="w-3 h-3 text-emerald-400" />
-                          ไวสุด: {entry.fastestSeconds}s
-                        </span>
+                        <span>•</span>
+                        <span>ไวสุด: {entry.fastestSeconds}s</span>
                       </div>
                     </div>
                   </div>
 
-                  <div className="text-right flex-shrink-0">
+                  {/* Score */}
+                  <div className="text-right shrink-0">
                     <div
-                      className="text-sm sm:text-base font-extrabold font-mono"
+                      className="font-black text-sm sm:text-base font-mono leading-none"
                       style={{ color: 'var(--song-accent-text)' }}
                     >
                       {entry.score.toLocaleString()}
                     </div>
-                    <div className="text-[10px] uppercase" style={{ color: 'var(--song-muted)' }}>
-                      PTS
+                    <div
+                      className="text-[9px] uppercase tracking-wider font-bold mt-0.5"
+                      style={{ color: 'var(--song-muted)' }}
+                    >
+                      pts
                     </div>
                   </div>
                 </div>

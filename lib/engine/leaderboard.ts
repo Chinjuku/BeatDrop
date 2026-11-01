@@ -53,8 +53,8 @@ export function saveLeaderboard(): void {
 
 export async function handleGetLeaderboard(req: Request, res: Response): Promise<void> {
   const category = (req.query.category as CategoryType) || 'all';
-  const mode = (req.query.mode as string) || 'all';
-  const cacheKey = `beatdrop:lb:${category}:${mode}`;
+  const difficulty = (req.query.difficulty as string) || 'all';
+  const cacheKey = `beatdrop:lb:${category}:${difficulty}`;
 
   if (isRedisConfigured && redis) {
     try {
@@ -72,8 +72,8 @@ export async function handleGetLeaderboard(req: Request, res: Response): Promise
   if (category === 'thai' || category === 'international') {
     list = list.filter((e) => e.category === category || e.category === 'all');
   }
-  if (mode === 'daily') {
-    list = list.filter((e) => e.isDaily);
+  if (difficulty && difficulty !== 'all') {
+    list = list.filter((e) => e.difficulty === difficulty);
   }
 
   list.sort((a, b) => {
@@ -103,6 +103,9 @@ export function handlePostLeaderboard(req: Request, res: Response): void {
   } = req.body || {};
 
   const cleanName = String(playerName || 'Anonymous Player').trim().slice(0, 24) || 'Player';
+  const targetDiff = (difficulty as DifficultyLevel) || 'medium';
+  const targetCat = (category as CategoryType) || 'thai';
+
   const dateKey = new Intl.DateTimeFormat('en-CA', {
     timeZone: 'Asia/Bangkok',
     year: 'numeric',
@@ -119,41 +122,57 @@ export function handlePostLeaderboard(req: Request, res: Response): void {
   const validatedStreak = Math.max(0, Math.min(rawStreak, 500));
   const validatedFastest = Math.max(0.05, Math.min(rawFastest, 30));
 
+  // Find existing entry for this player in the same difficulty and category (prevent cross-difficulty or duplicate spam)
   const existingIdx = leaderboardEntries.findIndex(
-    (e) => e.playerName.toLowerCase() === cleanName.toLowerCase() && Boolean(e.isDaily) === Boolean(isDaily)
+    (e) =>
+      e.playerName.toLowerCase() === cleanName.toLowerCase() &&
+      e.difficulty === targetDiff &&
+      e.category === targetCat
   );
 
-  const entry: LeaderboardEntry = {
-    id: `lb-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-    playerName: cleanName,
-    score: validatedScore,
-    streak: validatedStreak,
-    fastestSeconds: validatedFastest,
-    difficulty: difficulty as DifficultyLevel,
-    category: category as CategoryType,
-    isDaily: Boolean(isDaily),
-    dateKey,
-    createdAt: new Date().toISOString(),
-  };
-
+  let finalEntry: LeaderboardEntry;
   if (existingIdx >= 0) {
     const prev = leaderboardEntries[existingIdx];
-    leaderboardEntries[existingIdx] = {
+    finalEntry = {
       ...prev,
-      score: Math.max(prev.score, entry.score),
-      streak: Math.max(prev.streak, entry.streak),
-      fastestSeconds: Math.min(prev.fastestSeconds, entry.fastestSeconds),
-      difficulty: entry.difficulty,
-      category: entry.category,
+      score: Math.max(prev.score, validatedScore),
+      streak: Math.max(prev.streak, validatedStreak),
+      fastestSeconds: Math.min(prev.fastestSeconds, validatedFastest),
+      difficulty: targetDiff,
+      category: targetCat,
       dateKey,
-      createdAt: entry.createdAt,
+      createdAt: new Date().toISOString(),
     };
+    leaderboardEntries[existingIdx] = finalEntry;
   } else {
-    leaderboardEntries.push(entry);
+    finalEntry = {
+      id: `lb-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      playerName: cleanName,
+      score: validatedScore,
+      streak: validatedStreak,
+      fastestSeconds: validatedFastest,
+      difficulty: targetDiff,
+      category: targetCat,
+      isDaily: Boolean(isDaily),
+      dateKey,
+      createdAt: new Date().toISOString(),
+    };
+    leaderboardEntries.push(finalEntry);
   }
 
+  // Deduplicate in-memory by player_name + category + difficulty
+  const uniqueMap = new Map<string, LeaderboardEntry>();
+  for (const item of leaderboardEntries) {
+    const key = `${item.playerName.toLowerCase()}:${item.category}:${item.difficulty}`;
+    const exist = uniqueMap.get(key);
+    if (!exist || item.score > exist.score) {
+      uniqueMap.set(key, item);
+    }
+  }
+  leaderboardEntries = Array.from(uniqueMap.values());
+
   saveLeaderboard();
-  dbService.addLeaderboardEntry(entry);
+  dbService.addLeaderboardEntry(finalEntry);
 
   if (isRedisConfigured && redis) {
     redis
@@ -161,13 +180,16 @@ export function handlePostLeaderboard(req: Request, res: Response): void {
         'beatdrop:lb:all:all',
         'beatdrop:lb:thai:all',
         'beatdrop:lb:international:all',
-        'beatdrop:lb:all:daily',
-        'beatdrop:lb:thai:daily',
-        'beatdrop:lb:international:daily'
+        `beatdrop:lb:${targetCat}:${targetDiff}`,
+        `beatdrop:lb:all:${targetDiff}`
       )
       .catch(() => {});
   }
 
-  res.json({ code: 0, message: 'ok', data: entry });
+  res.json({
+    code: 0,
+    message: 'ok',
+    data: finalEntry,
+  });
 }
 

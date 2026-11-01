@@ -81,7 +81,7 @@ export async function fetchItunesSongs(
   try {
     const attrParam = byArtist ? '&attribute=artistTerm' : '';
     const url = `https://itunes.apple.com/search?term=${encodeURIComponent(term)}&country=${country}&entity=song${attrParam}&limit=${limit}`;
-    const res = await fetch(url);
+    const res = await fetch(url, { signal: AbortSignal.timeout(4000) });
     if (!res.ok) return [];
     const data = (await res.json()) as { results?: ItunesRawTrack[] };
     const results = data.results || [];

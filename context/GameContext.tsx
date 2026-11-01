@@ -26,9 +26,10 @@ import {
 } from '../types';
 import { useTheme } from './ThemeContext';
 import { useAudioController, prefetchAudio, AudioPlaybackState } from '../hooks/useAudioController';
-import { getCachedArtists, setCachedArtists } from '../lib/clientDb';
+import { getCachedArtists, setCachedArtists, getCachedHistory, setCachedHistory } from '../lib/clientDb';
 import { useQuery } from '@tanstack/react-query';
 import {
+  queryClient,
   QUERY_KEYS,
   invalidateArtists,
   invalidateDaily,
@@ -308,27 +309,57 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         const newCount = Number(json.data.newCount ?? syncedArtist.trackCount ?? 0);
         const added = Number(json.data.added ?? Math.max(0, newCount - previousCount));
         const fetched = Number(json.data.fetched ?? newCount);
+        const updatedArtist: Artist = { ...syncedArtist, trackCount: newCount };
 
-        // Update local state immediately so UI reflects new trackCount without waiting
+        // 1. Update TanStack Query cache directly for instant synchronization
+        queryClient.setQueryData<Artist[]>(QUERY_KEYS.artists, (old = []) => {
+          const idx = old.findIndex(
+            (a) =>
+              a.id === updatedArtist.id ||
+              a.name.toLowerCase() === updatedArtist.name.toLowerCase()
+          );
+          if (idx >= 0) {
+            const next = [...old];
+            next[idx] = { ...next[idx], ...updatedArtist };
+            return next;
+          }
+          return [updatedArtist, ...old];
+        });
+
+        // 2. Update local state immediately so UI reflects new trackCount without waiting
         setArtists((prev) => {
           const idx = prev.findIndex(
             (a) =>
-              a.id === syncedArtist.id ||
-              a.name.toLowerCase() === syncedArtist.name.toLowerCase()
+              a.id === updatedArtist.id ||
+              a.name.toLowerCase() === updatedArtist.name.toLowerCase()
           );
           if (idx >= 0) {
             const next = [...prev];
-            next[idx] = { ...next[idx], ...syncedArtist, trackCount: newCount };
+            next[idx] = { ...next[idx], ...updatedArtist };
             return next;
           }
-          return [{ ...syncedArtist, trackCount: newCount }, ...prev];
+          return [updatedArtist, ...prev];
         });
 
+        // 3. Persist to IndexedDB cache
+        getCachedArtists().then((cached) => {
+          const list = cached || [];
+          const idx = list.findIndex(
+            (a) =>
+              a.id === updatedArtist.id ||
+              a.name.toLowerCase() === updatedArtist.name.toLowerCase()
+          );
+          const next = idx >= 0 ? [...list] : [updatedArtist, ...list];
+          if (idx >= 0) next[idx] = { ...next[idx], ...updatedArtist };
+          setCachedArtists(next).catch(() => {});
+        });
+
+        // 4. Invalidate TanStack queries to re-fetch in background
         await fetchArtists();
         await invalidateSongs();
 
         return {
-          artist: { ...syncedArtist, trackCount: newCount },
+          artist: updatedArtist,
           previousCount,
           newCount,
           added,
@@ -345,9 +376,11 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   // Start a new round
   const startNewRound = useCallback(
     async (activeCfg: GameConfig = config) => {
-      // Cooldown throttle: prevent double-clicks within 600ms
+      // Cooldown throttle: prevent double-clicks within 600ms (bypass when switching modes or categories)
       const now = Date.now();
-      if (now - lastRoundStartRef.current < 600) {
+      const isModeSwitch =
+        activeCfg.mode !== config.mode || activeCfg.category !== config.category;
+      if (!isModeSwitch && now - lastRoundStartRef.current < 600) {
         return;
       }
       lastRoundStartRef.current = now;
@@ -373,13 +406,11 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             : undefined;
 
         if (activeCfg.mode === 'daily') {
+          // Daily Challenge uses uniform standard default stages for all players
           const dailyParams = new URLSearchParams({
             category: activeCfg.category,
             difficulty: activeCfg.difficulty,
           });
-          if (stagesParam) {
-            dailyParams.set('customStages', stagesParam);
-          }
           const res = await fetch(`/api/daily?${dailyParams.toString()}`, {
             signal: controller.signal,
           });
@@ -387,13 +418,56 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           if (json.code === 0 && json.data) {
             const info: DailyChallengeInfo = json.data;
             setDailyInfo(info);
-            setDailyIndex(0);
-            setDailyResults(Array(info.rounds.length).fill('pending'));
-            setDailyScore(0);
-            setRound(info.rounds[0] || null);
-            // Pre-buffer next track for zero delay
-            if (info.rounds[1]?.audioUrl) {
-              prefetchAudio(info.rounds[1].audioUrl);
+
+            // Restore daily progress and lock state from localStorage
+            const storageKey = `beatdrop_daily_${info.dateKey}_${activeCfg.category}`;
+            let restored = false;
+            try {
+              const savedRaw = localStorage.getItem(storageKey);
+              if (savedRaw) {
+                const saved = JSON.parse(savedRaw);
+                if (saved && Array.isArray(saved.results) && typeof saved.score === 'number') {
+                  const isCompleted =
+                    Boolean(saved.isCompleted) ||
+                    (saved.results.length === 5 && saved.results.every((r: any) => r !== 'pending'));
+                  setDailyResults(saved.results);
+                  setDailyScore(saved.score);
+
+                  if (isCompleted) {
+                    // Already finished today: lock to completion view
+                    setDailyIndex(info.rounds.length);
+                    setRound(null);
+                    setOutcome(null);
+                    setRevealSong(null);
+                    restored = true;
+                  } else {
+                    // In-progress: jump straight to the next pending song (cannot replay completed ones)
+                    const pendingIdx = saved.results.findIndex((r: any) => r === 'pending');
+                    const resumeIdx =
+                      pendingIdx >= 0
+                        ? pendingIdx
+                        : Math.min(Number(saved.currentIndex) || 0, info.rounds.length - 1);
+                    setDailyIndex(resumeIdx);
+                    setRound(info.rounds[resumeIdx] || null);
+                    if (info.rounds[resumeIdx + 1]?.audioUrl) {
+                      prefetchAudio(info.rounds[resumeIdx + 1].audioUrl);
+                    }
+                    restored = true;
+                  }
+                }
+              }
+            } catch (err) {
+              console.warn('Failed to restore daily progress:', err);
+            }
+
+            if (!restored) {
+              setDailyIndex(0);
+              setDailyResults(Array(info.rounds.length).fill('pending'));
+              setDailyScore(0);
+              setRound(info.rounds[0] || null);
+              if (info.rounds[1]?.audioUrl) {
+                prefetchAudio(info.rounds[1].audioUrl);
+              }
             }
           }
           return;
@@ -534,6 +608,33 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
+  // Helper to persist daily challenge progress & completion state to localStorage
+  const saveDailyProgress = useCallback(
+    (
+      results: Array<'correct' | 'failed' | 'pending'>,
+      currentIndex: number,
+      score: number,
+      isCompleted: boolean
+    ) => {
+      if (!dailyInfo) return;
+      try {
+        const key = `beatdrop_daily_${dailyInfo.dateKey}_${config.category}`;
+        localStorage.setItem(
+          key,
+          JSON.stringify({
+            dateKey: dailyInfo.dateKey,
+            category: config.category,
+            results,
+            currentIndex,
+            score,
+            isCompleted,
+          })
+        );
+      } catch {}
+    },
+    [dailyInfo, config.category]
+  );
+
   // Submit a song guess
   const handleSelectGuess = async (selectedSong: Pick<Song, 'id' | 'title' | 'artistName'>) => {
     if (!round || outcome || submittingGuess) return;
@@ -589,12 +690,15 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             } catch {}
           }
 
-          if (config.mode === 'daily') {
+          if (config.mode === 'daily' && dailyInfo) {
             const roundPoints = Math.max(40, 200 - currentStage * 35);
-            setDailyScore((s) => s + roundPoints);
+            const nextScore = dailyScore + roundPoints;
+            setDailyScore(nextScore);
             setDailyResults((prev) => {
               const next = [...prev];
               next[dailyIndex] = 'correct';
+              const isCompleted = next.length === 5 && next.every((r) => r !== 'pending');
+              saveDailyProgress(next, dailyIndex, nextScore, isCompleted);
               return next;
             });
           }
@@ -618,10 +722,12 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           try {
             localStorage.setItem(STORAGE_STREAK_KEY, '0');
           } catch {}
-          if (config.mode === 'daily') {
+          if (config.mode === 'daily' && dailyInfo) {
             setDailyResults((prev) => {
               const next = [...prev];
               next[dailyIndex] = 'failed';
+              const isCompleted = next.length === 5 && next.every((r) => r !== 'pending');
+              saveDailyProgress(next, dailyIndex, dailyScore, isCompleted);
               return next;
             });
           }
@@ -694,10 +800,12 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           try {
             localStorage.setItem(STORAGE_STREAK_KEY, '0');
           } catch {}
-          if (config.mode === 'daily') {
+          if (config.mode === 'daily' && dailyInfo) {
             setDailyResults((prev) => {
               const next = [...prev];
               next[dailyIndex] = 'failed';
+              const isCompleted = next.length === 5 && next.every((r) => r !== 'pending');
+              saveDailyProgress(next, dailyIndex, dailyScore, isCompleted);
               return next;
             });
           }
@@ -744,10 +852,18 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         setHistory([]);
         setDailyIndex(nextIdx);
         setRound(dailyInfo.rounds[nextIdx]);
+        saveDailyProgress(dailyResults, nextIdx, dailyScore, false);
         if (nextIdx + 1 < dailyInfo.rounds.length && dailyInfo.rounds[nextIdx + 1].audioUrl) {
           prefetchAudio(dailyInfo.rounds[nextIdx + 1].audioUrl);
         }
       } else {
+        stop();
+        hasAutoPlayedRevealRef.current = false;
+        setOutcome(null);
+        setRevealSong(null);
+        setHistory([]);
+        setDailyIndex(dailyInfo.rounds.length);
+        saveDailyProgress(dailyResults, dailyInfo.rounds.length, dailyScore, true);
         setLeaderboardOpen(true);
       }
     } else {
@@ -757,6 +873,13 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const handleDailyDifficultySelect = (difficulty: DifficultyLevel) => {
     if (config.difficulty === difficulty) return;
+    if (config.mode === 'daily' && dailyInfo) {
+      const storageKey = `beatdrop_daily_${dailyInfo.dateKey}_${config.category}`;
+      try {
+        const saved = JSON.parse(localStorage.getItem(storageKey) || '{}');
+        if (saved.isCompleted) return; // Locked: do not allow restarting completed daily challenge
+      } catch {}
+    }
     const nextCfg: GameConfig = {
       ...config,
       difficulty,

@@ -641,7 +641,7 @@ export default function AdminDashboardPage() {
                       disabled={isSyncing || isDeleting}
                       onClick={() => handleSync(artist)}
                       className="p-2 rounded-xl border transition hover:brightness-110 disabled:opacity-50 text-cyan-400 border-cyan-500/30 bg-cyan-500/10"
-                      title={`Sync เพลงเพิ่มเป็น 200 เพลงสำหรับ ${artist.name}`}
+                      title={`Sync เพลงเพิ่ม ${artist.name}`}
                     >
                       {isSyncing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
                     </button>

@@ -22,79 +22,109 @@ function getClientIp(req: Request): string {
   return req.ip || req.socket?.remoteAddress || '127.0.0.1';
 }
 
-export function createRateLimiter(options: RateLimiterOptions) {
-  const { windowMs, maxRequests, message = 'Too many requests. Please slow down.', prefix = 'rl' } = options;
-  const localStore = new Map<string, RateLimitRecord>();
+// Cleanup expired entries periodically to prevent memory leaks in local maps
+const localStores = new Map<string, Map<string, RateLimitRecord>>();
+const upstashLimiters = new Map<string, Ratelimit>();
 
-  // In-Memory: cleanup expired entries periodically to prevent memory leaks
-  setInterval(() => {
-    const now = Date.now();
-    for (const [key, record] of localStore.entries()) {
-      if (now > record.resetAt) {
-        localStore.delete(key);
-      }
-    }
-  }, Math.max(windowMs, 30_000)).unref();
+export async function verifyRateLimit(
+  identifier: string,
+  options: RateLimiterOptions
+): Promise<{ success: boolean; limit: number; remaining: number; resetAt: number }> {
+  const { windowMs, maxRequests, prefix = 'rl' } = options;
 
-  // Distributed: initialize Upstash Ratelimit if credentials exist
-  const upstashLimiter = isRedisConfigured && redis
-    ? new Ratelimit({
+  // 1. Distributed rate limiting via Upstash Redis (Serverless / Multi-Instance)
+  if (isRedisConfigured && redis) {
+    let limiter = upstashLimiters.get(prefix);
+    if (!limiter) {
+      limiter = new Ratelimit({
         redis,
         limiter: Ratelimit.slidingWindow(maxRequests, `${Math.max(1, Math.ceil(windowMs / 1000))} s`),
         prefix: `beatdrop:${prefix}`,
         analytics: false,
-      })
-    : null;
+      });
+      upstashLimiters.set(prefix, limiter);
+    }
+
+    try {
+      const result = await limiter.limit(identifier);
+      return {
+        success: result.success,
+        limit: result.limit,
+        remaining: result.remaining,
+        resetAt: result.reset,
+      };
+    } catch (err) {
+      console.warn(`[RateLimiter] Upstash error, fallback to in-memory:`, (err as Error).message);
+    }
+  }
+
+  // 2. Local In-Memory Fallback (Fast 0ms single-node / offline dev)
+  let localStore = localStores.get(prefix);
+  if (!localStore) {
+    localStore = new Map<string, RateLimitRecord>();
+    localStores.set(prefix, localStore);
+
+    setInterval(() => {
+      const now = Date.now();
+      for (const [key, record] of localStore!.entries()) {
+        if (now > record.resetAt) {
+          localStore!.delete(key);
+        }
+      }
+    }, Math.max(windowMs, 30_000)).unref();
+  }
+
+  const key = `${prefix}:${identifier}`;
+  const now = Date.now();
+
+  let record = localStore.get(key);
+  if (!record || now > record.resetAt) {
+    record = { count: 0, resetAt: now + windowMs };
+    localStore.set(key, record);
+  }
+
+  record.count += 1;
+  const remaining = Math.max(0, maxRequests - record.count);
+  const success = record.count <= maxRequests;
+
+  return {
+    success,
+    limit: maxRequests,
+    remaining,
+    resetAt: record.resetAt,
+  };
+}
+
+export async function checkArtistSyncLimit(identifier: string) {
+  return verifyRateLimit(identifier, {
+    windowMs: 60 * 1000,
+    maxRequests: 5,
+    prefix: 'sync',
+  });
+}
+
+export function createRateLimiter(options: RateLimiterOptions) {
+  const { maxRequests, message = 'Too many requests. Please slow down.' } = options;
 
   return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-    const ip = getClientIp(req);
-
-    // 1. Distributed rate limiting via Upstash Redis (Serverless / Multi-Instance)
-    if (upstashLimiter) {
-      try {
-        const result = await upstashLimiter.limit(ip);
-        res.setHeader('X-RateLimit-Limit', String(result.limit));
-        res.setHeader('X-RateLimit-Remaining', String(result.remaining));
-        res.setHeader('X-RateLimit-Reset', String(Math.ceil(result.reset / 1000)));
-
-        if (!result.success) {
-          const retryAfter = Math.max(1, Math.ceil((result.reset - Date.now()) / 1000));
-          res.setHeader('Retry-After', String(retryAfter));
-          res.status(429).json({
-            code: 429,
-            message,
-            retryAfter,
-          });
-          return;
-        }
-        next();
-        return;
-      } catch (err) {
-        // Fallback to local in-memory on Upstash network failure
-        console.warn(`[RateLimiter] Upstash error, fallback to in-memory:`, (err as Error).message);
+    // Admin bypass: requests with a valid x-admin-key bypass public rate limits
+    const configuredAdminKey = process.env.ADMIN_API_KEY;
+    if (configuredAdminKey) {
+      const providedKey = req.headers['x-admin-key'] || req.headers['authorization']?.replace(/^Bearer\s+/i, '');
+      if (providedKey === configuredAdminKey) {
+        return next();
       }
     }
 
-    // 2. Local In-Memory Fallback (Fast 0ms single-node / offline dev)
-    const key = `${prefix}:${ip}`;
-    const now = Date.now();
+    const ip = getClientIp(req);
+    const result = await verifyRateLimit(ip, options);
 
-    let record = localStore.get(key);
-    if (!record || now > record.resetAt) {
-      record = { count: 0, resetAt: now + windowMs };
-      localStore.set(key, record);
-    }
+    res.setHeader('X-RateLimit-Limit', String(result.limit));
+    res.setHeader('X-RateLimit-Remaining', String(result.remaining));
+    res.setHeader('X-RateLimit-Reset', String(Math.ceil(result.resetAt / 1000)));
 
-    record.count += 1;
-
-    const remaining = Math.max(0, maxRequests - record.count);
-    const retryAfter = Math.max(1, Math.ceil((record.resetAt - now) / 1000));
-
-    res.setHeader('X-RateLimit-Limit', String(maxRequests));
-    res.setHeader('X-RateLimit-Remaining', String(remaining));
-    res.setHeader('X-RateLimit-Reset', String(Math.ceil(record.resetAt / 1000)));
-
-    if (record.count > maxRequests) {
+    if (!result.success) {
+      const retryAfter = Math.max(1, Math.ceil((result.resetAt - Date.now()) / 1000));
       res.setHeader('Retry-After', String(retryAfter));
       res.status(429).json({
         code: 429,

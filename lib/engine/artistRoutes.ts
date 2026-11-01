@@ -2,6 +2,8 @@ import { Request, Response } from 'express';
 import crypto from 'node:crypto';
 import { Artist, CategoryType, Song } from '../../shared/types';
 import { dbService } from '../db';
+import { checkArtistStrictMatch } from '../itunes';
+import { isSupabaseConfigured, supabaseAdmin } from '../supabase';
 import { songPool, ingestArtistSongs, fetchItunesSongs } from './songPool';
 import {
   getAllArtists,
@@ -13,12 +15,60 @@ import {
   normalizeText,
 } from './artists';
 
+let cachedSupabaseArtists: Artist[] = [];
+let lastSupabaseFetchTime = 0;
+const SUPABASE_ARTISTS_TTL_MS = 60_000;
+
 export async function handleGetArtists(req: Request, res: Response): Promise<void> {
   const category = (req.query.category as CategoryType) || 'all';
   const q = ((req.query.q as string) || '').trim();
   const discover = req.query.discover === 'true';
 
   let list = getAllArtists(songPool);
+
+  // When Supabase is configured (DB_LOCAL=false), pull artists with in-memory caching
+  if (isSupabaseConfigured()) {
+    const now = Date.now();
+    if (now - lastSupabaseFetchTime > SUPABASE_ARTISTS_TTL_MS || cachedSupabaseArtists.length === 0) {
+      try {
+        const fetched = await supabaseAdmin.getArtists();
+        if (fetched.length > 0) {
+          cachedSupabaseArtists = fetched;
+          lastSupabaseFetchTime = now;
+        }
+      } catch (err) {
+        console.warn('[handleGetArtists] Supabase getArtists error:', err);
+      }
+    }
+
+    for (const sa of cachedSupabaseArtists) {
+      const hasValidAvatar = Boolean(
+        sa.avatarUrl &&
+          (sa.avatarUrl.startsWith('http://') ||
+            sa.avatarUrl.startsWith('https://') ||
+            sa.avatarUrl.startsWith('/'))
+      );
+      const resolvedSa: Artist = {
+        ...sa,
+        avatarUrl: hasValidAvatar ? sa.avatarUrl : '',
+      };
+      const idx = list.findIndex(
+        (a) => normalizeText(a.name) === normalizeText(resolvedSa.name) || a.id === resolvedSa.id
+      );
+      if (idx >= 0) {
+        list[idx] = {
+          ...list[idx],
+          ...resolvedSa,
+          avatarUrl: resolvedSa.avatarUrl || list[idx].avatarUrl,
+          trackCount: Math.max(list[idx].trackCount || 0, resolvedSa.trackCount || 0),
+        };
+      } else {
+        list.push(resolvedSa);
+        addCustomArtist(resolvedSa);
+      }
+    }
+  }
+
   if (category === 'thai' || category === 'international') {
     list = list.filter((a) => a.category === category);
   }
@@ -49,10 +99,17 @@ export async function handleGetArtists(req: Request, res: Response): Promise<voi
               { country: 'US', cat: 'international' },
             ];
 
-    for (const sc of searchCountries) {
-      const remoteSongs = await fetchItunesSongs(q, sc.country, sc.cat, 20);
-      const remoteArtistMap = new Map<string, { artist: Artist; songs: Song[] }>();
+    // Fetch countries in parallel instead of sequential awaits
+    const remoteSongsGroups = await Promise.all(
+      searchCountries.map(async (sc) => {
+        const songs = await fetchItunesSongs(q, sc.country, sc.cat, 15);
+        return { sc, songs };
+      })
+    );
 
+    const remoteArtistMap = new Map<string, { artist: Artist; songs: Song[] }>();
+
+    for (const { sc, songs: remoteSongs } of remoteSongsGroups) {
       for (const s of remoteSongs) {
         const soloNames = extractSoloArtistNames(s.artistName);
         for (const soloName of soloNames) {
@@ -76,27 +133,28 @@ export async function handleGetArtists(req: Request, res: Response): Promise<voi
           }
         }
       }
+    }
 
-      for (const { artist, songs } of remoteArtistMap.values()) {
-        const known = getAllArtists(songPool).find(
-          (k) => normalizeText(k.name) === normalizeText(artist.name)
-        );
-        const detectedCat = known ? known.category : detectCategory(artist.name, songs, sc.cat);
-        const resolvedMainGenre = known ? known.mainGenre : normalizeGenre(artist.mainGenre, detectedCat);
+    for (const { artist, songs } of remoteArtistMap.values()) {
+      // Use existing list in memory instead of re-executing getAllArtists queries
+      const known = list.find(
+        (k) => normalizeText(k.name) === normalizeText(artist.name)
+      );
+      const detectedCat = known ? known.category : detectCategory(artist.name, songs, artist.category);
+      const resolvedMainGenre = known ? known.mainGenre : normalizeGenre(artist.mainGenre, detectedCat);
 
-        if (category !== 'all' && detectedCat !== category) {
-          continue;
-        }
+      if (category !== 'all' && detectedCat !== category) {
+        continue;
+      }
 
-        const resolvedArtist: Artist = {
-          ...artist,
-          category: detectedCat,
-          mainGenre: resolvedMainGenre,
-        };
+      const resolvedArtist: Artist = {
+        ...artist,
+        category: detectedCat,
+        mainGenre: resolvedMainGenre,
+      };
 
-        if (!list.some((existing) => normalizeText(existing.name) === normalizeText(resolvedArtist.name))) {
-          list.push(resolvedArtist);
-        }
+      if (!list.some((existing) => normalizeText(existing.name) === normalizeText(resolvedArtist.name))) {
+        list.push(resolvedArtist);
       }
     }
   }
@@ -122,7 +180,7 @@ export async function handleAddArtist(req: Request, res: Response): Promise<void
     const validCat: 'thai' | 'international' = category === 'international' ? 'international' : 'thai';
 
     const existing = getAllArtists(songPool).find(
-      (a) => normalizeText(a.name) === normalizeText(cleanName)
+      (a) => checkArtistStrictMatch(a.name, cleanName) || normalizeText(a.name) === normalizeText(cleanName)
     );
 
     const newArtist: Artist = existing || {
@@ -134,15 +192,21 @@ export async function handleAddArtist(req: Request, res: Response): Promise<void
       isCustom: true,
     };
 
-    await ingestArtistSongs(newArtist, 200);
+    const configuredKey = process.env.ADMIN_API_KEY;
+    const providedKey = req.headers['x-admin-key'] || req.headers['authorization']?.replace(/^Bearer\s+/i, '');
+    const isAdmin = Boolean(configuredKey && providedKey === configuredKey);
+    const maxLimit = isAdmin ? 200 : 50;
+
+    await ingestArtistSongs(newArtist, maxLimit);
 
     if (!existing) {
       addCustomArtist(newArtist);
     }
 
     const enriched =
-      getAllArtists(songPool).find((a) => normalizeText(a.name) === normalizeText(cleanName)) ||
-      newArtist;
+      getAllArtists(songPool).find(
+        (a) => checkArtistStrictMatch(a.name, cleanName) || normalizeText(a.name) === normalizeText(cleanName)
+      ) || newArtist;
 
     res.json({
       code: 0,
@@ -159,7 +223,9 @@ export async function handleSyncArtist(req: Request, res: Response): Promise<voi
     const { name, id, category, mainGenre, avatarUrl } = req.body || {};
     const all = getAllArtists(songPool);
     const existing = all.find(
-      (a) => (id && a.id === id) || (name && normalizeText(a.name) === normalizeText(name))
+      (a) =>
+        (id && a.id === id) ||
+        (name && (checkArtistStrictMatch(a.name, name) || normalizeText(a.name) === normalizeText(name)))
     );
 
     const rawName = String(name || existing?.name || '').trim();
@@ -184,16 +250,22 @@ export async function handleSyncArtist(req: Request, res: Response): Promise<voi
       trackCount: 0,
     };
 
+    const configuredKey = process.env.ADMIN_API_KEY;
+    const providedKey = req.headers['x-admin-key'] || req.headers['authorization']?.replace(/^Bearer\s+/i, '');
+    const isAdmin = Boolean(configuredKey && providedKey === configuredKey);
+    const maxLimit = isAdmin ? 200 : 50;
+
     const previousCount = target.trackCount || 0;
-    const fetched = await ingestArtistSongs(target, 200);
+    const fetched = await ingestArtistSongs(target, maxLimit);
 
     if (!existing) {
       addCustomArtist(target);
     }
 
     const enriched =
-      getAllArtists(songPool).find((a) => normalizeText(a.name) === normalizeText(cleanName)) ||
-      target;
+      getAllArtists(songPool).find(
+        (a) => checkArtistStrictMatch(a.name, cleanName) || normalizeText(a.name) === normalizeText(cleanName)
+      ) || target;
     const newCount = enriched.trackCount || previousCount;
     const added = Math.max(0, newCount - previousCount);
 
