@@ -14,6 +14,7 @@ const PlayPage: React.FC = () => {
     artists,
     round,
     loadingRound,
+    submittingGuess,
     outcome,
     revealSong,
     history,
@@ -305,6 +306,7 @@ const PlayPage: React.FC = () => {
                 onGiveUp={() => handleSkip(true)}
                 nextStageSeconds={nextStageSeconds}
                 disabled={loadingRound || !round}
+                submitting={submittingGuess}
               />
             </div>
           </div>

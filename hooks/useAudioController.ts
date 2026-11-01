@@ -4,8 +4,33 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 export type AudioPlaybackState = 'idle' | 'loading' | 'ready' | 'playing' | 'paused' | 'ended' | 'error';
 
 // Phase 2: Audio Pre-buffering Cache (Zero-delay instant audio playback)
-const audioBufferCache = new Map<string, AudioBuffer>();
+interface CachedAudioEntry {
+  buffer: AudioBuffer;
+  soundOffset: number;
+}
+
+const audioBufferCache = new Map<string, CachedAudioEntry>();
 const MAX_AUDIO_CACHE = 25;
+
+/**
+ * Songspot B: Recognizable Intro Detection (Dead Air / Silence Trimmer)
+ * Scans the first 2.0s of the channel data to find the first audible sound/transient (> -38dB).
+ * Leaves a 10ms pre-roll to preserve natural transient attack of drums/instruments.
+ */
+export function findAudibleIntroOffset(buffer: AudioBuffer, threshold = 0.012): number {
+  try {
+    const channel = buffer.getChannelData(0);
+    const sampleRate = buffer.sampleRate;
+    const scanLimit = Math.min(channel.length, Math.floor(sampleRate * 2.0));
+
+    for (let i = 0; i < scanLimit; i++) {
+      if (Math.abs(channel[i]) >= threshold) {
+        return Math.max(0, i / sampleRate - 0.01);
+      }
+    }
+  } catch {}
+  return 0;
+}
 
 export async function prefetchAudio(url: string | null | undefined, ctx?: AudioContext): Promise<void> {
   if (!url || typeof window === 'undefined' || audioBufferCache.has(url)) return;
@@ -16,11 +41,13 @@ export async function prefetchAudio(url: string | null | undefined, ctx?: AudioC
     const Ctx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
     const context = ctx || new Ctx();
     const decoded = await context.decodeAudioData(arrBuf.slice(0));
+    const soundOffset = findAudibleIntroOffset(decoded);
+
     if (audioBufferCache.size >= MAX_AUDIO_CACHE) {
       const oldest = audioBufferCache.keys().next().value;
       if (oldest) audioBufferCache.delete(oldest);
     }
-    audioBufferCache.set(url, decoded);
+    audioBufferCache.set(url, { buffer: decoded, soundOffset });
   } catch {}
 }
 
@@ -45,6 +72,7 @@ export function useAudioController({ audioUrl, volume }: UseAudioControllerOptio
   const startCtxTimeRef = useRef<number>(0);
   const offsetSecondsRef = useRef<number>(0);
   const activeClipLimitRef = useRef<number>(30);
+  const soundStartOffsetRef = useRef<number>(0);
 
   const getContext = useCallback((): AudioContext => {
     if (!audioCtxRef.current) {
@@ -111,11 +139,12 @@ export function useAudioController({ audioUrl, volume }: UseAudioControllerOptio
     }
 
     // 1. Instant hit from audio pre-buffer cache (Zero audio delay)
-    const cachedBuffer = audioBufferCache.get(audioUrl);
-    if (cachedBuffer) {
+    const cached = audioBufferCache.get(audioUrl);
+    if (cached) {
       stopInternal(true);
-      bufferRef.current = cachedBuffer;
-      setTotalDuration(Math.min(30, cachedBuffer.duration));
+      bufferRef.current = cached.buffer;
+      soundStartOffsetRef.current = cached.soundOffset;
+      setTotalDuration(Math.min(30, cached.buffer.duration));
       setState('ready');
       return;
     }
@@ -135,12 +164,14 @@ export function useAudioController({ audioUrl, volume }: UseAudioControllerOptio
       })
       .then((decoded) => {
         if (cancelled) return;
+        const soundOffset = findAudibleIntroOffset(decoded);
         if (audioBufferCache.size >= MAX_AUDIO_CACHE) {
           const oldest = audioBufferCache.keys().next().value;
           if (oldest) audioBufferCache.delete(oldest);
         }
-        audioBufferCache.set(audioUrl, decoded);
+        audioBufferCache.set(audioUrl, { buffer: decoded, soundOffset });
         bufferRef.current = decoded;
+        soundStartOffsetRef.current = soundOffset;
         setTotalDuration(Math.min(30, decoded.duration));
         setState('ready');
       })
@@ -205,8 +236,14 @@ export function useAudioController({ audioUrl, volume }: UseAudioControllerOptio
         const perfElapsed = (performance.now() - startPerf) / 1000;
         const elapsedInRun = Math.max(0, Math.max(audioElapsed, perfElapsed));
         const absolutePos = Math.min(cappedMax, safeOffset + elapsedInRun);
-        setCurrentTime(absolutePos);
-        setProgress(cappedMax > 0 ? Math.min(1, absolutePos / cappedMax) : 0);
+
+        const isSnippet = cappedMax < 25;
+        const progressVal = isSnippet
+          ? (remainingPlayTime > 0 ? Math.min(1, elapsedInRun / remainingPlayTime) : 0)
+          : (cappedMax > 0 ? Math.min(1, absolutePos / cappedMax) : 0);
+
+        setCurrentTime(isSnippet ? elapsedInRun : absolutePos);
+        setProgress(progressVal);
 
         if (absolutePos < cappedMax && elapsedInRun < remainingPlayTime) {
           rafRef.current = requestAnimationFrame(tick);
@@ -227,10 +264,11 @@ export function useAudioController({ audioUrl, volume }: UseAudioControllerOptio
     [getContext, stopInternal, volume]
   );
 
-  // Play a specific snippet length from 0.0s (during active guessing round)
+  // Play a specific snippet length (Songspot B: skips dead air / silence at intro)
   const playSnippet = useCallback(
     (clipSeconds: number) => {
-      startPlaybackFrom(0, clipSeconds);
+      const introOffset = soundStartOffsetRef.current;
+      startPlaybackFrom(introOffset, introOffset + clipSeconds);
     },
     [startPlaybackFrom]
   );

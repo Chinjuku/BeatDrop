@@ -112,13 +112,21 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
         onSelectQuiz={handleSelectQuiz}
       />
 
-      {/* Page Content (Centered Vertically and Horizontally) */}
-      <main className="flex-1 w-full max-w-3xl mx-auto px-3 py-4 sm:px-4 sm:py-8 flex flex-col items-center justify-center relative z-10">
+      {/* Page Content */}
+      <main
+        className={`flex-1 w-full mx-auto px-3 py-4 sm:px-6 sm:py-8 flex flex-col relative z-10 ${
+          pathname.startsWith('/admin') ? 'max-w-[1600px]' : 'max-w-3xl items-center justify-center'
+        }`}
+      >
         {children}
       </main>
 
       {/* Songspot-style Minimal Ambient Footer */}
-      <footer className="w-full max-w-4xl mx-auto py-5 px-4 mt-auto text-center border-t border-white/5 relative z-10">
+      <footer
+        className={`w-full mx-auto py-5 px-4 mt-auto text-center border-t border-white/5 relative z-10 ${
+          pathname.startsWith('/admin') ? 'max-w-[1600px]' : 'max-w-4xl'
+        }`}
+      >
         <div
           className="flex flex-col sm:flex-row items-center justify-between gap-2.5 text-xs font-semibold"
           style={{ color: 'var(--song-muted)' }}

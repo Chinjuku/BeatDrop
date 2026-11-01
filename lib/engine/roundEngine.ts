@@ -240,9 +240,17 @@ export async function handleStartRound(req: Request, res: Response): Promise<voi
       (a, b) => (b.popularityScore || 50) - (a.popularityScore || 50)
     );
     if (difficulty === 'easy') {
-      candidates = sorted.slice(0, Math.max(5, Math.ceil(sorted.length * 0.65)));
+      // Songspot-style: Top megahits only (top 20% or at least 4 tracks)
+      candidates = sorted.slice(0, Math.max(4, Math.ceil(sorted.length * 0.20)));
+    } else if (difficulty === 'medium') {
+      // Mainstream familiar tracks (top 60%)
+      candidates = sorted.slice(0, Math.max(6, Math.ceil(sorted.length * 0.60)));
     } else if (difficulty === 'hard') {
-      candidates = sorted.slice(Math.floor(sorted.length * 0.25));
+      // Deeper catalog (skip top 20% biggest hits)
+      candidates = sorted.slice(Math.floor(sorted.length * 0.20));
+    } else if (difficulty === 'expert' || difficulty === 'impossible') {
+      // Deep cuts & album b-sides (skip top 40% biggest hits)
+      candidates = sorted.slice(Math.floor(sorted.length * 0.40));
     }
   }
 

@@ -4,6 +4,7 @@ import {
   Award,
   Crown,
   Flame,
+  Loader2,
   Medal,
   RefreshCw,
   Send,
@@ -299,7 +300,14 @@ export const LeaderboardModal: React.FC<LeaderboardModalProps> = ({
 
         {/* Rankings Table */}
         <div className="flex-1 overflow-y-auto p-2.5 sm:p-4 space-y-1.5 sm:space-y-2">
-          {entries.length === 0 ? (
+          {loading ? (
+            <div className="py-16 flex flex-col items-center justify-center gap-2.5">
+              <Loader2 className="w-7 h-7 animate-spin text-emerald-400" />
+              <span className="text-xs font-bold" style={{ color: 'var(--song-muted)' }}>
+                กำลังโหลดอันดับคะแนน...
+              </span>
+            </div>
+          ) : entries.length === 0 ? (
             <div className="py-12 text-center text-xs" style={{ color: 'var(--song-muted)' }}>
               ยังไม่มีข้อมูลอันดับในหมวดนี้ มาร่วมประเดิมส่งคะแนนคนแรกกันเลย!
             </div>

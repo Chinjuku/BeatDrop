@@ -14,6 +14,7 @@ const SongGuesserPage: React.FC = () => {
     handleDailyDifficultySelect,
     round,
     loadingRound,
+    submittingGuess,
     outcome,
     revealSong,
     history,
@@ -246,7 +247,7 @@ const SongGuesserPage: React.FC = () => {
                       <button
                         key={`${choice.id}-${idx}`}
                         type="button"
-                        disabled={loadingRound || !round || alreadyGuessedWrong}
+                        disabled={loadingRound || submittingGuess || !round || alreadyGuessedWrong}
                         onClick={() =>
                           handleSelectGuess({
                             id: choice.id,

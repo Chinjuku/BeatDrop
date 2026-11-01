@@ -346,7 +346,7 @@ export default function AdminDashboardPage() {
 
   // 2. Authenticated Admin Dashboard
   return (
-    <div className="w-full max-w-5xl mx-auto py-6 px-3 sm:px-6 space-y-6 animate-in fade-in">
+    <div className="w-full max-w-[1600px] mx-auto py-6 px-3 sm:px-6 space-y-6 animate-in fade-in">
       {/* Top Banner Navigation */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b" style={{ borderColor: 'var(--song-border)' }}>
         <div className="flex items-center gap-3">
@@ -494,7 +494,7 @@ export default function AdminDashboardPage() {
         </div>
 
         {discovered.length > 0 && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-2 border-t" style={{ borderColor: 'var(--song-border)' }}>
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-2.5 pt-2 border-t" style={{ borderColor: 'var(--song-border)' }}>
             {discovered.map((art) => {
               const inLibrary = artists.some((a) => a.name.toLowerCase() === art.name.toLowerCase());
               const isAdding = addingArtistName === art.name;
@@ -597,7 +597,7 @@ export default function AdminDashboardPage() {
             </span>
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
             {filteredArtists.map((artist) => {
               const isSyncing = syncingId === artist.id || syncingId === artist.name;
               const isDeleting = deletingId === artist.id;

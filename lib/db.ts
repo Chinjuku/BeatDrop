@@ -27,6 +27,8 @@ function resolveDbFile(): string {
 
 // Initialize SQLite database
 const db = new DatabaseSync(resolveDbFile());
+// Wait for locks instead of failing: `next build` spawns parallel workers that all open this DB at import time
+db.exec('PRAGMA busy_timeout = 10000;');
 
 // Set high-performance PRAGMAs (WAL mode for concurrent fast reads/writes)
 db.exec(`

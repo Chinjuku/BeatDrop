@@ -72,6 +72,7 @@ export interface GameContextType {
 
   round: RoundStartResponse | null;
   loadingRound: boolean;
+  submittingGuess: boolean;
   outcome: 'correct' | 'failed' | null;
   revealSong: Song | null;
   history: GuessHistoryItem[];
@@ -148,6 +149,7 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const [round, setRound] = useState<RoundStartResponse | null>(null);
   const [loadingRound, setLoadingRound] = useState(false);
+  const [submittingGuess, setSubmittingGuess] = useState(false);
   const [outcome, setOutcome] = useState<'correct' | 'failed' | null>(null);
   const [revealSong, setRevealSong] = useState<Song | null>(null);
   const [history, setHistory] = useState<GuessHistoryItem[]>([]);
@@ -534,8 +536,9 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   // Submit a song guess
   const handleSelectGuess = async (selectedSong: Pick<Song, 'id' | 'title' | 'artistName'>) => {
-    if (!round || outcome) return;
+    if (!round || outcome || submittingGuess) return;
     stop();
+    setSubmittingGuess(true);
 
     try {
       const res = await fetch('/api/round/guess', {
@@ -648,13 +651,16 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       }
     } catch (err) {
       console.error('Error submitting guess:', err);
+    } finally {
+      setSubmittingGuess(false);
     }
   };
 
   // Skip current clue or give up
   const handleSkip = async (giveUpDirectly = false) => {
-    if (!round || outcome) return;
+    if (!round || outcome || submittingGuess) return;
     stop();
+    setSubmittingGuess(true);
 
     try {
       const res = await fetch('/api/round/skip', {
@@ -721,6 +727,8 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       }
     } catch (err) {
       console.error('Error skipping clue:', err);
+    } finally {
+      setSubmittingGuess(false);
     }
   };
 
@@ -777,6 +785,7 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
         round,
         loadingRound,
+        submittingGuess,
         outcome,
         revealSong,
         history,

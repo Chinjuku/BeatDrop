@@ -1,6 +1,7 @@
 'use client';
 import React, { useEffect, useRef, useState } from 'react';
-import { Loader2, Search, SkipForward, Check, Flag } from 'lucide-react';
+import { createPortal } from 'react-dom';
+import { Loader2, Search, SkipForward, Check, Flag, ChevronLeft } from 'lucide-react';
 import { CategoryType, GameMode, Song } from '../types';
 
 interface GuessAutocompleteProps {
@@ -12,6 +13,7 @@ interface GuessAutocompleteProps {
   onGiveUp?: () => void;
   nextStageSeconds: number | null;
   disabled?: boolean;
+  submitting?: boolean;
 }
 
 export const GuessAutocomplete: React.FC<GuessAutocompleteProps> = ({
@@ -23,12 +25,34 @@ export const GuessAutocomplete: React.FC<GuessAutocompleteProps> = ({
   onGiveUp,
   nextStageSeconds,
   disabled,
+  submitting,
 }) => {
   const [query, setQuery] = useState('');
   const [suggestions, setSuggestions] = useState<Song[]>([]);
   const [loading, setLoading] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState<number>(0);
+  // Songspot-style fullscreen search sheet on phones
+  const [mobileOpen, setMobileOpen] = useState(false);
+
+  // Lock background scroll while sheet is open; auto-close if rotated/resized to desktop width
+  useEffect(() => {
+    if (!mobileOpen) return;
+    // iOS Safari ignores body overflow:hidden, so pin body with position:fixed and restore scroll on close
+    const scrollY = window.scrollY;
+    const s = document.body.style;
+    const prev = { position: s.position, top: s.top, width: s.width, overflow: s.overflow };
+    Object.assign(s, { position: 'fixed', top: `-${scrollY}px`, width: '100%', overflow: 'hidden' });
+    const onResize = () => {
+      if (window.innerWidth >= 640) setMobileOpen(false);
+    };
+    window.addEventListener('resize', onResize);
+    return () => {
+      Object.assign(s, prev);
+      window.scrollTo(0, scrollY);
+      window.removeEventListener('resize', onResize);
+    };
+  }, [mobileOpen]);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -95,9 +119,11 @@ export const GuessAutocomplete: React.FC<GuessAutocompleteProps> = ({
   }, []);
 
   const submitSong = (song: Song) => {
+    if (disabled || submitting) return;
     onSelectGuess(song);
     setQuery('');
     setIsOpen(false);
+    setMobileOpen(false);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -131,6 +157,87 @@ export const GuessAutocomplete: React.FC<GuessAutocompleteProps> = ({
 
   return (
     <div ref={containerRef} className="w-full relative mt-5">
+      {/* Mobile fullscreen search sheet (Songspot style) */}
+      {mobileOpen &&
+        createPortal(
+          <div
+            className="fixed inset-0 z-[200] flex flex-col p-3 gap-2 overscroll-contain touch-pan-y"
+            style={{ backgroundColor: 'var(--song-bg, #050806)' }}
+          >
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setMobileOpen(false)}
+                className="p-2 shrink-0"
+                aria-label="ปิดการค้นหา"
+                style={{ color: 'var(--song-text)' }}
+              >
+                <ChevronLeft className="w-6 h-6" />
+              </button>
+              <div
+                className="flex-1 flex items-center px-3 min-h-[46px] rounded-2xl border-2"
+                style={{ backgroundColor: 'var(--song-surface-soft)', borderColor: 'var(--song-accent)' }}
+              >
+                <Search className="w-4 h-4 mr-2 shrink-0" style={{ color: 'var(--song-muted)' }} />
+                <input
+                  autoFocus
+                  type="text"
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                  placeholder={isArtistScoped ? `เพลงของ ${artistFilter}...` : 'ชื่อเพลง หรือ ศิลปิน...'}
+                  className="w-full bg-transparent outline-none text-base font-semibold"
+                  style={{ color: 'var(--song-text)' }}
+                />
+                {loading && <Loader2 className="w-4 h-4 animate-spin ml-2 shrink-0" style={{ color: 'var(--song-accent-text)' }} />}
+              </div>
+              <button
+                type="button"
+                disabled={submitting || !suggestions[Math.max(0, activeIndex)]}
+                onClick={() => {
+                  const s = suggestions[Math.max(0, activeIndex)];
+                  if (s) submitSong(s);
+                }}
+                className="px-5 min-h-[46px] rounded-2xl font-extrabold text-sm shrink-0 disabled:opacity-50"
+                style={{ backgroundColor: 'var(--song-accent)', color: 'var(--song-accent-on)' }}
+              >
+                {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : 'ทาย'}
+              </button>
+            </div>
+
+            {suggestions.length > 0 && (
+              <div
+                className="rounded-2xl border p-1.5 overflow-y-auto"
+                style={{ backgroundColor: 'var(--song-surface)', borderColor: 'var(--song-border)' }}
+                role="listbox"
+              >
+                {suggestions.map((song, idx) => (
+                  <button
+                    key={song.id}
+                    type="button"
+                    role="option"
+                    aria-selected={idx === activeIndex}
+                    onClick={() => (idx === activeIndex ? submitSong(song) : setActiveIndex(idx))}
+                    className="w-full px-2.5 py-2 rounded-xl text-left flex items-center gap-3"
+                    style={{
+                      color: 'var(--song-text)',
+                      backgroundColor: idx === activeIndex ? 'rgba(var(--song-accent-rgb), 0.16)' : undefined,
+                    }}
+                  >
+                    <img src={song.artworkUrl} alt="" className="w-12 h-12 rounded-md object-cover shrink-0" />
+                    <div className="min-w-0 flex-1">
+                      <div className="text-base font-bold truncate">{song.title}</div>
+                      <div className="text-sm truncate" style={{ color: 'var(--song-muted)' }}>
+                        {song.artistName}
+                      </div>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>,
+          document.body
+        )}
       {/* Suggestions Dropdown (Positioned above or below smoothly) */}
       {isOpen && suggestions.length > 0 && (
         <div
@@ -217,8 +324,13 @@ export const GuessAutocomplete: React.FC<GuessAutocompleteProps> = ({
             ref={inputRef}
             type="text"
             value={query}
-            disabled={disabled}
-            onFocus={() => {
+            disabled={disabled || submitting}
+            onFocus={(e) => {
+              if (window.innerWidth < 640) {
+                e.currentTarget.blur();
+                setMobileOpen(true);
+                return;
+              }
               if (isArtistScoped || suggestions.length > 0) {
                 setIsOpen(true);
               }
@@ -229,14 +341,16 @@ export const GuessAutocomplete: React.FC<GuessAutocompleteProps> = ({
             }}
             onKeyDown={handleKeyDown}
             placeholder={
-              isArtistScoped
-                ? `เลือกเพลงของ ${artistFilter}...`
-                : 'พิมพ์ชื่อเพลง หรือ ศิลปิน เพื่อทายคำตอบ...'
+              submitting
+                ? 'กำลังตรวจสอบคำตอบ...'
+                : isArtistScoped
+                  ? `เลือกเพลงของ ${artistFilter}...`
+                  : 'พิมพ์ชื่อเพลง หรือ ศิลปิน เพื่อทายคำตอบ...'
             }
-            className="w-full bg-transparent border-0 outline-none text-base sm:text-sm font-semibold placeholder:opacity-60"
+            className="w-full bg-transparent border-0 outline-none text-base sm:text-sm font-semibold placeholder:opacity-60 disabled:opacity-50"
             style={{ color: 'var(--song-text)' }}
           />
-          {loading && (
+          {(loading || submitting) && (
             <Loader2
               className="w-4 h-4 animate-spin ml-2 flex-shrink-0"
               style={{ color: 'var(--song-accent-text)' }}
@@ -250,19 +364,25 @@ export const GuessAutocomplete: React.FC<GuessAutocompleteProps> = ({
           <button
             type="button"
             onClick={onSkip}
-            disabled={disabled}
-            className="flex-1 sm:flex-none px-3.5 sm:px-4 py-2.5 min-h-[42px] rounded-xl border text-xs sm:text-sm font-extrabold flex items-center justify-center gap-1.5 transition hover:brightness-110 flex-shrink-0 active:scale-95"
+            disabled={disabled || submitting}
+            className="flex-1 sm:flex-none px-3.5 sm:px-4 py-2.5 min-h-[42px] rounded-xl border text-xs sm:text-sm font-extrabold flex items-center justify-center gap-1.5 transition hover:brightness-110 flex-shrink-0 active:scale-95 disabled:opacity-50 disabled:pointer-events-none"
             style={{
               backgroundColor: 'var(--song-surface-soft)',
               borderColor: 'var(--song-border)',
               color: 'var(--song-text)',
             }}
           >
-            <SkipForward className="w-4 h-4" style={{ color: 'var(--song-accent-text)' }} />
+            {submitting ? (
+              <Loader2 className="w-4 h-4 animate-spin text-emerald-400" />
+            ) : (
+              <SkipForward className="w-4 h-4" style={{ color: 'var(--song-accent-text)' }} />
+            )}
             <span>
-              {nextStageSeconds !== null
-                ? `ข้าม (+${nextStageSeconds}s)`
-                : 'ยอมแพ้ / เฉลย'}
+              {submitting
+                ? 'กำลังตรวจ...'
+                : nextStageSeconds !== null
+                  ? `ข้าม (+${nextStageSeconds}s)`
+                  : 'ยอมแพ้ / เฉลย'}
             </span>
           </button>
 
@@ -271,8 +391,8 @@ export const GuessAutocomplete: React.FC<GuessAutocompleteProps> = ({
             <button
               type="button"
               onClick={onGiveUp}
-              disabled={disabled}
-              className="px-3 sm:px-3.5 py-2.5 min-h-[42px] rounded-xl border text-xs sm:text-sm font-bold flex items-center justify-center gap-1.5 transition hover:brightness-110 flex-shrink-0 active:scale-95"
+              disabled={disabled || submitting}
+              className="px-3 sm:px-3.5 py-2.5 min-h-[42px] rounded-xl border text-xs sm:text-sm font-bold flex items-center justify-center gap-1.5 transition hover:brightness-110 flex-shrink-0 active:scale-95 disabled:opacity-50 disabled:pointer-events-none"
               style={{
                 backgroundColor: 'rgba(239, 68, 68, 0.1)',
                 borderColor: 'rgba(239, 68, 68, 0.35)',

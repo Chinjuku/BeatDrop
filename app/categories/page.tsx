@@ -391,7 +391,41 @@ const MusicCategoriesPage: React.FC = () => {
               </button>
             ))}
 
-            {displayArtists.length === 0 && !isSearchingRemote && (
+            {artists.length === 0 && !searchQuery.trim() ? (
+              Array.from({ length: 8 }).map((_, i) => (
+                <div
+                  key={`skeleton-${i}`}
+                  className="p-2.5 sm:p-3 rounded-xl border flex items-center gap-2.5 animate-pulse"
+                  style={{
+                    backgroundColor: 'var(--song-surface)',
+                    borderColor: 'var(--song-border)',
+                  }}
+                >
+                  <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-white/10 shrink-0" />
+                  <div className="flex-1 space-y-1.5 min-w-0">
+                    <div className="h-3 w-3/4 rounded bg-white/10" />
+                    <div className="h-2 w-1/2 rounded bg-white/5" />
+                  </div>
+                </div>
+              ))
+            ) : isSearchingRemote ? (
+              Array.from({ length: 4 }).map((_, i) => (
+                <div
+                  key={`search-skeleton-${i}`}
+                  className="p-2.5 sm:p-3 rounded-xl border flex items-center gap-2.5 animate-pulse"
+                  style={{
+                    backgroundColor: 'var(--song-surface)',
+                    borderColor: 'var(--song-border)',
+                  }}
+                >
+                  <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-emerald-500/10 shrink-0" />
+                  <div className="flex-1 space-y-1.5 min-w-0">
+                    <div className="h-3 w-2/3 rounded bg-emerald-500/20" />
+                    <div className="h-2 w-1/3 rounded bg-white/5" />
+                  </div>
+                </div>
+              ))
+            ) : displayArtists.length === 0 ? (
               <div
                 className="col-span-full p-8 text-center rounded-2xl border text-xs sm:text-sm space-y-1"
                 style={{
@@ -405,7 +439,7 @@ const MusicCategoriesPage: React.FC = () => {
                   ลองพิมพ์ชื่อภาษาไทยหรืออังกฤษอย่างน้อย 2 ตัวอักษร เพื่อให้ระบบค้นหาจาก iTunes โดยอัตโนมัติ
                 </p>
               </div>
-            )}
+            ) : null}
           </div>
         </div>
       )}

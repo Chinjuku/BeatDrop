@@ -22,6 +22,7 @@ const DailyChallengePage: React.FC = () => {
     handleDailyDifficultySelect,
     round,
     loadingRound,
+    submittingGuess,
     outcome,
     revealSong,
     history,
@@ -413,6 +414,7 @@ const DailyChallengePage: React.FC = () => {
                 onGiveUp={() => handleSkip(true)}
                 nextStageSeconds={nextStageSeconds}
                 disabled={loadingRound || !round}
+                submitting={submittingGuess}
               />
             </div>
           </div>
