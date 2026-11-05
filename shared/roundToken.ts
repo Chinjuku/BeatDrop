@@ -14,7 +14,7 @@ export interface StatelessRoundPayload {
   startedAt?: number;
 }
 
-const getSecret = (): string => {
+const getKey = (): Buffer => {
   const secret = process.env.GAME_TOKEN_SECRET || process.env.ROUND_TOKEN_SECRET;
   if (!secret) {
     if (process.env.NODE_ENV === 'production') {
@@ -22,9 +22,9 @@ const getSecret = (): string => {
         '[SECURITY CRITICAL] GAME_TOKEN_SECRET (or ROUND_TOKEN_SECRET) must be set in production to prevent token forging!'
       );
     }
-    return 'beatdrop-stateless-round-secret-2026';
+    return crypto.createHash('sha256').update('beatdrop-stateless-round-secret-2026').digest();
   }
-  return secret;
+  return crypto.createHash('sha256').update(secret).digest();
 };
 
 export function signRoundToken(state: Omit<StatelessRoundPayload, 'exp'>, ttlMs = 1000 * 60 * 60 * 12): string {
@@ -32,29 +32,30 @@ export function signRoundToken(state: Omit<StatelessRoundPayload, 'exp'>, ttlMs 
     ...state,
     exp: Date.now() + ttlMs,
   };
-  const data = Buffer.from(JSON.stringify(payload), 'utf8').toString('base64url');
-  const sig = crypto.createHmac('sha256', getSecret()).update(data).digest('base64url');
-  return `bd1.${data}.${sig}`;
+  const iv = crypto.randomBytes(12);
+  const cipher = crypto.createCipheriv('aes-256-gcm', getKey(), iv);
+  const encrypted = Buffer.concat([cipher.update(JSON.stringify(payload), 'utf8'), cipher.final()]);
+  const tag = cipher.getAuthTag();
+  return `bd2.${iv.toString('base64url')}.${encrypted.toString('base64url')}.${tag.toString('base64url')}`;
 }
 
 export function verifyRoundToken(token: string | undefined | null): StatelessRoundPayload | null {
-  if (!token || typeof token !== 'string' || !token.startsWith('bd1.')) {
+  if (!token || typeof token !== 'string' || !token.startsWith('bd2.')) {
     return null;
   }
   const parts = token.split('.');
-  if (parts.length !== 3) return null;
-
-  const [, data, sig] = parts;
-  const expectedSig = crypto.createHmac('sha256', getSecret()).update(data).digest('base64url');
-
-  const sigBuf = Buffer.from(sig);
-  const expBuf = Buffer.from(expectedSig);
-  if (sigBuf.length !== expBuf.length || !crypto.timingSafeEqual(sigBuf, expBuf)) {
-    return null;
-  }
+  if (parts.length !== 4) return null;
 
   try {
-    const parsed = JSON.parse(Buffer.from(data, 'base64url').toString('utf8')) as StatelessRoundPayload;
+    const iv = Buffer.from(parts[1], 'base64url');
+    const encrypted = Buffer.from(parts[2], 'base64url');
+    const tag = Buffer.from(parts[3], 'base64url');
+    if (iv.length !== 12 || tag.length !== 16) return null;
+
+    const decipher = crypto.createDecipheriv('aes-256-gcm', getKey(), iv);
+    decipher.setAuthTag(tag);
+    const decrypted = Buffer.concat([decipher.update(encrypted), decipher.final()]).toString('utf8');
+    const parsed = JSON.parse(decrypted) as StatelessRoundPayload;
     if (!parsed || !parsed.track || Date.now() > parsed.exp) {
       return null;
     }

@@ -1,4 +1,4 @@
-import { DatabaseSync } from 'node:sqlite';
+import { DatabaseSync, type SQLInputValue } from 'node:sqlite';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -26,103 +26,136 @@ function resolveDbFile(): string {
   return LOCAL_DB_FILE;
 }
 
-// Initialize SQLite database
-const db = new DatabaseSync(resolveDbFile());
-// Wait for locks instead of failing: `next build` spawns parallel workers that all open this DB at import time
-db.exec('PRAGMA busy_timeout = 10000;');
+const isServerlessSupabase = (): boolean => Boolean(process.env.VERCEL && isSupabaseConfigured());
 
-// Set high-performance PRAGMAs (WAL mode for concurrent fast reads/writes)
-db.exec(`
-  PRAGMA journal_mode = WAL;
-  PRAGMA synchronous = NORMAL;
-  PRAGMA foreign_keys = ON;
+let _db: DatabaseSync | null = null;
+let _insertSongStmt: ReturnType<DatabaseSync['prepare']> | null = null;
+let _insertArtistStmt: ReturnType<DatabaseSync['prepare']> | null = null;
+let _insertLeaderboardStmt: ReturnType<DatabaseSync['prepare']> | null = null;
 
-  -- 1. Songs table (Permanent cache of all fetched iTunes / Thai / Intl tracks)
-  CREATE TABLE IF NOT EXISTS songs (
-    id TEXT PRIMARY KEY,
-    title TEXT NOT NULL,
-    artist_id TEXT,
-    artist_name TEXT NOT NULL,
-    album_name TEXT,
-    release_year INTEGER,
-    release_date TEXT,
-    genre TEXT,
-    category TEXT NOT NULL,
-    preview_url TEXT NOT NULL,
-    artwork_url TEXT,
-    track_view_url TEXT,
-    popularity_score REAL DEFAULT 50,
-    created_at INTEGER
-  );
+function ensureDb(): DatabaseSync {
+  if (_db) return _db;
+  const instance = new DatabaseSync(resolveDbFile());
+  instance.exec('PRAGMA busy_timeout = 10000;');
+  instance.exec(`
+    PRAGMA journal_mode = WAL;
+    PRAGMA synchronous = NORMAL;
+    PRAGMA foreign_keys = ON;
 
-  CREATE INDEX IF NOT EXISTS idx_songs_artist ON songs (artist_name COLLATE NOCASE);
-  CREATE INDEX IF NOT EXISTS idx_songs_category ON songs (category);
-  CREATE INDEX IF NOT EXISTS idx_songs_genre ON songs (genre);
-  CREATE INDEX IF NOT EXISTS idx_songs_year ON songs (release_year);
-  CREATE INDEX IF NOT EXISTS idx_songs_title ON songs (title COLLATE NOCASE);
+    CREATE TABLE IF NOT EXISTS songs (
+      id TEXT PRIMARY KEY,
+      title TEXT NOT NULL,
+      artist_id TEXT,
+      artist_name TEXT NOT NULL,
+      album_name TEXT,
+      release_year INTEGER,
+      release_date TEXT,
+      genre TEXT,
+      category TEXT NOT NULL,
+      preview_url TEXT NOT NULL,
+      artwork_url TEXT,
+      track_view_url TEXT,
+      popularity_score REAL DEFAULT 50,
+      created_at INTEGER
+    );
 
-  -- 2. Custom & Added Artists table
-  CREATE TABLE IF NOT EXISTS custom_artists (
-    id TEXT PRIMARY KEY,
-    name TEXT NOT NULL UNIQUE COLLATE NOCASE,
-    category TEXT NOT NULL,
-    main_genre TEXT,
-    avatar_url TEXT,
-    is_custom INTEGER DEFAULT 1,
-    track_count INTEGER DEFAULT 0,
-    created_at INTEGER
-  );
+    CREATE INDEX IF NOT EXISTS idx_songs_artist ON songs (artist_name COLLATE NOCASE);
+    CREATE INDEX IF NOT EXISTS idx_songs_category ON songs (category);
+    CREATE INDEX IF NOT EXISTS idx_songs_genre ON songs (genre);
+    CREATE INDEX IF NOT EXISTS idx_songs_year ON songs (release_year);
+    CREATE INDEX IF NOT EXISTS idx_songs_title ON songs (title COLLATE NOCASE);
 
-  CREATE INDEX IF NOT EXISTS idx_custom_artists_name ON custom_artists (name COLLATE NOCASE);
-  CREATE INDEX IF NOT EXISTS idx_custom_artists_cat ON custom_artists (category);
+    CREATE TABLE IF NOT EXISTS custom_artists (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL UNIQUE COLLATE NOCASE,
+      category TEXT NOT NULL,
+      main_genre TEXT,
+      avatar_url TEXT,
+      is_custom INTEGER DEFAULT 1,
+      track_count INTEGER DEFAULT 0,
+      created_at INTEGER
+    );
 
-  -- 3. Leaderboard table
-  CREATE TABLE IF NOT EXISTS leaderboard (
-    id TEXT PRIMARY KEY,
-    player_name TEXT NOT NULL,
-    score INTEGER NOT NULL,
-    streak INTEGER NOT NULL,
-    fastest_seconds REAL,
-    difficulty TEXT NOT NULL,
-    category TEXT NOT NULL,
-    is_daily INTEGER DEFAULT 0,
-    created_at TEXT NOT NULL
-  );
+    CREATE INDEX IF NOT EXISTS idx_custom_artists_name ON custom_artists (name COLLATE NOCASE);
+    CREATE INDEX IF NOT EXISTS idx_custom_artists_cat ON custom_artists (category);
 
-  CREATE INDEX IF NOT EXISTS idx_leaderboard_cat ON leaderboard (category, is_daily, score DESC);
-`);
+    CREATE TABLE IF NOT EXISTS leaderboard (
+      id TEXT PRIMARY KEY,
+      player_name TEXT NOT NULL,
+      score INTEGER NOT NULL,
+      streak INTEGER NOT NULL,
+      fastest_seconds REAL,
+      difficulty TEXT NOT NULL,
+      category TEXT NOT NULL,
+      is_daily INTEGER DEFAULT 0,
+      created_at TEXT NOT NULL
+    );
 
-// Prepared statements for high-speed batch operations
-const insertSongStmt = db.prepare(`
-  INSERT INTO songs (
-    id, title, artist_id, artist_name, album_name, release_year, release_date,
-    genre, category, preview_url, artwork_url, track_view_url, popularity_score, created_at
-  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  ON CONFLICT(id) DO UPDATE SET
-    title = excluded.title,
-    artist_name = excluded.artist_name,
-    album_name = excluded.album_name,
-    preview_url = excluded.preview_url,
-    artwork_url = excluded.artwork_url,
-    popularity_score = excluded.popularity_score
-`);
+    CREATE INDEX IF NOT EXISTS idx_leaderboard_cat ON leaderboard (category, is_daily, score DESC);
+  `);
 
-const insertArtistStmt = db.prepare(`
-  INSERT INTO custom_artists (
-    id, name, category, main_genre, avatar_url, is_custom, track_count, created_at
-  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-  ON CONFLICT(name) DO UPDATE SET
-    avatar_url = COALESCE(excluded.avatar_url, custom_artists.avatar_url),
-    track_count = COALESCE(excluded.track_count, custom_artists.track_count),
-    main_genre = COALESCE(excluded.main_genre, custom_artists.main_genre)
-`);
+  _insertSongStmt = instance.prepare(`
+    INSERT INTO songs (
+      id, title, artist_id, artist_name, album_name, release_year, release_date,
+      genre, category, preview_url, artwork_url, track_view_url, popularity_score, created_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(id) DO UPDATE SET
+      title = excluded.title,
+      artist_id = COALESCE(excluded.artist_id, songs.artist_id),
+      artist_name = excluded.artist_name,
+      album_name = excluded.album_name,
+      release_year = excluded.release_year,
+      genre = excluded.genre,
+      category = excluded.category,
+      preview_url = excluded.preview_url,
+      artwork_url = excluded.artwork_url,
+      popularity_score = excluded.popularity_score
+  `);
 
-const insertLeaderboardStmt = db.prepare(`
-  INSERT INTO leaderboard (
-    id, player_name, score, streak, fastest_seconds, difficulty, category, is_daily, created_at
-  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-  ON CONFLICT(id) DO NOTHING
-`);
+  _insertArtistStmt = instance.prepare(`
+    INSERT INTO custom_artists (
+      id, name, category, main_genre, avatar_url, is_custom, track_count, created_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(name) DO UPDATE SET
+      category = COALESCE(excluded.category, custom_artists.category),
+      avatar_url = COALESCE(NULLIF(excluded.avatar_url, ''), custom_artists.avatar_url),
+      track_count = COALESCE(excluded.track_count, custom_artists.track_count),
+      main_genre = COALESCE(excluded.main_genre, custom_artists.main_genre)
+  `);
+
+  _insertLeaderboardStmt = instance.prepare(`
+    INSERT INTO leaderboard (
+      id, player_name, score, streak, fastest_seconds, difficulty, category, is_daily, created_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(id) DO NOTHING
+  `);
+
+  _db = instance;
+  return instance;
+}
+
+const db = {
+  exec: (sql: string) => ensureDb().exec(sql),
+  prepare: (sql: string) => ensureDb().prepare(sql),
+};
+const insertSongStmt = {
+  run: (...args: SQLInputValue[]) => {
+    ensureDb();
+    return _insertSongStmt!.run(...args);
+  },
+};
+const insertArtistStmt = {
+  run: (...args: SQLInputValue[]) => {
+    ensureDb();
+    return _insertArtistStmt!.run(...args);
+  },
+};
+const insertLeaderboardStmt = {
+  run: (...args: SQLInputValue[]) => {
+    ensureDb();
+    return _insertLeaderboardStmt!.run(...args);
+  },
+};
 
 // Type conversions for SQLite rows -> Song
 interface SongRow {
@@ -243,6 +276,10 @@ export const dbService = {
    */
   saveSongs(songs: Song[]): void {
     if (!songs || songs.length === 0) return;
+    if (isServerlessSupabase()) {
+      supabaseAdmin.upsertSongs(songs).catch(() => {});
+      return;
+    }
     try {
       db.exec('BEGIN TRANSACTION');
       for (const song of songs) {
@@ -365,6 +402,10 @@ export const dbService = {
   },
 
   saveCustomArtist(artist: Artist): void {
+    if (isServerlessSupabase()) {
+      supabaseAdmin.upsertArtist(artist).catch(() => {});
+      return;
+    }
     try {
       insertArtistStmt.run(
         artist.id,
@@ -385,6 +426,10 @@ export const dbService = {
   },
 
   updateArtistTrackCount(artistName: string, count: number): void {
+    if (isServerlessSupabase()) {
+      supabaseAdmin.refreshArtistTrackCount(artistName).catch(() => {});
+      return;
+    }
     try {
       db.prepare(
         'UPDATE custom_artists SET track_count = ? WHERE name = ? COLLATE NOCASE'
@@ -398,6 +443,7 @@ export const dbService = {
   },
 
   deleteCustomArtist(id: string): boolean {
+    if (isServerlessSupabase()) return true;
     try {
       db.prepare('DELETE FROM custom_artists WHERE id = ?').run(id);
       return true;
@@ -411,6 +457,7 @@ export const dbService = {
    * Leaderboard operations
    */
   getLeaderboard(category?: CategoryType, isDaily?: boolean, limit = 50): LeaderboardEntry[] {
+    if (isServerlessSupabase()) return [];
     const conditions: string[] = [];
     const params: (string | number)[] = [];
 
@@ -437,6 +484,10 @@ export const dbService = {
   },
 
   addLeaderboardEntry(entry: LeaderboardEntry): void {
+    if (isServerlessSupabase()) {
+      supabaseAdmin.upsertLeaderboard([entry]).catch(() => {});
+      return;
+    }
     try {
       // Upsert: prevent duplicate entries for the same player, category, and difficulty
       db.prepare(`
@@ -467,6 +518,7 @@ export const dbService = {
    * Migrate existing JSON files (custom-artists.json, leaderboard.json) into SQLite on startup
    */
   migrateFromJsonFiles(dataDir: string, seedLeaderboard: LeaderboardEntry[]): void {
+    if (isServerlessSupabase()) return;
     try {
       // 1. Migrate custom-artists.json
       const artistFile = path.join(dataDir, 'custom-artists.json');

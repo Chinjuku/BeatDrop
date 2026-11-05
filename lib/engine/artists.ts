@@ -112,14 +112,21 @@ export function saveCustomArtists(): void {
 }
 
 export function addCustomArtist(newArtist: Artist): void {
-  const existing = customArtists.find(
-    (a) => normalizeText(a.name) === normalizeText(newArtist.name)
+  const existingIdx = customArtists.findIndex(
+    (a) => normalizeText(a.name) === normalizeText(newArtist.name) || a.id === newArtist.id
   );
-  if (!existing) {
+  if (existingIdx >= 0) {
+    customArtists[existingIdx] = {
+      ...customArtists[existingIdx],
+      ...newArtist,
+      avatarUrl: newArtist.avatarUrl || customArtists[existingIdx].avatarUrl,
+      trackCount: Math.max(customArtists[existingIdx].trackCount || 0, newArtist.trackCount || 0),
+    };
+  } else {
     customArtists.push(newArtist);
-    saveCustomArtists();
-    dbService.saveCustomArtist(newArtist);
   }
+  saveCustomArtists();
+  dbService.saveCustomArtist(newArtist);
 }
 
 export function deleteCustomArtist(id: string): void {
@@ -174,20 +181,61 @@ export function normalizeGenre(
   category: 'thai' | 'international',
   fallbackGenre?: string
 ): string {
-  const g = (rawGenre || '').toLowerCase();
+  const g = (rawGenre || '').trim().toLowerCase();
+  if (!g) {
+    if (fallbackGenre && fallbackGenre !== 'any') return fallbackGenre;
+    return category === 'thai' ? 'T-Pop' : 'Pop';
+  }
   if (g.includes('k-pop') || g.includes('kpop')) return 'K-Pop';
-  if (g.includes('hip-hop') || g.includes('rap')) return 'Hip-Hop/Rap';
-  if (g.includes('r&b') || g.includes('soul')) return 'R&B';
+  if (g.includes('hip-hop') || g.includes('hip hop') || g.includes('rap')) return 'Hip-Hop/Rap';
+  if (g.includes('r&b') || g.includes('soul') || g.includes('funk')) return 'R&B';
   if (g.includes('rock') || g.includes('metal') || g.includes('punk')) return 'Rock';
   if (g.includes('alternative') || g.includes('indie')) return 'Indie';
   if (g.includes('dance') || g.includes('electronic') || g.includes('house') || g.includes('edm')) return 'EDM';
-  if (g.includes('soundtrack') || g.includes('score') || g.includes('musical')) return 'Soundtrack';
-  if (category === 'thai') {
-    if (g.includes('thai') || g.includes('t-pop')) return 'T-Pop';
-    if (g.includes('pop')) return 'T-Pop';
+  if (g.includes('country') || g.includes('ลูกทุ่ง') || g.includes('เพื่อชีวิต') || g.includes('folk')) {
+    return category === 'thai' ? 'LukThung' : 'Country';
+  }
+  if (g.includes('soundtrack') || g.includes('score') || g.includes('musical') || g.includes('anime')) return 'Soundtrack';
+  if (g.includes('jazz') || g.includes('blues')) return 'Jazz';
+  if (g.includes('j-pop') || g.includes('jpop')) return 'J-Pop';
+  if (g.includes('t-pop') || g.includes('thai pop')) return 'T-Pop';
+  if (g.includes('pop') || g.includes('singer/songwriter') || g.includes('vocal')) {
+    return category === 'thai' ? 'T-Pop' : 'Pop';
   }
   if (fallbackGenre && fallbackGenre !== 'any') return fallbackGenre;
-  return 'Pop';
+  return category === 'thai' ? 'T-Pop' : 'Pop';
+}
+
+export function computeMajorityGenre(
+  tracks: Song[],
+  category: 'thai' | 'international',
+  artistRawGenre?: string
+): string {
+  const mappedArtistGenre = artistRawGenre ? normalizeGenre(artistRawGenre, category) : '';
+  const counts = new Map<string, number>();
+
+  for (const t of tracks) {
+    const g = t.genre || normalizeGenre('', category);
+    // Weight non-Soundtrack tracks higher so OST songs don't override a band's real genre
+    const weight = g === 'Soundtrack' ? 0.35 : 1;
+    counts.set(g, (counts.get(g) || 0) + weight);
+  }
+
+  // Give official iTunes artist primaryGenreName a strong tie-breaking / primary boost
+  if (mappedArtistGenre && mappedArtistGenre !== 'Soundtrack') {
+    const boost = mappedArtistGenre === 'Pop' || mappedArtistGenre === 'T-Pop' ? 2 : Math.max(3, tracks.length * 0.25);
+    counts.set(mappedArtistGenre, (counts.get(mappedArtistGenre) || 0) + boost);
+  }
+
+  let bestGenre = mappedArtistGenre || (category === 'thai' ? 'T-Pop' : 'Pop');
+  let bestScore = -1;
+  for (const [genre, score] of counts.entries()) {
+    if (score > bestScore) {
+      bestScore = score;
+      bestGenre = genre;
+    }
+  }
+  return bestGenre;
 }
 
 export function getAllArtists(songPool?: Map<string, Song>): Artist[] {

@@ -4,8 +4,15 @@ import { getBangkokDateKey } from '../../../../lib/token';
 import { isSupabaseConfigured, supabaseAdmin } from '../../../../lib/supabase';
 
 export async function GET(req: Request) {
-  const cronSecret = process.env.CRON_SECRET;
-  if (cronSecret) {
+  const cronSecret = process.env.CRON_SECRET || process.env.ADMIN_API_KEY;
+  if (!cronSecret) {
+    if (process.env.NODE_ENV === 'production') {
+      return NextResponse.json(
+        { code: -503, message: 'CRON_SECRET is not configured on the server' },
+        { status: 503 }
+      );
+    }
+  } else {
     const authHeader = req.headers.get('authorization');
     if (authHeader !== `Bearer ${cronSecret}`) {
       return NextResponse.json({ code: -401, message: 'Unauthorized cron invocation' }, { status: 401 });

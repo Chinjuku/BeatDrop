@@ -18,6 +18,7 @@ import {
   Song,
 } from '../types';
 import { AudioPlaybackState } from '../hooks/useAudioController';
+import { useAudioProgress } from '../context/GameContext';
 
 interface SpinningAlbumArtProps {
   song: Song;
@@ -54,8 +55,8 @@ export const SpinningAlbumArt: React.FC<SpinningAlbumArtProps> = ({
   history,
   streak,
   audioState,
-  currentTime,
-  totalDuration,
+  currentTime: propCurrentTime,
+  totalDuration: propTotalDuration,
   onToggleFullPlay,
   onSeek,
   volume,
@@ -63,6 +64,9 @@ export const SpinningAlbumArt: React.FC<SpinningAlbumArtProps> = ({
   onNextSong,
   onOpenTicket,
 }) => {
+  const audioProgress = useAudioProgress();
+  const currentTime = audioProgress ? audioProgress.currentTime : propCurrentTime;
+  const totalDuration = audioProgress ? audioProgress.totalDuration : propTotalDuration;
   const [copied, setCopied] = useState(false);
   const isPlaying = audioState === 'playing';
   const isWon = outcome === 'correct';

@@ -2,8 +2,10 @@ import { Request, Response } from 'express';
 import fs from 'node:fs';
 import path from 'node:path';
 import { CategoryType, DifficultyLevel, LeaderboardEntry } from '../../shared/types';
+import { parseLeaderboardDTO } from '../../shared/validation';
 import { dbService } from '../db';
 import { redis, isRedisConfigured } from '../redis';
+import { isSupabaseConfigured, supabaseAdmin } from '../supabase';
 
 const DATA_DIR = path.resolve(process.cwd(), 'data');
 const LEADERBOARD_FILE = path.join(DATA_DIR, 'leaderboard.json');
@@ -44,6 +46,7 @@ export function loadLeaderboard(): void {
 }
 
 export function saveLeaderboard(): void {
+  if (process.env.VERCEL) return;
   try {
     fs.writeFileSync(LEADERBOARD_FILE, JSON.stringify(leaderboardEntries, null, 2), 'utf-8');
   } catch (err) {
@@ -66,14 +69,19 @@ export async function handleGetLeaderboard(req: Request, res: Response): Promise
     } catch {}
   }
 
-  loadLeaderboard();
-
-  let list = [...leaderboardEntries];
-  if (category === 'thai' || category === 'international') {
-    list = list.filter((e) => e.category === category || e.category === 'all');
+  let list: LeaderboardEntry[] = [];
+  if (isSupabaseConfigured()) {
+    list = await supabaseAdmin.getLeaderboard(category, difficulty, 50);
   }
-  if (difficulty && difficulty !== 'all') {
-    list = list.filter((e) => e.difficulty === difficulty);
+  if (list.length === 0) {
+    loadLeaderboard();
+    list = [...leaderboardEntries];
+    if (category === 'thai' || category === 'international') {
+      list = list.filter((e) => e.category === category || e.category === 'all');
+    }
+    if (difficulty && difficulty !== 'all') {
+      list = list.filter((e) => e.difficulty === difficulty);
+    }
   }
 
   list.sort((a, b) => {
@@ -91,20 +99,21 @@ export async function handleGetLeaderboard(req: Request, res: Response): Promise
 }
 
 export function handlePostLeaderboard(req: Request, res: Response): void {
+  const parsed = parseLeaderboardDTO(req.body);
+  if (!parsed.ok) {
+    res.status(400).json({ code: -1, message: parsed.error });
+    return;
+  }
   loadLeaderboard();
   const {
-    playerName,
-    score = 100,
-    streak = 1,
-    fastestSeconds = 1,
-    difficulty = 'medium',
-    category = 'thai',
-    isDaily = false,
-  } = req.body || {};
-
-  const cleanName = String(playerName || 'Anonymous Player').trim().slice(0, 24) || 'Player';
-  const targetDiff = (difficulty as DifficultyLevel) || 'medium';
-  const targetCat = (category as CategoryType) || 'thai';
+    playerName: cleanName,
+    score,
+    streak,
+    fastestSeconds,
+    difficulty: targetDiff,
+    category: targetCat,
+    isDaily,
+  } = parsed.data;
 
   const dateKey = new Intl.DateTimeFormat('en-CA', {
     timeZone: 'Asia/Bangkok',

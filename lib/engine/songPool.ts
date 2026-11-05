@@ -9,6 +9,7 @@ import {
   loadCustomArtists,
   getAllArtists,
   normalizeGenre,
+  computeMajorityGenre,
 } from './artists';
 
 export const songPool = new Map<string, Song>(); // id -> Song
@@ -175,10 +176,10 @@ export async function fetchDeezerSongs(
 export async function ingestArtistSongs(artist: Artist, limit = 200): Promise<number> {
   const key = `${artist.category}:${artist.name.toLowerCase()}`;
   const country = artist.category === 'thai' ? 'TH' : 'US';
-  let tracks = await fetchItunesSongs(artist.name, country, artist.category, limit, artist.mainGenre, true);
+  let tracks = await fetchItunesSongs(artist.name, country, artist.category, limit, undefined, true);
 
   if (tracks.length < limit) {
-    const fallbackTracks = await fetchItunesSongs(artist.name, country, artist.category, limit, artist.mainGenre, false);
+    const fallbackTracks = await fetchItunesSongs(artist.name, country, artist.category, limit, undefined, false);
     for (const fb of fallbackTracks) {
       if (!tracks.some((t) => t.id === fb.id)) {
         tracks.push(fb);
@@ -202,8 +203,11 @@ export async function ingestArtistSongs(artist: Artist, limit = 200): Promise<nu
   }
   dbService.saveSongs(finalTracks);
 
-  if (finalTracks.length > 0 && !artist.avatarUrl) {
-    artist.avatarUrl = finalTracks[0].artworkUrl;
+  if (finalTracks.length > 0) {
+    if (!artist.avatarUrl) {
+      artist.avatarUrl = finalTracks[0].artworkUrl;
+    }
+    artist.mainGenre = computeMajorityGenre(finalTracks, artist.category, artist.mainGenre);
   }
   artist.trackCount = Array.from(songPool.values()).filter(
     (s) =>

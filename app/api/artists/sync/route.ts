@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
-import type { CategoryType } from '../../../../types';
 import { syncArtistSongs } from '../../../../lib/itunes';
 import { checkArtistSyncLimit } from '../../../../lib/engine/rateLimiter';
+import { invalidateArtistsServerCache } from '../../../../lib/engine/artistRoutes';
+import { parseArtistSyncDTO } from '../../../../shared/validation';
 
 export async function POST(req: Request) {
   try {
@@ -35,18 +36,9 @@ export async function POST(req: Request) {
       }
     }
 
-    const body = (await req.json().catch(() => ({}))) as {
-      artistName?: string;
-      name?: string;
-      artist?: string;
-      category?: CategoryType;
-      mainGenre?: string;
-      avatarUrl?: string;
-      id?: string;
-    };
-    const query = String(body.artistName || body.name || body.artist || '').trim();
-
-    if (!query || query.length < 2) {
+    const rawBody = await req.json().catch(() => null);
+    const parsed = parseArtistSyncDTO(rawBody);
+    if (!parsed.ok || parsed.data.name.length < 2) {
       return NextResponse.json(
         { code: -1, message: 'กรุณาระบุชื่อศิลปินอย่างน้อย 2 ตัวอักษร' },
         { status: 400 }
@@ -55,7 +47,10 @@ export async function POST(req: Request) {
 
     // Public users get up to 50 curated tracks; Admin gets full 200 tracks catalog
     const maxLimit = isAdmin ? 200 : 50;
-    const result = await syncArtistSongs(query, body.category, maxLimit);
+    const result = await syncArtistSongs(parsed.data.name, parsed.data.category, maxLimit);
+    if (result.body.code === 0 && result.body.data?.artist) {
+      invalidateArtistsServerCache(result.body.data.artist);
+    }
     return NextResponse.json(result.body, { status: result.status });
   } catch (err) {
     return NextResponse.json(

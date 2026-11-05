@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import crypto from 'node:crypto';
 import { Artist, CategoryType, Song } from '../../shared/types';
+import { parseArtistSyncDTO } from '../../shared/validation';
 import { dbService } from '../db';
 import { checkArtistStrictMatch } from '../itunes';
 import { isSupabaseConfigured, supabaseAdmin } from '../supabase';
@@ -13,11 +14,29 @@ import {
   detectCategory,
   normalizeGenre,
   normalizeText,
+  invalidateAllArtistsCache,
 } from './artists';
 
 let cachedSupabaseArtists: Artist[] = [];
 let lastSupabaseFetchTime = 0;
 const SUPABASE_ARTISTS_TTL_MS = 60_000;
+
+export function invalidateArtistsServerCache(upsertedArtist?: Artist): void {
+  lastSupabaseFetchTime = 0;
+  if (upsertedArtist) {
+    const idx = cachedSupabaseArtists.findIndex(
+      (a) => a.id === upsertedArtist.id || normalizeText(a.name) === normalizeText(upsertedArtist.name)
+    );
+    if (idx >= 0) {
+      cachedSupabaseArtists[idx] = { ...cachedSupabaseArtists[idx], ...upsertedArtist };
+    } else {
+      cachedSupabaseArtists.push(upsertedArtist);
+    }
+  }
+  invalidateAllArtistsCache();
+}
+
+export const invalidateSupabaseArtistsCache = invalidateArtistsServerCache;
 
 export async function handleGetArtists(req: Request, res: Response): Promise<void> {
   const category = (req.query.category as CategoryType) || 'all';
@@ -168,13 +187,14 @@ export async function handleGetArtists(req: Request, res: Response): Promise<voi
 
 export async function handleAddArtist(req: Request, res: Response): Promise<void> {
   try {
-    const { name, category = 'thai', mainGenre = 'Pop', avatarUrl = '' } = req.body || {};
-    if (!name || typeof name !== 'string' || !name.trim()) {
-      res.status(400).json({ code: -1, message: 'Artist name is required' });
+    const parsed = parseArtistSyncDTO(req.body);
+    if (!parsed.ok) {
+      res.status(400).json({ code: -1, message: parsed.error });
       return;
     }
+    const { name, category, mainGenre, avatarUrl } = parsed.data;
 
-    const rawName = name.trim();
+    const rawName = name;
     const soloNames = extractSoloArtistNames(rawName);
     const cleanName = soloNames.length > 0 ? soloNames[0] : rawName;
     const validCat: 'thai' | 'international' = category === 'international' ? 'international' : 'thai';
@@ -202,6 +222,7 @@ export async function handleAddArtist(req: Request, res: Response): Promise<void
     if (!existing) {
       addCustomArtist(newArtist);
     }
+    invalidateSupabaseArtistsCache(newArtist);
 
     const enriched =
       getAllArtists(songPool).find(
@@ -261,6 +282,7 @@ export async function handleSyncArtist(req: Request, res: Response): Promise<voi
     if (!existing) {
       addCustomArtist(target);
     }
+    invalidateSupabaseArtistsCache(target);
 
     const enriched =
       getAllArtists(songPool).find(

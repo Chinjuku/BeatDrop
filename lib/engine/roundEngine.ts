@@ -11,6 +11,7 @@ import {
   Song,
 } from '../../shared/types';
 import { signRoundToken, verifyRoundToken } from '../token';
+import { parseGuessDTO, parseSkipDTO } from '../../shared/validation';
 import { dbService } from '../db';
 import { checkArtistStrictMatch, isJunkTrack } from '../itunes';
 import { songPool, ingestArtistSongs, fetchItunesSongs } from './songPool';
@@ -250,28 +251,59 @@ export async function handleStartRound(req: Request, res: Response): Promise<voi
 
   const totalMatchingPoolSize = candidates.length;
 
-  if (candidates.length > 6) {
+  // 1. Deduplicate candidates by normalized title + artist (prevents Single vs Album / Remastered duplicates)
+  const uniqueByTitle = new Map<string, Song>();
+  for (const s of candidates) {
+    const key = `${normalizeText(s.title)}::${normalizeText(s.artistName)}`;
+    const existing = uniqueByTitle.get(key);
+    if (!existing || (s.popularityScore || 50) > (existing.popularityScore || 50)) {
+      uniqueByTitle.set(key, s);
+    }
+  }
+  candidates = Array.from(uniqueByTitle.values());
+
+  // 2. Build excluded ID set AND excluded normalized title+artist set so different trackIds of the same song never repeat
+  const excludeIdSet = new Set(excludeIds);
+  const excludedTitleKeys = new Set<string>();
+  for (const exId of excludeIds) {
+    const known = songPool.get(exId) || candidates.find((c) => String(c.id) === exId);
+    if (known) {
+      excludedTitleKeys.add(`${normalizeText(known.title)}::${normalizeText(known.artistName)}`);
+    }
+  }
+
+  // 3. Remove all previously played songs FIRST before slicing by difficulty
+  const unplayedCandidates = candidates.filter(
+    (s) =>
+      !excludeIdSet.has(String(s.id)) &&
+      !excludedTitleKeys.has(`${normalizeText(s.title)}::${normalizeText(s.artistName)}`)
+  );
+
+  if (unplayedCandidates.length > 0) {
+    candidates = unplayedCandidates;
+  } else if (candidates.length > 1 && excludeIds.length > 0) {
+    // Entire catalog exhausted: avoid repeating the most recently played songs
+    const recentIds = new Set(excludeIds.slice(-Math.max(1, Math.min(8, candidates.length - 1))));
+    const notRecent = candidates.filter((s) => !recentIds.has(String(s.id)));
+    if (notRecent.length > 0) {
+      candidates = notRecent;
+    }
+  }
+
+  // 4. Slice unplayed pool by difficulty (automatically advances through deeper catalog as top hits are played)
+  if (candidates.length > 8) {
     const sorted = [...candidates].sort(
       (a, b) => (b.popularityScore || 50) - (a.popularityScore || 50)
     );
     if (difficulty === 'easy') {
-      // Songspot-style: Top megahits only (top 20% or at least 4 tracks)
-      candidates = sorted.slice(0, Math.max(4, Math.ceil(sorted.length * 0.20)));
+      candidates = sorted.slice(0, Math.max(8, Math.ceil(sorted.length * 0.25)));
     } else if (difficulty === 'medium') {
-      // Mainstream familiar tracks (top 60%)
-      candidates = sorted.slice(0, Math.max(6, Math.ceil(sorted.length * 0.60)));
+      candidates = sorted.slice(0, Math.max(12, Math.ceil(sorted.length * 0.60)));
     } else if (difficulty === 'hard') {
-      // Deeper catalog (skip top 20% biggest hits)
-      candidates = sorted.slice(Math.floor(sorted.length * 0.20));
+      candidates = sorted.slice(Math.floor(sorted.length * 0.15));
     } else if (difficulty === 'expert' || difficulty === 'impossible') {
-      // Deep cuts & album b-sides (skip top 40% biggest hits)
-      candidates = sorted.slice(Math.floor(sorted.length * 0.40));
+      candidates = sorted.slice(Math.floor(sorted.length * 0.35));
     }
-  }
-
-  const nonExcluded = candidates.filter((s) => !excludeIds.includes(s.id));
-  if (nonExcluded.length > 0) {
-    candidates = nonExcluded;
   }
 
   const selectedTrack = candidates[Math.floor(Math.random() * candidates.length)];
@@ -467,9 +499,14 @@ export async function handleAutocomplete(req: Request, res: Response): Promise<v
 }
 
 export async function handleGuess(req: Request, res: Response): Promise<void> {
-  const { roundToken, candidateTrackId, candidateTitle, candidateArtist } = req.body || {};
+  const parsed = parseGuessDTO(req.body);
+  if (!parsed.ok) {
+    res.status(400).json({ code: -1, message: parsed.error });
+    return;
+  }
+  const { roundToken, candidateTrackId, candidateTitle, candidateArtist } = parsed.data;
 
-  if (!roundToken || (await isTokenConsumed(roundToken))) {
+  if (await isTokenConsumed(roundToken)) {
     res.status(400).json({ code: -1, message: 'Invalid or already used round token (replay detected)' });
     return;
   }
@@ -561,9 +598,14 @@ export async function handleGuess(req: Request, res: Response): Promise<void> {
 }
 
 export async function handleSkip(req: Request, res: Response): Promise<void> {
-  const { roundToken, giveUp } = req.body || {};
+  const parsed = parseSkipDTO(req.body);
+  if (!parsed.ok) {
+    res.status(400).json({ code: -1, message: parsed.error });
+    return;
+  }
+  const { roundToken, giveUp } = parsed.data;
 
-  if (!roundToken || (await isTokenConsumed(roundToken))) {
+  if (await isTokenConsumed(roundToken)) {
     res.status(400).json({ code: -1, message: 'Invalid or already used round token (replay detected)' });
     return;
   }

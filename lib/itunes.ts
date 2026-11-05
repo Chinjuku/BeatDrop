@@ -87,7 +87,44 @@ export const KNOWN_ARTIST_ALIASES: Record<string, string[]> = {
   'labanoon': ['ลาบานูน'],
   'silly fools': ['ซิลลี่ ฟูลส์', 'ซิลลี่ฟูลส์'],
   'moderndog': ['โมเดิร์นด็อก'],
+  'urboytj': ['ยัวร์บอยทีเจ', 'ทีเจ'],
+  'freehand': ['ฟรีแฮนด์'],
+  'only monday': ['โอนลี่มันเดย์'],
+  'hybs': ['ไฮบ์ส'],
+  'dept': ['เดปท์'],
+  'landokmai': ['ลานดอกไม้'],
+  'whal & dolph': ['วาฬแอนด์ดอล์ฟ'],
+  'bus': ['บัส', 'because of you i shine'],
+  'proxie': ['พร็อกซี'],
+  'perses': ['เพอร์เซส'],
+  'pixxie': ['พิกซี่'],
+  'atlas': ['แอทลาส'],
+  'bamm': ['แบมม์'],
+  'pp krit': ['พีพี กฤษฏ์'],
 };
+
+export function isKnownThaiArtistName(name: string): boolean {
+  if (!name) return false;
+  if (hasThaiScript(name)) return true;
+  const norm = normalizeText(name);
+  if (norm in KNOWN_ARTIST_ALIASES) return true;
+  return Object.values(KNOWN_ARTIST_ALIASES).some((aliases) =>
+    aliases.some((a) => normalizeText(a) === norm)
+  );
+}
+
+export function isThaiGenreTag(rawGenre?: string): boolean {
+  const g = (rawGenre || '').toLowerCase();
+  return (
+    g.includes('thai') ||
+    g.includes('t-pop') ||
+    g.includes('tpop') ||
+    g.includes('luk thung') ||
+    g.includes('lukthung') ||
+    g.includes('ลูกทุ่ง') ||
+    g.includes('เพื่อชีวิต')
+  );
+}
 
 export function getArtistCandidateTokens(name: string): string[] {
   if (!name) return [];
@@ -214,18 +251,59 @@ export function checkArtistStrictMatch(
 }
 
 export function mapGenreTag(rawGenre?: string, category?: CategoryType): string {
-  const g = (rawGenre || '').toLowerCase();
-  if (g.includes('hip-hop') || g.includes('rap')) return 'Hip-Hop/Rap';
-  if (g.includes('r&b') || g.includes('soul')) return 'R&B';
+  const g = (rawGenre || '').trim().toLowerCase();
+  if (g.includes('k-pop') || g.includes('kpop')) return 'K-Pop';
+  if (g.includes('hip-hop') || g.includes('hip hop') || g.includes('rap')) return 'Hip-Hop/Rap';
+  if (g.includes('r&b') || g.includes('soul') || g.includes('funk')) return 'R&B';
   if (g.includes('rock') || g.includes('metal') || g.includes('punk')) return 'Rock';
   if (g.includes('alternative') || g.includes('indie')) return 'Indie';
   if (g.includes('electronic') || g.includes('dance') || g.includes('house') || g.includes('edm')) return 'EDM';
-  if (g.includes('country') || g.includes('ลูกทุ่ง') || g.includes('เพื่อชีวิต')) return 'LukThung';
-  if (g.includes('soundtrack')) return 'Soundtrack';
+  if (g.includes('country') || g.includes('ลูกทุ่ง') || g.includes('เพื่อชีวิต') || g.includes('folk')) {
+    return category === 'thai' ? 'LukThung' : 'Country';
+  }
+  if (g.includes('soundtrack') || g.includes('score') || g.includes('musical') || g.includes('anime')) return 'Soundtrack';
+  if (g.includes('jazz') || g.includes('blues')) return 'Jazz';
+  if (g.includes('j-pop') || g.includes('jpop')) return 'J-Pop';
   if (g.includes('t-pop') || g.includes('thai pop')) return 'T-Pop';
-  if (g.includes('k-pop')) return 'K-Pop';
-  if (g.includes('pop')) return category === 'thai' ? 'T-Pop' : 'Pop';
+  if (g.includes('pop') || g.includes('singer/songwriter') || g.includes('vocal')) {
+    return category === 'thai' ? 'T-Pop' : 'Pop';
+  }
   return category === 'thai' ? 'T-Pop' : 'Pop';
+}
+
+export function resolveArtistMainGenre(
+  songs: Song[],
+  category: 'thai' | 'international',
+  artistPrimaryGenre?: string
+): string {
+  const counts = new Map<string, number>();
+  for (const s of songs) {
+    const g = s.genre || (category === 'thai' ? 'T-Pop' : 'Pop');
+    const weight = g === 'Soundtrack' ? 0.3 : g === 'K-Pop' ? 1.6 : 1;
+    counts.set(g, (counts.get(g) || 0) + weight);
+  }
+
+  if (artistPrimaryGenre) {
+    const mapped = mapGenreTag(artistPrimaryGenre, category);
+    if (mapped && mapped !== 'Soundtrack') {
+      const boost = mapped === 'Pop' || mapped === 'T-Pop' ? 1.5 : Math.max(3, songs.length * 0.35);
+      counts.set(mapped, (counts.get(mapped) || 0) + boost);
+    }
+  }
+
+  let bestGenre = artistPrimaryGenre
+    ? mapGenreTag(artistPrimaryGenre, category)
+    : category === 'thai'
+      ? 'T-Pop'
+      : 'Pop';
+  let bestScore = -1;
+  for (const [genre, score] of counts.entries()) {
+    if (score > bestScore) {
+      bestScore = score;
+      bestGenre = genre;
+    }
+  }
+  return bestGenre;
 }
 
 function chunkArray<T>(items: T[], size: number): T[][] {
@@ -272,22 +350,18 @@ export async function fetchArtistSongsUpTo200(
   artistQuery: string,
   preferredCategory?: CategoryType,
   maxLimit = 200
-): Promise<{ songs: Song[]; rateLimited: boolean }> {
+): Promise<{ songs: Song[]; rateLimited: boolean; artistPrimaryGenre?: string; detectedCategory: 'thai' | 'international' }> {
   const targetLimit = Math.min(200, Math.max(10, maxLimit));
-  const autoCategory: CategoryType =
-    preferredCategory && preferredCategory !== 'all'
-      ? preferredCategory
-      : hasThaiScript(artistQuery)
-      ? 'thai'
-      : 'international';
+  const preferThaiStore =
+    preferredCategory === 'thai' || isKnownThaiArtistName(artistQuery);
 
-  const countries = autoCategory === 'thai' ? ['TH', 'US'] : ['US', 'TH'];
-  const collected = new Map<string, Song>();
-  const normQuery = normalizeText(artistQuery);
+  const countries = preferThaiStore ? ['TH', 'US'] : ['US', 'TH'];
+  const rawCollected = new Map<string, { item: ItunesTrackItem; cleanedTitle: string; idx: number }>();
   let rateLimited = false;
+  let artistPrimaryGenre: string | undefined;
 
   for (const country of countries) {
-    if (collected.size >= targetLimit) break;
+    if (rawCollected.size >= targetLimit) break;
 
     const artistSearchUrl = `https://itunes.apple.com/search?term=${encodeURIComponent(
       artistQuery
@@ -300,6 +374,9 @@ export async function fetchArtistSongsUpTo200(
       const aName = String(a.artistName || '');
       if (checkArtistStrictMatch(aName, artistQuery)) {
         resolvedArtistId = Number(a.artistId) || null;
+        if (a.primaryGenreName && !artistPrimaryGenre) {
+          artistPrimaryGenre = a.primaryGenreName;
+        }
         break;
       }
     }
@@ -313,6 +390,8 @@ export async function fetchArtistSongsUpTo200(
       for (const item of lookupRes.results || []) {
         if (item.wrapperType === 'track' || item.kind === 'song') {
           rawTracks.push(item);
+        } else if (item.wrapperType === 'artist' && item.primaryGenreName && !artistPrimaryGenre) {
+          artistPrimaryGenre = item.primaryGenreName;
         }
       }
     }
@@ -333,7 +412,7 @@ export async function fetchArtistSongsUpTo200(
     }
 
     rawTracks.forEach((item, idx) => {
-      if (collected.size >= targetLimit) return;
+      if (rawCollected.size >= targetLimit) return;
       if (!item.trackId || !item.trackName || !item.artistName || !item.previewUrl) return;
 
       // Discard junk tracks (karaoke, tribute, lullaby, sleep, music box, etc.)
@@ -353,34 +432,57 @@ export async function fetchArtistSongsUpTo200(
       if (!cleanedTitle) return;
 
       const dedupeKey = `${normalizeText(cleanedTitle)}__${normArtist}`;
-      if (collected.has(dedupeKey)) return;
+      if (rawCollected.has(dedupeKey)) return;
 
-      const isThai =
-        autoCategory === 'thai' ||
-        hasThaiScript(item.trackName) ||
-        hasThaiScript(item.artistName) ||
-        (item.primaryGenreName || '').toLowerCase().includes('thai');
-
-      const finalCategory: CategoryType = isThai ? 'thai' : 'international';
-      const releaseYear = item.releaseDate ? new Date(item.releaseDate).getFullYear() : 2020;
-
-      collected.set(dedupeKey, {
-        id: String(item.trackId),
-        title: cleanedTitle,
-        artistName: item.artistName.trim(),
-        albumName: (item.collectionName || 'Single').trim(),
-        releaseYear: Number.isNaN(releaseYear) ? 2020 : releaseYear,
-        genre: mapGenreTag(item.primaryGenreName, finalCategory),
-        category: finalCategory,
-        previewUrl: item.previewUrl,
-        artworkUrl: (item.artworkUrl100 || '').replace('100x100bb', '600x600bb'),
-        trackViewUrl: item.trackViewUrl || '',
-        popularityScore: Math.max(10, 100 - Math.floor(idx / 2)),
-      });
+      rawCollected.set(dedupeKey, { item, cleanedTitle, idx });
     });
   }
 
-  return { songs: Array.from(collected.values()).slice(0, targetLimit), rateLimited };
+  // Determine true artist category from actual iTunes track/artist evidence (never blindly forced by UI tab)
+  const entries = Array.from(rawCollected.values()).slice(0, targetLimit);
+  const thaiTrackEvidenceCount = entries.filter(
+    ({ item }) =>
+      hasThaiScript(item.trackName || '') ||
+      hasThaiScript(item.artistName || '') ||
+      hasThaiScript(item.collectionName || '') ||
+      isThaiGenreTag(item.primaryGenreName)
+  ).length;
+
+  const isArtistThai =
+    isKnownThaiArtistName(artistQuery) ||
+    (entries[0]?.item.artistName ? isKnownThaiArtistName(entries[0].item.artistName) : false) ||
+    isThaiGenreTag(artistPrimaryGenre) ||
+    (entries.length > 0 && thaiTrackEvidenceCount / entries.length >= 0.1);
+
+  const detectedCategory: 'thai' | 'international' = isArtistThai ? 'thai' : 'international';
+
+  const songs: Song[] = entries.map(({ item, cleanedTitle, idx }) => {
+    const isTrackThai =
+      isArtistThai ||
+      hasThaiScript(item.trackName || '') ||
+      hasThaiScript(item.artistName || '') ||
+      hasThaiScript(item.collectionName || '') ||
+      isThaiGenreTag(item.primaryGenreName);
+
+    const finalCategory: 'thai' | 'international' = isTrackThai ? 'thai' : 'international';
+    const releaseYear = item.releaseDate ? new Date(item.releaseDate).getFullYear() : 2020;
+
+    return {
+      id: String(item.trackId),
+      title: cleanedTitle,
+      artistName: item.artistName!.trim(),
+      albumName: (item.collectionName || 'Single').trim(),
+      releaseYear: Number.isNaN(releaseYear) ? 2020 : releaseYear,
+      genre: mapGenreTag(item.primaryGenreName || artistPrimaryGenre, finalCategory),
+      category: finalCategory,
+      previewUrl: item.previewUrl!,
+      artworkUrl: (item.artworkUrl100 || '').replace('100x100bb', '600x600bb'),
+      trackViewUrl: item.trackViewUrl || '',
+      popularityScore: Math.max(10, 100 - Math.floor(idx / 2)),
+    };
+  });
+
+  return { songs, rateLimited, artistPrimaryGenre, detectedCategory };
 }
 
 export async function syncArtistSongs(
@@ -401,7 +503,12 @@ export async function syncArtistSongs(
   };
 }> {
   const startedAt = Date.now();
-  const { songs: fetchedSongs, rateLimited } = await fetchArtistSongsUpTo200(query, preferredCategory, maxLimit);
+  const {
+    songs: fetchedSongs,
+    rateLimited,
+    artistPrimaryGenre,
+    detectedCategory,
+  } = await fetchArtistSongsUpTo200(query, preferredCategory, maxLimit);
 
   if (fetchedSongs.length === 0) {
     if (rateLimited) {
@@ -425,6 +532,23 @@ export async function syncArtistSongs(
   const primarySample = fetchedSongs[0];
   const canonicalName = primarySample.artistName;
   const artistSlug = `artist_${normalizeText(canonicalName).replace(/\s+/g, '_')}`;
+  const resolvedMainGenre = resolveArtistMainGenre(fetchedSongs, detectedCategory, artistPrimaryGenre);
+
+  // Helper to immediately sync in-memory caches for real-time query invalidation
+  const syncInMemoryCaches = async (artistObj: Artist) => {
+    try {
+      const { songPool } = await import('./engine/songPool');
+      for (const s of fetchedSongs) {
+        songPool.set(s.id, s);
+      }
+      const { addCustomArtist } = await import('./engine/artists');
+      addCustomArtist(artistObj);
+      const { invalidateArtistsServerCache } = await import('./engine/artistRoutes');
+      invalidateArtistsServerCache(artistObj);
+    } catch (err) {
+      console.error('Failed to sync in-memory caches:', err);
+    }
+  };
 
   if (isSupabaseConfigured()) {
     const existingArtist = await supabaseAdmin.findArtist(canonicalName);
@@ -433,10 +557,10 @@ export async function syncArtistSongs(
     const initialArtist: Artist = {
       id: existingArtist?.id || artistSlug,
       name: canonicalName,
-      category: primarySample.category,
-      mainGenre: primarySample.genre,
+      category: detectedCategory,
+      mainGenre: resolvedMainGenre,
       avatarUrl: primarySample.artworkUrl,
-      isCustom: true,
+      isCustom: existingArtist ? existingArtist.isCustom : true,
       trackCount: Math.max(previousCount, fetchedSongs.length),
     };
     await supabaseAdmin.upsertArtist(initialArtist);
@@ -456,20 +580,24 @@ export async function syncArtistSongs(
             for (const rem of remainingChunks) {
               await supabaseAdmin.upsertSongs(rem, CHUNK_SIZE);
             }
-            await supabaseAdmin.refreshArtistTrackCount(canonicalName, initialArtist.id);
+            const totalCount = await supabaseAdmin.refreshArtistTrackCount(canonicalName, initialArtist.id);
+            await syncInMemoryCaches({ ...initialArtist, trackCount: totalCount });
           } catch (bgErr) {
             console.error('[Sync Background Ingestion Error]', bgErr);
           }
         })();
 
         const estimatedTotal = Math.max(previousCount, fetchedSongs.length);
+        const estimatedArtist = { ...initialArtist, trackCount: estimatedTotal };
+        await syncInMemoryCaches(estimatedArtist);
+
         return {
           status: 202,
           body: {
             code: 0,
             message: 'กำลังซิงค์เพลงที่เหลือในพื้นหลัง (Background Ingestion)',
             data: {
-              artist: { ...initialArtist, trackCount: estimatedTotal },
+              artist: estimatedArtist,
               addedCount: Math.max(0, estimatedTotal - previousCount),
               totalFetched: fetchedSongs.length,
               backgroundProcessing: true,
@@ -481,6 +609,8 @@ export async function syncArtistSongs(
 
     const finalTrackCount = await supabaseAdmin.refreshArtistTrackCount(canonicalName, initialArtist.id);
     const addedCount = Math.max(0, finalTrackCount - previousCount);
+    const finalArtist = { ...initialArtist, trackCount: finalTrackCount };
+    await syncInMemoryCaches(finalArtist);
 
     return {
       status: 200,
@@ -488,7 +618,7 @@ export async function syncArtistSongs(
         code: 0,
         message: 'ok',
         data: {
-          artist: { ...initialArtist, trackCount: finalTrackCount },
+          artist: finalArtist,
           addedCount,
           totalFetched: fetchedSongs.length,
           backgroundProcessing: false,
@@ -507,26 +637,14 @@ export async function syncArtistSongs(
   const customArtist: Artist = {
     id: artistSlug,
     name: canonicalName,
-    category: primarySample.category,
-    mainGenre: primarySample.genre,
+    category: detectedCategory,
+    mainGenre: resolvedMainGenre,
     avatarUrl: primarySample.artworkUrl,
     isCustom: true,
     trackCount: totalArtistTracks,
   };
   dbService.saveCustomArtist(customArtist);
-
-  // Synchronize in-memory songPool and customArtists immediately
-  try {
-    const { songPool } = await import('./engine/songPool');
-    for (const s of fetchedSongs) {
-      songPool.set(s.id, s);
-    }
-    const { addCustomArtist, loadCustomArtists } = await import('./engine/artists');
-    addCustomArtist(customArtist);
-    loadCustomArtists();
-  } catch (err) {
-    console.error('Failed to sync in-memory songPool/customArtists:', err);
-  }
+  await syncInMemoryCaches(customArtist);
 
   return {
     status: 200,

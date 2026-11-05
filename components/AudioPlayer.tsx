@@ -2,6 +2,7 @@
 import React from 'react';
 import { Play, Square, Volume2, VolumeX } from 'lucide-react';
 import { AudioPlaybackState } from '../hooks/useAudioController';
+import { useAudioProgress } from '../context/GameContext';
 
 interface AudioPlayerProps {
   stages: number[];
@@ -18,12 +19,14 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
   stages,
   currentStage,
   audioState,
-  progress,
+  progress: propProgress,
   onTogglePlay,
   volume,
   onVolumeChange,
   disabled,
 }) => {
+  const audioProgress = useAudioProgress();
+  const progress = audioProgress ? audioProgress.progress : propProgress;
   const maxSeconds = stages[stages.length - 1] || 15;
   const activeSeconds = stages[currentStage] || stages[0] || 1;
 

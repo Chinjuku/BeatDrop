@@ -5,6 +5,7 @@ import React, {
   useState,
   useEffect,
   useCallback,
+  useMemo,
   useRef,
   ReactNode,
 } from 'react';
@@ -42,6 +43,50 @@ const STORAGE_FASTEST_KEY = 'songspot:fastest-time';
 const STORAGE_LOCAL_ARTISTS_KEY = 'songspot:custom-artists';
 const STORAGE_TIME_PRESET_KEY = 'songspot:time-range-preset';
 const STORAGE_CUSTOM_STAGES_KEY = 'songspot:custom-stages';
+const STORAGE_PLAYED_IDS_KEY = 'songspot:played-ids';
+const MAX_PLAYED_HISTORY = 200;
+const PLAYED_IDS_TTL_MS = 12 * 60 * 60 * 1000; // 12 hours
+
+interface PlayedTrackEntry {
+  id: string;
+  ts: number;
+}
+
+function loadValidPlayedIds(): { ids: string[]; entries: PlayedTrackEntry[] } {
+  const now = Date.now();
+  try {
+    const raw = localStorage.getItem(STORAGE_PLAYED_IDS_KEY);
+    if (!raw) return { ids: [], entries: [] };
+    const parsed = JSON.parse(raw);
+    let rawEntries: PlayedTrackEntry[] = [];
+
+    if (Array.isArray(parsed)) {
+      rawEntries = parsed.map((item) =>
+        typeof item === 'object' && item !== null && 'id' in item
+          ? { id: String(item.id), ts: typeof item.ts === 'number' ? item.ts : now }
+          : { id: String(item), ts: now }
+      );
+    } else if (parsed && Array.isArray(parsed.ids)) {
+      const fallbackTs =
+        typeof parsed.expiresAt === 'number' ? parsed.expiresAt - PLAYED_IDS_TTL_MS : now;
+      rawEntries = parsed.ids.map((id: unknown) => ({ id: String(id), ts: fallbackTs }));
+    }
+
+    const validEntries = rawEntries
+      .filter((e) => e.id && now - e.ts < PLAYED_IDS_TTL_MS)
+      .slice(-MAX_PLAYED_HISTORY);
+
+    if (validEntries.length === 0) {
+      localStorage.removeItem(STORAGE_PLAYED_IDS_KEY);
+      return { ids: [], entries: [] };
+    }
+    if (validEntries.length !== rawEntries.length) {
+      localStorage.setItem(STORAGE_PLAYED_IDS_KEY, JSON.stringify(validEntries));
+    }
+    return { ids: validEntries.map((e) => e.id), entries: validEntries };
+  } catch {}
+  return { ids: [], entries: [] };
+}
 
 export interface ArtistSyncResult {
   artist: Artist;
@@ -113,6 +158,18 @@ export interface GameContextType {
   setTicketModalOpen: (val: boolean) => void;
 }
 
+export interface AudioProgressContextType {
+  progress: number;
+  currentTime: number;
+  totalDuration: number;
+}
+
+const AudioProgressContext = createContext<AudioProgressContextType | null>(null);
+
+export const useAudioProgress = (): AudioProgressContextType | null => {
+  return useContext(AudioProgressContext);
+};
+
 const GameContext = createContext<GameContextType | null>(null);
 
 export const useGame = (): GameContextType => {
@@ -156,9 +213,26 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [history, setHistory] = useState<GuessHistoryItem[]>([]);
   const [volume, setVolume] = useState<number>(85);
   const [playedIds, setPlayedIds] = useState<string[]>([]);
+  const playedIdsRef = useRef<string[]>([]);
   const hasAutoPlayedRevealRef = useRef(false);
   const roundAbortControllerRef = useRef<AbortController | null>(null);
   const lastRoundStartRef = useRef<number>(0);
+
+  const recordPlayedTrack = useCallback((trackId: string) => {
+    if (!trackId) return;
+    const idStr = String(trackId);
+    const now = Date.now();
+    const { entries } = loadValidPlayedIds();
+    const nextEntries = [...entries.filter((e) => e.id !== idStr), { id: idStr, ts: now }].slice(
+      -MAX_PLAYED_HISTORY
+    );
+    const nextIds = nextEntries.map((e) => e.id);
+    playedIdsRef.current = nextIds;
+    setPlayedIds(nextIds);
+    try {
+      localStorage.setItem(STORAGE_PLAYED_IDS_KEY, JSON.stringify(nextEntries));
+    } catch {}
+  }, []);
 
   // Player stats persisted in localStorage (hydrated on client mount to prevent SSR mismatch)
   const [streak, setStreak] = useState<number>(0);
@@ -174,6 +248,10 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       if (s) setStreak(s);
       if (bs) setBestStreak(bs);
       if (ft) setFastestTime(Number(ft));
+
+      const { ids: validPlayed } = loadValidPlayedIds();
+      playedIdsRef.current = validPlayed;
+      setPlayedIds(validPlayed);
 
       const p = localStorage.getItem(STORAGE_TIME_PRESET_KEY) as TimeRangePresetId | null;
       let savedStages = DEFAULT_TIME_STAGES;
@@ -230,23 +308,42 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     } catch {}
   }, [config.timeRangePreset, config.customStages]);
 
-  // TanStack Query for Artists with real-time cache & invalidation
+  // TanStack Query for Artists with real-time cache & optimistic local merge
   const { data: queryArtists = [] } = useQuery<Artist[]>({
     queryKey: QUERY_KEYS.artists,
     queryFn: async () => {
+      let localCustom: Artist[] = [];
+      try {
+        const parsed = JSON.parse(localStorage.getItem(STORAGE_LOCAL_ARTISTS_KEY) || '[]');
+        if (Array.isArray(parsed)) localCustom = parsed;
+      } catch {}
+
       try {
         const res = await fetch('/api/artists');
         const json = await res.json();
         if (json.code === 0 && Array.isArray(json.data)) {
-          return json.data;
+          const merged: Artist[] = [...json.data];
+          for (const local of localCustom) {
+            const idx = merged.findIndex(
+              (a) =>
+                a.id === local.id ||
+                a.name.trim().toLowerCase() === local.name.trim().toLowerCase()
+            );
+            if (idx >= 0) {
+              merged[idx] = {
+                ...local,
+                ...merged[idx],
+                avatarUrl: merged[idx].avatarUrl || local.avatarUrl,
+                trackCount: Math.max(merged[idx].trackCount || 0, local.trackCount || 0),
+              };
+            } else {
+              merged.unshift(local);
+            }
+          }
+          return merged;
         }
-      } catch {
-        try {
-          const local = JSON.parse(localStorage.getItem(STORAGE_LOCAL_ARTISTS_KEY) || '[]');
-          if (Array.isArray(local)) return local;
-        } catch {}
-      }
-      return [];
+      } catch {}
+      return localCustom;
     },
     staleTime: 1000 * 60 * 2,
   });
@@ -307,11 +404,30 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         const syncedArtist: Artist = json.data.artist || json.data;
         const previousCount = Number(json.data.previousCount ?? 0);
         const newCount = Number(json.data.newCount ?? syncedArtist.trackCount ?? 0);
-        const added = Number(json.data.added ?? Math.max(0, newCount - previousCount));
-        const fetched = Number(json.data.fetched ?? newCount);
+        const added = Number(
+          json.data.added ?? json.data.addedCount ?? Math.max(0, newCount - previousCount)
+        );
+        const fetched = Number(json.data.fetched ?? json.data.totalFetched ?? newCount);
         const updatedArtist: Artist = { ...syncedArtist, trackCount: newCount };
 
-        // 1. Update TanStack Query cache directly for instant synchronization
+        // 0. Persist into localStorage custom artists so background refetches never drop it
+        try {
+          const rawLocal = JSON.parse(localStorage.getItem(STORAGE_LOCAL_ARTISTS_KEY) || '[]');
+          const localList: Artist[] = Array.isArray(rawLocal) ? rawLocal : [];
+          const lIdx = localList.findIndex(
+            (a) =>
+              a.id === updatedArtist.id ||
+              a.name.trim().toLowerCase() === updatedArtist.name.trim().toLowerCase()
+          );
+          if (lIdx >= 0) {
+            localList[lIdx] = { ...localList[lIdx], ...updatedArtist };
+          } else {
+            localList.unshift(updatedArtist);
+          }
+          localStorage.setItem(STORAGE_LOCAL_ARTISTS_KEY, JSON.stringify(localList.slice(0, 100)));
+        } catch {}
+
+        // 1. Optimistic update: set TanStack Query cache directly (0ms instant UI, no overwrite flicker)
         queryClient.setQueryData<Artist[]>(QUERY_KEYS.artists, (old = []) => {
           const idx = old.findIndex(
             (a) =>
@@ -354,9 +470,8 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           setCachedArtists(next).catch(() => {});
         });
 
-        // 4. Invalidate TanStack queries to re-fetch in background
-        await fetchArtists();
-        await invalidateSongs();
+        // 4. Invalidate songs in background without blocking button or overwriting optimistic artist state
+        void invalidateSongs();
 
         return {
           artist: updatedArtist,
@@ -490,8 +605,10 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         if (activeCfg.genreFilter && activeCfg.genreFilter !== 'any') {
           params.set('genre', activeCfg.genreFilter);
         }
-        if (playedIds.length > 0) {
-          params.set('exclude', playedIds.slice(-40).join(','));
+        const { ids: currentExcluded } = loadValidPlayedIds();
+        playedIdsRef.current = currentExcluded;
+        if (currentExcluded.length > 0) {
+          params.set('exclude', currentExcluded.slice(-150).join(','));
         }
 
         const res = await fetch(`/api/songs?${params.toString()}`, {
@@ -513,11 +630,13 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     [config, playedIds, stop]
   );
 
-  // Initial round start
+  // Ensure initial hydration of playedIdsRef happens before first round start
   const didInitRef = useRef(false);
   useEffect(() => {
     if (!didInitRef.current) {
       didInitRef.current = true;
+      const { ids: validPlayed } = loadValidPlayedIds();
+      playedIdsRef.current = validPlayed;
       startNewRound(config);
     }
   }, [config, startNewRound]);
@@ -670,7 +789,7 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           setOutcome('correct');
           setRevealSong(data.reveal);
           if (data.reveal.previewUrl) prefetchAudio(data.reveal.previewUrl);
-          setPlayedIds((prev) => [...prev, data.reveal!.id]);
+          recordPlayedTrack(data.reveal.id);
 
           const newStreak = streak + 1;
           setStreak(newStreak);
@@ -717,7 +836,7 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           setOutcome('failed');
           setRevealSong(data.reveal);
           if (data.reveal.previewUrl) prefetchAudio(data.reveal.previewUrl);
-          setPlayedIds((prev) => [...prev, data.reveal!.id]);
+          recordPlayedTrack(data.reveal.id);
           setStreak(0);
           try {
             localStorage.setItem(STORAGE_STREAK_KEY, '0');
@@ -795,7 +914,7 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           setOutcome('failed');
           setRevealSong(data.reveal);
           if (data.reveal.previewUrl) prefetchAudio(data.reveal.previewUrl);
-          setPlayedIds((prev) => [...prev, data.reveal!.id]);
+          recordPlayedTrack(data.reveal.id);
           setStreak(0);
           try {
             localStorage.setItem(STORAGE_STREAK_KEY, '0');
@@ -891,64 +1010,112 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const nextStageSeconds =
     currentStage + 1 < stages.length ? stages[currentStage + 1] : null;
 
+  const audioProgressValue = useMemo<AudioProgressContextType>(
+    () => ({
+      progress,
+      currentTime,
+      totalDuration,
+    }),
+    [progress, currentTime, totalDuration]
+  );
+
+  // Exclude 60fps `progress` and `currentTime` from GameContext dependencies so
+  // `useGame()` consumers do not re-render on every requestAnimationFrame tick.
+  const gameContextValue = useMemo<GameContextType>(
+    () => ({
+      config,
+      setConfig,
+      handleConfigChange,
+      handleCategoryChange,
+      handleDailyDifficultySelect,
+      startNewRound,
+
+      artists,
+      fetchArtists,
+      syncArtist,
+      syncingArtistId,
+
+      round,
+      loadingRound,
+      submittingGuess,
+      outcome,
+      revealSong,
+      history,
+      stages,
+      currentStage,
+      activeClipSeconds,
+      nextStageSeconds,
+
+      streak,
+      bestStreak,
+      fastestTime,
+
+      dailyInfo,
+      dailyIndex,
+      dailyResults,
+      dailyScore,
+
+      volume,
+      setVolume,
+      audioState,
+      progress: 0,
+      currentTime: 0,
+      totalDuration,
+      handleToggleSnippetPlay,
+      handleToggleFullPreview,
+      onSeek: seekFullPreview,
+
+      handleSelectGuess,
+      handleSkip,
+      handleNextRoundOrDaily,
+
+      addArtistOpen,
+      setAddArtistOpen,
+      leaderboardOpen,
+      setLeaderboardOpen,
+      ticketModalOpen,
+      setTicketModalOpen,
+    }),
+    [
+      config,
+      artists,
+      fetchArtists,
+      syncArtist,
+      syncingArtistId,
+      round,
+      loadingRound,
+      submittingGuess,
+      outcome,
+      revealSong,
+      history,
+      stages,
+      currentStage,
+      activeClipSeconds,
+      nextStageSeconds,
+      streak,
+      bestStreak,
+      fastestTime,
+      dailyInfo,
+      dailyIndex,
+      dailyResults,
+      dailyScore,
+      volume,
+      audioState,
+      totalDuration,
+      handleToggleSnippetPlay,
+      handleToggleFullPreview,
+      seekFullPreview,
+      addArtistOpen,
+      leaderboardOpen,
+      ticketModalOpen,
+    ]
+  );
+
   return (
-    <GameContext.Provider
-      value={{
-        config,
-        setConfig,
-        handleConfigChange,
-        handleCategoryChange,
-        handleDailyDifficultySelect,
-        startNewRound,
-
-        artists,
-        fetchArtists,
-        syncArtist,
-        syncingArtistId,
-
-        round,
-        loadingRound,
-        submittingGuess,
-        outcome,
-        revealSong,
-        history,
-        stages,
-        currentStage,
-        activeClipSeconds,
-        nextStageSeconds,
-
-        streak,
-        bestStreak,
-        fastestTime,
-
-        dailyInfo,
-        dailyIndex,
-        dailyResults,
-        dailyScore,
-
-        volume,
-        setVolume,
-        audioState,
-        progress,
-        currentTime,
-        totalDuration,
-        handleToggleSnippetPlay,
-        handleToggleFullPreview,
-        onSeek: seekFullPreview,
-
-        handleSelectGuess,
-        handleSkip,
-        handleNextRoundOrDaily,
-
-        addArtistOpen,
-        setAddArtistOpen,
-        leaderboardOpen,
-        setLeaderboardOpen,
-        ticketModalOpen,
-        setTicketModalOpen,
-      }}
-    >
-      {children}
+    <GameContext.Provider value={gameContextValue}>
+      <AudioProgressContext.Provider value={audioProgressValue}>
+        {children}
+      </AudioProgressContext.Provider>
     </GameContext.Provider>
   );
 };

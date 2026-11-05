@@ -162,13 +162,15 @@ export const supabaseAdmin = {
   /**
    * Find existing artist by ID or case-insensitive name
    */
-  async findArtist(id?: string, name?: string): Promise<Artist | null> {
+  async findArtist(idOrName?: string, name?: string): Promise<Artist | null> {
     if (!isSupabaseConfigured()) return null;
-    const query = id
-      ? `artists?id=eq.${encodeURIComponent(id)}&limit=1`
-      : name
-        ? `artists?name=ilike.${encodeURIComponent(name.trim())}&limit=1`
-        : null;
+    const lookupName = name || idOrName;
+    const query =
+      idOrName && name
+        ? `artists?id=eq.${encodeURIComponent(idOrName)}&limit=1`
+        : lookupName
+          ? `artists?name=ilike.${encodeURIComponent(lookupName.trim())}&limit=1`
+          : null;
     if (!query) return null;
 
     const res = await fetch(getRestUrl(query), { headers: getSupabaseHeaders() });
@@ -391,10 +393,67 @@ export const supabaseAdmin = {
   },
 
   /**
+   * Fetch Leaderboard entries from Supabase
+   */
+  async getLeaderboard(
+    category?: CategoryType,
+    difficulty?: string,
+    limit = 50
+  ): Promise<LeaderboardEntry[]> {
+    if (!isSupabaseConfigured()) return [];
+    try {
+      const filters: string[] = ['select=*', 'order=score.desc,fastest_seconds.asc', `limit=${limit}`];
+      if (category === 'thai' || category === 'international') {
+        filters.push(`category=in.(${category},all)`);
+      }
+      if (difficulty && difficulty !== 'all') {
+        filters.push(`difficulty=eq.${encodeURIComponent(difficulty)}`);
+      }
+      const res = await fetch(getRestUrl(`leaderboard?${filters.join('&')}`), {
+        headers: getSupabaseHeaders(),
+      });
+      if (!res.ok) return [];
+      const rows = (await res.json()) as Array<{
+        id: string;
+        player_name: string;
+        score: number;
+        streak: number;
+        fastest_seconds: number | null;
+        difficulty: LeaderboardEntry['difficulty'];
+        category: CategoryType;
+        is_daily?: boolean;
+        created_at: string;
+      }>;
+      return rows.map((r) => ({
+        id: r.id,
+        playerName: r.player_name,
+        score: r.score,
+        streak: r.streak,
+        fastestSeconds: r.fastest_seconds ?? 0,
+        difficulty: r.difficulty,
+        category: r.category,
+        isDaily: Boolean(r.is_daily),
+        createdAt: r.created_at,
+      }));
+    } catch (err) {
+      console.error('[Supabase getLeaderboard] Error:', err);
+      return [];
+    }
+  },
+
+  /**
    * Batch Upsert Leaderboard entries
    */
   async upsertLeaderboard(entries: LeaderboardEntry[]): Promise<number> {
     if (!isSupabaseConfigured() || entries.length === 0) return 0;
+    for (const e of entries) {
+      await fetch(
+        getRestUrl(
+          `leaderboard?player_name=ilike.${encodeURIComponent(e.playerName)}&category=eq.${encodeURIComponent(e.category)}&difficulty=eq.${encodeURIComponent(e.difficulty)}&id=neq.${encodeURIComponent(e.id)}`
+        ),
+        { method: 'DELETE', headers: getSupabaseHeaders() }
+      ).catch(() => {});
+    }
     const rows = entries.map((e) => ({
       id: e.id,
       player_name: e.playerName,
