@@ -111,9 +111,29 @@ const response = {
 };
 await handleSkip({ body: { roundToken, giveUp: true }, headers: {} } as never, response as never);
 assert.equal(response.statusCode, 200);
-assert.equal((response.body as { data: { roundResult: string } }).data.roundResult, 'skipped');
+const skippedBody = response.body as { data: { outcome: string; roundResult: string; reveal: { id: string } } };
+assert.equal(skippedBody.data.outcome, 'failed');
+assert.equal(skippedBody.data.roundResult, 'skipped');
+assert.equal(skippedBody.data.reveal.id, skippedTrack.id, 'a full-song skip reveals and finalizes the current song');
 assert.equal(await dbService.claimGuesserRoundResult(roundId, 'correct'), false, 'a skipped round cannot later win or add score');
 assert.equal(activeRounds.has(roundToken), false, 'skipping consumes and stops the previous round');
+
+const stageSkipState = { ...roundState, roundId: 'test-guesser-stage-skip' };
+const stageSkipToken = signRoundToken(stageSkipState);
+activeRounds.set(stageSkipToken, stageSkipState);
+const stageSkipResponse = {
+  statusCode: 200,
+  body: null as unknown,
+  status(code: number) { this.statusCode = code; return this; },
+  json(body: unknown) { this.body = body; return this; },
+};
+await handleSkip({ body: { roundToken: stageSkipToken, giveUp: false }, headers: {} } as never, stageSkipResponse as never);
+const stageSkipBody = stageSkipResponse.body as { data: { outcome: string; roundResult?: string; stage: number; roundToken: string } };
+assert.equal(stageSkipBody.data.outcome, 'active', 'snippet skip keeps the Song Guesser song active');
+assert.equal(stageSkipBody.data.stage, 1);
+assert.equal(stageSkipBody.data.roundResult, 'skipped', 'the marker describes the skipped snippet stage, not a finalized song');
+assert.ok(activeRounds.has(stageSkipBody.data.roundToken));
+
 const nextRoundResponse = {
   statusCode: 200,
   body: null as unknown,
