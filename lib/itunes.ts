@@ -345,6 +345,8 @@ interface ItunesFetchResult {
   songs: Song[];
   rateLimited: boolean;
   artistPrimaryGenre?: string;
+  resolvedArtistName?: string;
+  resolvedArtistId?: string;
   detectedCategory: 'thai' | 'international';
 }
 
@@ -412,6 +414,8 @@ export async function fetchArtistSongsUpTo200(
     const rawCollected = new Map<string, { item: ItunesTrackItem; cleanedTitle: string; idx: number }>();
     let rateLimited = false;
     let artistPrimaryGenre: string | undefined;
+    let topResolvedArtistName: string | undefined;
+    let topResolvedArtistId: string | undefined;
 
     const collectTracks = (rawTracks: ItunesTrackItem[], resolvedArtistId: number | null) => {
       rawTracks.forEach((item, idx) => {
@@ -465,6 +469,12 @@ export async function fetchArtistSongsUpTo200(
         const aName = String(a.artistName || '');
         if (checkArtistStrictMatch(aName, artistQuery)) {
           resolvedArtistId = Number(a.artistId) || null;
+          if (!topResolvedArtistName && aName.trim()) {
+            topResolvedArtistName = aName.trim();
+          }
+          if (!topResolvedArtistId && resolvedArtistId) {
+            topResolvedArtistId = String(resolvedArtistId);
+          }
           if (a.primaryGenreName && !artistPrimaryGenre) {
             artistPrimaryGenre = a.primaryGenreName;
           }
@@ -561,6 +571,8 @@ export async function fetchArtistSongsUpTo200(
       songs,
       rateLimited,
       artistPrimaryGenre,
+      resolvedArtistName: topResolvedArtistName,
+      resolvedArtistId: topResolvedArtistId,
       detectedCategory,
     };
 
@@ -634,24 +646,40 @@ export async function syncArtistSongs(
   const syncTask = (async (): Promise<SyncArtistResponse> => {
     const { dbService } = await import('./db');
     const { songPool } = await import('./engine/songPool');
-    const { addCustomArtist, getAllArtists } = await import('./engine/artists');
+    const {
+      addCustomArtist,
+      getAllArtists,
+      extractSoloArtistNames,
+      cleanArtistDisplayName,
+      buildCanonicalArtistId,
+      parseTrackArtistCredits,
+    } = await import('./engine/artists');
     const { invalidateArtistsServerCache } = await import('./engine/artistRoutes');
 
-    const slugBase = normalizeText(cleanQuery).replace(/\s+/g, '_') || `custom_${Date.now()}`;
+    const queriedSoloNames = extractSoloArtistNames(cleanQuery);
+    const primaryQueryName = queriedSoloNames[0] || cleanArtistDisplayName(cleanQuery) || cleanQuery;
+
+    const slugBase = normalizeText(primaryQueryName).replace(/\s+/g, '_') || `custom_${Date.now()}`;
     const defaultArtistSlug = `artist_${slugBase}`;
     const jobId = `job_${slugBase}`;
 
     // Check existing artist & songs in persistent cache (SQLite / Memory / Supabase)
     const knownInLibrary = getAllArtists(songPool).find(
-      (a) => checkArtistStrictMatch(a.name, cleanQuery) || normalizeText(a.name) === normalizeText(cleanQuery)
+      (a) =>
+        (checkArtistStrictMatch(a.name, primaryQueryName) ||
+          normalizeText(a.name) === normalizeText(primaryQueryName)) &&
+        extractSoloArtistNames(a.name).length === 1
     );
     const existingLocalSongs = dbService
-      .searchSongs(cleanQuery, { artist: cleanQuery, limit: 250 })
-      .filter((s) => checkArtistStrictMatch(s.artistName, cleanQuery, undefined, undefined, s.title));
+      .searchSongs(primaryQueryName, { artist: primaryQueryName, limit: 250 })
+      .filter((s) => checkArtistStrictMatch(s.artistName, primaryQueryName, undefined, undefined, s.title));
 
     let existingArtist = knownInLibrary || null;
     if (!existingArtist && isSupabaseConfigured()) {
-      existingArtist = await supabaseAdmin.findArtist(cleanQuery);
+      const found = await supabaseAdmin.findArtist(primaryQueryName);
+      if (found && extractSoloArtistNames(found.name).length === 1) {
+        existingArtist = found;
+      }
     }
 
     const previousCount = Math.max(existingArtist?.trackCount || 0, existingLocalSongs.length);
@@ -782,15 +810,23 @@ export async function syncArtistSongs(
         songs: fetchedSongs,
         rateLimited,
         artistPrimaryGenre,
+        resolvedArtistName,
+        resolvedArtistId,
         detectedCategory,
-      } = await fetchArtistSongsUpTo200(cleanQuery, preferredCategory, maxLimit);
+      } = await fetchArtistSongsUpTo200(primaryQueryName, preferredCategory, maxLimit);
 
       if (fetchedSongs.length === 0) {
         // Fallback: if DB already has songs for this artist, preserve & return them instead of failing!
         if (existingLocalSongs.length > 0) {
+          const fallbackSoloName =
+            existingArtist?.name ||
+            extractSoloArtistNames(existingLocalSongs[0].artistName).find((n) =>
+              checkArtistStrictMatch(n, primaryQueryName)
+            ) ||
+            cleanArtistDisplayName(primaryQueryName);
           const fallbackArtist: Artist = existingArtist || {
-            id: defaultArtistSlug,
-            name: existingLocalSongs[0].artistName,
+            id: buildCanonicalArtistId(fallbackSoloName),
+            name: fallbackSoloName,
             category: existingLocalSongs[0].category,
             mainGenre: existingLocalSongs[0].genre,
             avatarUrl: existingLocalSongs[0].artworkUrl,
@@ -848,21 +884,99 @@ export async function syncArtistSongs(
       }
 
       const primarySample = fetchedSongs[0];
-      const canonicalName = existingArtist?.name || primarySample.artistName;
-      const artistId =
-        existingArtist?.id || `artist_${normalizeText(canonicalName).replace(/\s+/g, '_')}`;
+      // Resolve a strictly solo/band canonicalName — NEVER a combined collaboration string
+      let canonicalName = existingArtist?.name || '';
+      if (!canonicalName || extractSoloArtistNames(canonicalName).length > 1) {
+        if (
+          resolvedArtistName &&
+          extractSoloArtistNames(resolvedArtistName).length === 1 &&
+          checkArtistStrictMatch(resolvedArtistName, primaryQueryName)
+        ) {
+          canonicalName = cleanArtistDisplayName(resolvedArtistName);
+        } else {
+          let matchedSoloCredit = '';
+          for (const s of fetchedSongs) {
+            const credits = parseTrackArtistCredits(s.id, s.artistName, s.title);
+            const hit = credits.find(
+              (c) =>
+                checkArtistStrictMatch(c.artistName, primaryQueryName) &&
+                extractSoloArtistNames(c.artistName).length === 1
+            );
+            if (hit) {
+              matchedSoloCredit = hit.artistName;
+              break;
+            }
+          }
+          canonicalName = matchedSoloCredit || cleanArtistDisplayName(primaryQueryName);
+        }
+      }
+
+      const artistId = existingArtist?.id || buildCanonicalArtistId(canonicalName);
       const resolvedMainGenre = resolveArtistMainGenre(
         fetchedSongs,
         detectedCategory,
         artistPrimaryGenre
       );
 
-      const songsWithArtist = fetchedSongs.map((s) => ({ ...s, artistId }));
+      const songsWithArtist: Song[] = fetchedSongs.map((s) => {
+        const parsedCredits = parseTrackArtistCredits(s.id, s.artistName, s.title, {
+          id: artistId,
+          name: canonicalName,
+        });
+        const existingInPool = songPool.get(s.id);
+        const mergedCreditsMap = new Map<string, (typeof parsedCredits)[number]>();
+        if (existingInPool?.artists) {
+          for (const ec of existingInPool.artists) {
+            mergedCreditsMap.set(ec.artistId, ec);
+          }
+        }
+        for (const pc of parsedCredits) {
+          mergedCreditsMap.set(pc.artistId, pc);
+        }
+        const finalCredits = Array.from(mergedCreditsMap.values()).sort(
+          (a, b) => a.position - b.position
+        );
+        return {
+          ...s,
+          artistId: finalCredits[0]?.artistId || artistId,
+          artistIds: finalCredits.map((c) => c.artistId),
+          artists: finalCredits,
+        };
+      });
 
-      // Save to local SQLite & in-memory songPool immediately
+      // Save to local SQLite (songs + track_artists) & in-memory songPool immediately
       dbService.saveSongs(songsWithArtist, false);
       for (const s of songsWithArtist) {
         songPool.set(s.id, s);
+      }
+
+      // If the user explicitly queried a collaboration string (e.g. "ROSÉ & Bruno Mars"),
+      // register every collaborating artist as an independent selectable artist too.
+      if (queriedSoloNames.length > 1) {
+        for (const extraRaw of queriedSoloNames.slice(1)) {
+          const extraName = cleanArtistDisplayName(extraRaw);
+          if (!extraName || normalizeText(extraName) === normalizeText(canonicalName)) continue;
+          const extraId = buildCanonicalArtistId(extraName);
+          const extraSongs = songsWithArtist.filter((s) =>
+            s.artists?.some(
+              (c) => c.artistId === extraId || checkArtistStrictMatch(c.artistName, extraName)
+            )
+          );
+          if (extraSongs.length > 0) {
+            const extraArtist: Artist = {
+              id: extraId,
+              name: extraName,
+              category: detectedCategory,
+              mainGenre: resolvedMainGenre,
+              avatarUrl: extraSongs[0]?.artworkUrl || primarySample.artworkUrl || '',
+              isCustom: true,
+              trackCount: extraSongs.length,
+            };
+            dbService.saveCustomArtist(extraArtist, false);
+            addCustomArtist(extraArtist);
+            invalidateArtistsServerCache(extraArtist);
+          }
+        }
       }
 
       const newCount = Math.max(previousCount, songsWithArtist.length);
@@ -870,6 +984,7 @@ export async function syncArtistSongs(
 
       const finalArtist: Artist = {
         id: artistId,
+        itunesArtistId: resolvedArtistId || existingArtist?.itunesArtistId,
         name: canonicalName,
         category: detectedCategory,
         mainGenre: resolvedMainGenre,

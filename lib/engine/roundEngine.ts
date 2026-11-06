@@ -6,6 +6,8 @@ import {
   DIFFICULTY_PRESETS,
   DifficultyLevel,
   GameMode,
+  MAX_SNIPPET_DURATION,
+  MIN_SNIPPET_DURATION,
   RoundActionResponse,
   RoundStartResponse,
   Song,
@@ -15,7 +17,7 @@ import { parseGuessDTO, parseSkipDTO } from '../../shared/validation';
 import { dbService } from '../db';
 import { checkArtistStrictMatch, isJunkTrack } from '../itunes';
 import { songPool, ingestArtistSongs, fetchItunesSongs } from './songPool';
-import { getAllArtists, normalizeText } from './artists';
+import { buildCanonicalArtistId, getAllArtists, normalizeText } from './artists';
 import { redis, isRedisConfigured } from '../redis';
 import { isSupabaseConfigured, supabaseAdmin } from '../supabase';
 
@@ -48,14 +50,27 @@ function getValidLibraryPool(): Song[] {
     return cachedValidLibraryPool;
   }
 
+  const libraryArtistIdSet = new Set(libraryArtists.map((a) => a.id));
+  const libraryArtistNormSet = new Set(libraryArtists.map((a) => normalizeText(a.name)));
   const artistMatchByRawName = new Map<string, boolean>();
   const valid: Song[] = [];
   for (const s of songPool.values()) {
     if (isJunkTrack(s.title, s.albumName, s.artistName)) continue;
-    let matched = artistMatchByRawName.get(s.artistName);
-    if (matched === undefined) {
-      matched = libraryArtists.some((a) => checkArtistStrictMatch(s.artistName, a.name));
-      artistMatchByRawName.set(s.artistName, matched);
+    let matched = false;
+    if (s.artists && s.artists.length > 0) {
+      matched = s.artists.some(
+        (c) =>
+          libraryArtistIdSet.has(c.artistId) || libraryArtistNormSet.has(normalizeText(c.artistName))
+      );
+    }
+    if (!matched) {
+      const cachedMatch = artistMatchByRawName.get(s.artistName);
+      if (cachedMatch !== undefined) {
+        matched = cachedMatch;
+      } else {
+        matched = libraryArtists.some((a) => checkArtistStrictMatch(s.artistName, a.name));
+        artistMatchByRawName.set(s.artistName, matched);
+      }
     }
     if (!matched && /\((?:feat\.?|ft\.?|featuring|with|ร่วมกับ)\s+/i.test(s.title)) {
       matched = libraryArtists.some((a) =>
@@ -107,7 +122,7 @@ export function parseCustomStages(raw: unknown): number[] | null {
   const parts = raw
     .split(',')
     .map((s) => parseFloat(s.trim()))
-    .filter((n) => !isNaN(n) && n > 0 && n <= 30);
+    .filter((n) => !isNaN(n) && n >= MIN_SNIPPET_DURATION && n <= MAX_SNIPPET_DURATION);
   if (parts.length >= 2) {
     const unique = Array.from(new Set(parts)).sort((a, b) => a - b);
     return unique.length >= 2 ? unique : null;
@@ -164,6 +179,24 @@ export function matchesGenreFilter(song: Song, genreFilter?: string): boolean {
 
 export function matchesArtistFilter(song: Song, artistName?: string): boolean {
   if (!artistName || artistName === 'any') return true;
+  const targetId = buildCanonicalArtistId(artistName);
+  if (song.artists && song.artists.length > 0) {
+    if (
+      song.artists.some(
+        (c) =>
+          c.artistId === artistName ||
+          c.artistId === targetId ||
+          checkArtistStrictMatch(c.artistName, artistName)
+      )
+    ) {
+      return true;
+    }
+  }
+  if (song.artistIds && song.artistIds.length > 0) {
+    if (song.artistIds.includes(artistName) || song.artistIds.includes(targetId)) {
+      return true;
+    }
+  }
   return checkArtistStrictMatch(song.artistName, artistName, undefined, undefined, song.title);
 }
 

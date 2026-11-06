@@ -10,10 +10,22 @@ export type ThemeId =
   | 'neon-cyber'
   | 'sunset';
 
+export type ArtistRole = 'primary' | 'featured' | 'collaborator';
+
+export interface TrackArtistCredit {
+  trackId: string;
+  artistId: string;
+  artistName: string;
+  role: ArtistRole;
+  position: number;
+}
+
 export interface Song {
   id: string;
   title: string;
   artistId?: string;
+  artistIds?: string[];
+  artists?: TrackArtistCredit[];
   artistName: string;
   albumName: string;
   releaseYear: number;
@@ -28,6 +40,7 @@ export interface Song {
 
 export interface Artist {
   id: string;
+  itunesArtistId?: string;
   name: string;
   category: 'thai' | 'international';
   mainGenre: string;
@@ -62,6 +75,11 @@ export interface TimeRangePreset {
   stages: number[];
   description: string;
 }
+
+export const MIN_SNIPPET_DURATION = 0.1;
+export const MAX_SNIPPET_DURATION = 15;
+export const STANDARD_MIN_SNIPPET_DURATION = 0.5;
+export const STANDARD_MAX_SNIPPET_DURATION = 15;
 
 export const DEFAULT_TIME_STAGES = [0.5, 2, 6, 8, 15];
 

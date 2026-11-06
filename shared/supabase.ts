@@ -1,4 +1,4 @@
-import type { Artist, ArtistSyncJob, CategoryType, LeaderboardEntry, Song } from './types';
+import type { Artist, ArtistSyncJob, CategoryType, LeaderboardEntry, Song, TrackArtistCredit } from './types';
 
 export interface SupabaseSongRow {
   id: string;
@@ -60,6 +60,7 @@ function getRestUrl(path: string): string {
 
 const SUPABASE_TIMEOUT_MS = 4500;
 let remoteJobsTableAvailable: boolean | null = null;
+let remoteTrackArtistsTableAvailable: boolean | null = null;
 const memorySyncJobs = new Map<string, ArtistSyncJob>();
 
 async function supabaseFetch(url: string, init?: RequestInit, timeoutMs = SUPABASE_TIMEOUT_MS): Promise<Response> {
@@ -143,7 +144,50 @@ export const supabaseAdmin = {
       );
       total += results.reduce((sum, n) => sum + n, 0);
     }
+
+    const allCredits = songs.flatMap((s) => s.artists || []);
+    if (allCredits.length > 0) {
+      await this.upsertTrackArtists(allCredits).catch(() => {});
+    }
+
     return total;
+  },
+
+  /**
+   * Batch Upsert track_artists junction rows (ON CONFLICT (track_id, artist_id) DO UPDATE)
+   */
+  async upsertTrackArtists(credits: TrackArtistCredit[]): Promise<void> {
+    if (!isSupabaseConfigured() || credits.length === 0 || remoteTrackArtistsTableAvailable === false) {
+      return;
+    }
+    const deduped = new Map<string, TrackArtistCredit>();
+    for (const c of credits) {
+      deduped.set(`${c.trackId}::${c.artistId}`, c);
+    }
+    const rows = Array.from(deduped.values()).map((c) => ({
+      track_id: String(c.trackId),
+      artist_id: c.artistId,
+      artist_name: c.artistName,
+      role: c.role,
+      position: c.position,
+      updated_at: new Date().toISOString(),
+    }));
+
+    try {
+      const res = await supabaseFetch(getRestUrl('track_artists?on_conflict=track_id,artist_id'), {
+        method: 'POST',
+        headers: getSupabaseHeaders('resolution=merge-duplicates,return=minimal'),
+        body: JSON.stringify(rows.slice(0, 400)),
+      });
+      if (res.status === 404 || res.status === 400) {
+        const txt = await res.text().catch(() => '');
+        if (txt.includes('track_artists')) {
+          remoteTrackArtistsTableAvailable = false;
+        }
+      } else if (res.ok) {
+        remoteTrackArtistsTableAvailable = true;
+      }
+    } catch {}
   },
 
   /**

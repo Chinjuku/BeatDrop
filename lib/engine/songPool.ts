@@ -10,6 +10,8 @@ import {
   getAllArtists,
   normalizeGenre,
   computeMajorityGenre,
+  parseTrackArtistCredits,
+  backfillCollaborationsInDb,
 } from './artists';
 
 export const songPool = new Map<string, Song>(); // id -> Song
@@ -23,6 +25,7 @@ export function ensureCatalogLoaded(): void {
     for (const s of cachedSongs) {
       songPool.set(s.id, s);
     }
+    backfillCollaborationsInDb(songPool);
     const modeStr = isDbLocal()
       ? 'Offline SQLite Mode (DB_LOCAL=true)'
       : isSupabaseConfigured()
@@ -109,10 +112,15 @@ export async function fetchItunesSongs(
           }
         }
 
+        const trackIdStr = String(t.trackId);
+        const credits = parseTrackArtistCredits(trackIdStr, t.artistName, t.trackName);
+
         return {
-          id: String(t.trackId),
+          id: trackIdStr,
           title: t.trackName,
-          artistId: t.artistId ? String(t.artistId) : undefined,
+          artistId: credits[0]?.artistId || (t.artistId ? String(t.artistId) : undefined),
+          artistIds: credits.map((c) => c.artistId),
+          artists: credits,
           artistName: t.artistName,
           albumName: t.collectionName || 'Single',
           releaseYear: Number.isFinite(year) ? year : 2020,

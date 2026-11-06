@@ -2,9 +2,9 @@ import { DatabaseSync, type SQLInputValue } from 'node:sqlite';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { Artist, ArtistSyncJob, CategoryType, LeaderboardEntry, Song } from '../shared/types';
+import { Artist, ArtistRole, ArtistSyncJob, CategoryType, LeaderboardEntry, Song, TrackArtistCredit } from '../shared/types';
 import { isDbLocal, isSupabaseConfigured, supabaseAdmin } from './supabase';
-import { getArtistCandidateTokens } from './itunes';
+import { getArtistCandidateTokens, normalizeText } from './itunes';
 
 const DATA_DIR = path.resolve(process.cwd(), 'data');
 const LOCAL_DB_FILE = path.join(DATA_DIR, 'beatdrop.db');
@@ -31,6 +31,7 @@ const isServerlessSupabase = (): boolean => Boolean(process.env.VERCEL && isSupa
 let _db: DatabaseSync | null = null;
 let _insertSongStmt: ReturnType<DatabaseSync['prepare']> | null = null;
 let _insertArtistStmt: ReturnType<DatabaseSync['prepare']> | null = null;
+let _insertTrackArtistStmt: ReturnType<DatabaseSync['prepare']> | null = null;
 let _insertLeaderboardStmt: ReturnType<DatabaseSync['prepare']> | null = null;
 
 function ensureDb(): DatabaseSync {
@@ -111,6 +112,18 @@ function ensureDb(): DatabaseSync {
     );
 
     CREATE INDEX IF NOT EXISTS idx_sync_jobs_status ON artist_sync_jobs (status, locked_until);
+
+    CREATE TABLE IF NOT EXISTS track_artists (
+      track_id TEXT NOT NULL,
+      artist_id TEXT NOT NULL,
+      artist_name TEXT NOT NULL COLLATE NOCASE,
+      role TEXT NOT NULL DEFAULT 'primary',
+      position INTEGER NOT NULL DEFAULT 0,
+      PRIMARY KEY (track_id, artist_id)
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_track_artists_artist_id ON track_artists (artist_id);
+    CREATE INDEX IF NOT EXISTS idx_track_artists_artist_name ON track_artists (artist_name COLLATE NOCASE);
   `);
 
   _insertSongStmt = instance.prepare(`
@@ -149,6 +162,15 @@ function ensureDb(): DatabaseSync {
     ON CONFLICT(id) DO NOTHING
   `);
 
+  _insertTrackArtistStmt = instance.prepare(`
+    INSERT INTO track_artists (track_id, artist_id, artist_name, role, position)
+    VALUES (?, ?, ?, ?, ?)
+    ON CONFLICT(track_id, artist_id) DO UPDATE SET
+      artist_name = excluded.artist_name,
+      role = excluded.role,
+      position = excluded.position
+  `);
+
   _db = instance;
   return instance;
 }
@@ -173,6 +195,12 @@ const insertLeaderboardStmt = {
   run: (...args: SQLInputValue[]) => {
     ensureDb();
     return _insertLeaderboardStmt!.run(...args);
+  },
+};
+const insertTrackArtistStmt = {
+  run: (...args: SQLInputValue[]) => {
+    ensureDb();
+    return _insertTrackArtistStmt!.run(...args);
   },
 };
 
@@ -285,6 +313,17 @@ export const dbService = {
         song.popularityScore || 50,
         Date.now()
       );
+      if (song.artists && song.artists.length > 0) {
+        for (const credit of song.artists) {
+          insertTrackArtistStmt.run(
+            String(song.id),
+            credit.artistId,
+            credit.artistName,
+            credit.role,
+            credit.position
+          );
+        }
+      }
     } catch (err) {
       console.error(`Failed to save song ${song.id}:`, err);
     }
@@ -318,6 +357,17 @@ export const dbService = {
           song.popularityScore || 50,
           Date.now()
         );
+        if (song.artists && song.artists.length > 0) {
+          for (const credit of song.artists) {
+            insertTrackArtistStmt.run(
+              String(song.id),
+              credit.artistId,
+              credit.artistName,
+              credit.role,
+              credit.position
+            );
+          }
+        }
       }
       db.exec('COMMIT');
       if (syncToCloud && isSupabaseConfigured()) {
@@ -329,13 +379,104 @@ export const dbService = {
     }
   },
 
+  saveTrackArtists(credits: TrackArtistCredit[]): void {
+    if (!credits || credits.length === 0 || isServerlessSupabase()) return;
+    try {
+      db.exec('BEGIN TRANSACTION');
+      for (const c of credits) {
+        insertTrackArtistStmt.run(c.trackId, c.artistId, c.artistName, c.role, c.position);
+      }
+      db.exec('COMMIT');
+    } catch {
+      try {
+        db.exec('ROLLBACK');
+      } catch {}
+    }
+  },
+
+  getTrackArtists(trackId: string): TrackArtistCredit[] {
+    if (isServerlessSupabase()) return [];
+    try {
+      const rows = db
+        .prepare('SELECT * FROM track_artists WHERE track_id = ? ORDER BY position ASC')
+        .all(String(trackId)) as Array<{
+        track_id: string;
+        artist_id: string;
+        artist_name: string;
+        role: ArtistRole;
+        position: number;
+      }>;
+      return rows.map((r) => ({
+        trackId: r.track_id,
+        artistId: r.artist_id,
+        artistName: r.artist_name,
+        role: r.role,
+        position: r.position,
+      }));
+    } catch {
+      return [];
+    }
+  },
+
+  getTrackIdsByArtist(artistId: string, artistName?: string): string[] {
+    if (isServerlessSupabase()) return [];
+    try {
+      const rows = artistName
+        ? (db
+            .prepare(
+              'SELECT DISTINCT track_id FROM track_artists WHERE artist_id = ? OR artist_name = ? COLLATE NOCASE'
+            )
+            .all(artistId, artistName) as Array<{ track_id: string }>)
+        : (db
+            .prepare('SELECT DISTINCT track_id FROM track_artists WHERE artist_id = ?')
+            .all(artistId) as Array<{ track_id: string }>);
+      return rows.map((r) => r.track_id);
+    } catch {
+      return [];
+    }
+  },
+
   /**
-   * Retrieve all songs stored in SQLite
+   * Retrieve all songs stored in SQLite (with normalized track_artists credits hydrated)
    */
   getAllSongs(): Song[] {
     try {
       const rows = db.prepare('SELECT * FROM songs').all() as unknown as SongRow[];
-      return rows.map(rowToSong);
+      const creditRows = db
+        .prepare('SELECT * FROM track_artists ORDER BY position ASC')
+        .all() as Array<{
+        track_id: string;
+        artist_id: string;
+        artist_name: string;
+        role: ArtistRole;
+        position: number;
+      }>;
+
+      const creditsByTrack = new Map<string, TrackArtistCredit[]>();
+      for (const cr of creditRows) {
+        const item: TrackArtistCredit = {
+          trackId: cr.track_id,
+          artistId: cr.artist_id,
+          artistName: cr.artist_name,
+          role: cr.role,
+          position: cr.position,
+        };
+        const list = creditsByTrack.get(cr.track_id);
+        if (list) list.push(item);
+        else creditsByTrack.set(cr.track_id, [item]);
+      }
+
+      return rows.map((r) => {
+        const song = rowToSong(r);
+        const credits = creditsByTrack.get(song.id);
+        if (credits && credits.length > 0) {
+          song.artists = credits;
+          song.artistIds = credits.map((c) => c.artistId);
+        } else if (song.artistId) {
+          song.artistIds = [song.artistId];
+        }
+        return song;
+      });
     } catch (err) {
       console.error('Failed to get all songs:', err);
       return [];
@@ -376,20 +517,33 @@ export const dbService = {
 
     if (artist && artist !== 'any') {
       const tokens = getArtistCandidateTokens(artist);
+      const artistSlug = `artist_${normalizeText(artist).replace(/\s+/g, '_')}`;
       if (tokens.length > 0) {
         const artistConds = tokens.map(() => 'artist_name LIKE ?').join(' OR ');
-        conditions.push(`(${artistConds})`);
-        params.push(...tokens.map((t) => `%${t}%`));
+        const creditConds = tokens.map(() => 'artist_name LIKE ?').join(' OR ');
+        conditions.push(
+          `((${artistConds}) OR id IN (SELECT track_id FROM track_artists WHERE artist_id = ? OR artist_id = ? OR ${creditConds}))`
+        );
+        params.push(
+          ...tokens.map((t) => `%${t}%`),
+          artist,
+          artistSlug,
+          ...tokens.map((t) => `%${t}%`)
+        );
       } else {
-        conditions.push('(artist_name LIKE ? OR artist_name LIKE ?)');
-        params.push(`%${artist}%`, `${artist}%`);
+        conditions.push(
+          '(artist_name LIKE ? OR artist_name LIKE ? OR id IN (SELECT track_id FROM track_artists WHERE artist_id = ? OR artist_name LIKE ?))'
+        );
+        params.push(`%${artist}%`, `${artist}%`, artistSlug, `%${artist.trim()}%`);
       }
     }
 
     const trimmedQuery = query.trim();
     if (trimmedQuery && (!artist || trimmedQuery.toLowerCase() !== artist.toLowerCase())) {
-      conditions.push('(title LIKE ? OR artist_name LIKE ?)');
-      params.push(`%${trimmedQuery}%`, `%${trimmedQuery}%`);
+      conditions.push(
+        '(title LIKE ? OR artist_name LIKE ? OR id IN (SELECT track_id FROM track_artists WHERE artist_name LIKE ?))'
+      );
+      params.push(`%${trimmedQuery}%`, `%${trimmedQuery}%`, `%${trimmedQuery}%`);
     }
 
     const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
@@ -398,7 +552,17 @@ export const dbService = {
 
     try {
       const rows = db.prepare(sql).all(...params) as unknown as SongRow[];
-      return rows.map(rowToSong);
+      return rows.map((r) => {
+        const song = rowToSong(r);
+        const credits = this.getTrackArtists(song.id);
+        if (credits.length > 0) {
+          song.artists = credits;
+          song.artistIds = credits.map((c) => c.artistId);
+        } else if (song.artistId) {
+          song.artistIds = [song.artistId];
+        }
+        return song;
+      });
     } catch (err) {
       console.error('Failed to search songs in DB:', err);
       return [];

@@ -60,6 +60,23 @@ CREATE INDEX IF NOT EXISTS idx_songs_title_trgm ON public.songs USING GIN (title
 CREATE INDEX IF NOT EXISTS idx_songs_artist_trgm ON public.songs USING GIN (artist_name gin_trgm_ops);
 
 -- ============================================================================
+-- 3b. Table: track_artists (Normalized Many-to-Many Track <-> Artist Credits)
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS public.track_artists (
+  track_id TEXT NOT NULL REFERENCES public.songs(id) ON DELETE CASCADE,
+  artist_id TEXT NOT NULL,
+  artist_name CITEXT NOT NULL,
+  role TEXT NOT NULL DEFAULT 'primary' CHECK (role IN ('primary', 'featured', 'collaborator')),
+  position INTEGER NOT NULL DEFAULT 0,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  PRIMARY KEY (track_id, artist_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_track_artists_artist_id ON public.track_artists (artist_id);
+CREATE INDEX IF NOT EXISTS idx_track_artists_artist_name ON public.track_artists (artist_name);
+
+
+-- ============================================================================
 -- 4. Table: daily_challenges (Deterministic 5 songs per day per category)
 -- ============================================================================
 CREATE TABLE IF NOT EXISTS public.daily_challenges (
@@ -122,6 +139,7 @@ CREATE INDEX IF NOT EXISTS idx_artist_sync_jobs_artist_name
 -- ============================================================================
 ALTER TABLE public.artists ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.songs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.track_artists ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.daily_challenges ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.leaderboard ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.artist_sync_jobs ENABLE ROW LEVEL SECURITY;
@@ -133,6 +151,9 @@ BEGIN
   END IF;
   IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'songs' AND policyname = 'Allow public read songs') THEN
     CREATE POLICY "Allow public read songs" ON public.songs FOR SELECT USING (true);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'track_artists' AND policyname = 'Allow public read track_artists') THEN
+    CREATE POLICY "Allow public read track_artists" ON public.track_artists FOR SELECT USING (true);
   END IF;
   IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'daily_challenges' AND policyname = 'Allow public read daily_challenges') THEN
     CREATE POLICY "Allow public read daily_challenges" ON public.daily_challenges FOR SELECT USING (true);
