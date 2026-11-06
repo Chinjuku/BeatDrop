@@ -28,6 +28,11 @@ export interface SupabaseArtistRow {
   updated_at?: string;
 }
 
+export type GuesserRoundClaim =
+  | { kind: 'claimed'; result: 'correct' | 'wrong' | 'skipped' }
+  | { kind: 'already-finalized'; result: 'correct' | 'wrong' | 'skipped' }
+  | { kind: 'unavailable' };
+
 export function isDbLocal(): boolean {
   return process.env.DB_LOCAL === 'true';
 }
@@ -108,8 +113,29 @@ export function rowToSong(r: SupabaseSongRow): Song {
 }
 
 export const supabaseAdmin = {
-  async claimGuesserRoundResult(roundId: string, result: 'correct' | 'wrong' | 'skipped'): Promise<boolean> {
-    if (!isSupabaseConfigured()) return false;
+  async getGuesserRoundResult(roundId: string): Promise<'correct' | 'wrong' | 'skipped' | null> {
+    if (!isSupabaseConfigured()) return null;
+    try {
+      const response = await supabaseFetch(getRestUrl(
+        `guesser_round_results?round_id=eq.${encodeURIComponent(roundId)}&select=result&limit=1`
+      ), { headers: getSupabaseHeaders() });
+      if (!response.ok) {
+        console.error('[Song Guesser] Could not read round result', { status: response.status });
+        return null;
+      }
+      const rows = await response.json() as Array<{ result?: unknown }>;
+      const result = rows[0]?.result;
+      return result === 'correct' || result === 'wrong' || result === 'skipped' ? result : null;
+    } catch (err) {
+      console.error('[Song Guesser] Round result lookup failed', {
+        errorType: err instanceof Error ? err.name : 'unknown',
+      });
+      return null;
+    }
+  },
+
+  async claimGuesserRoundResult(roundId: string, result: 'correct' | 'wrong' | 'skipped'): Promise<GuesserRoundClaim> {
+    if (!isSupabaseConfigured()) return { kind: 'unavailable' };
     try {
       const response = await supabaseFetch(getRestUrl('guesser_round_results?on_conflict=round_id'), {
         method: 'POST',
@@ -122,15 +148,31 @@ export const supabaseAdmin = {
       });
       if (!response.ok) {
         console.error('[Song Guesser] Could not persist round result', { status: response.status });
-        return false;
+      } else {
+        const rows = await response.json() as unknown[];
+        if (rows.length === 1) return { kind: 'claimed', result };
       }
-      const rows = await response.json() as unknown[];
-      return rows.length === 1;
+
+      // A retried or concurrent request must receive the already persisted
+      // terminal result. That keeps the UI recoverable without awarding twice.
+      const existingResponse = await supabaseFetch(getRestUrl(
+        `guesser_round_results?round_id=eq.${encodeURIComponent(roundId)}&select=result&limit=1`
+      ), { headers: getSupabaseHeaders() });
+      if (!existingResponse.ok) {
+        console.error('[Song Guesser] Could not read finalized round result', { status: existingResponse.status });
+        return { kind: 'unavailable' };
+      }
+      const existingRows = await existingResponse.json() as Array<{ result?: unknown }>;
+      const existingResult = existingRows[0]?.result;
+      if (existingResult === 'correct' || existingResult === 'wrong' || existingResult === 'skipped') {
+        return { kind: 'already-finalized', result: existingResult };
+      }
+      return { kind: 'unavailable' };
     } catch (err) {
       console.error('[Song Guesser] Round result persistence request failed', {
         errorType: err instanceof Error ? err.name : 'unknown',
       });
-      return false;
+      return { kind: 'unavailable' };
     }
   },
 
@@ -148,7 +190,10 @@ export const supabaseAdmin = {
         started_at: progress.startedAt,
       }),
     });
-    if (!post.ok) return null;
+    if (!post.ok) {
+      console.error('[Daily] Could not create or load round progress row', { status: post.status });
+      return null;
+    }
     const rows = await this.getDailyRoundProgress(
       progress.playerId, progress.dateKey, progress.category, progress.roundIndex
     );
@@ -167,7 +212,10 @@ export const supabaseAdmin = {
       const res = await supabaseFetch(getRestUrl(
         `daily_round_progress?player_id=eq.${encodeURIComponent(playerId)}&date_key=eq.${encodeURIComponent(dateKey)}&category=eq.${encodeURIComponent(category)}${indexFilter}&select=*&order=round_index.asc`
       ));
-      if (!res.ok) return [];
+      if (!res.ok) {
+        console.error('[Daily] Could not read round progress rows', { status: res.status });
+        return [];
+      }
       const rows = await res.json() as Array<Record<string, unknown>>;
       return rows.map((row) => ({
         playerId: String(row.player_id),

@@ -110,6 +110,53 @@ CREATE INDEX IF NOT EXISTS idx_leaderboard_ranking
 CREATE INDEX IF NOT EXISTS idx_leaderboard_cat_diff_score
   ON public.leaderboard (category, difficulty, score DESC, fastest_seconds ASC);
 
+-- ==========================================================================
+-- 5a. Daily Challenge progress and ranking (also kept in migration 001)
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS public.daily_round_progress (
+  player_id UUID NOT NULL,
+  date_key DATE NOT NULL,
+  category TEXT NOT NULL CHECK (category IN ('all', 'thai', 'international')),
+  round_index SMALLINT NOT NULL CHECK (round_index BETWEEN 0 AND 4),
+  track_id TEXT NOT NULL,
+  started_at BIGINT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'pending'
+    CHECK (status IN ('pending', 'correct', 'wrong', 'skipped', 'expired')),
+  score INTEGER NOT NULL DEFAULT 0 CHECK (score BETWEEN -300 AND 1000),
+  speed_bonus INTEGER NOT NULL DEFAULT 0 CHECK (speed_bonus BETWEEN 0 AND 500),
+  answer_time_ms INTEGER NOT NULL DEFAULT 0 CHECK (answer_time_ms >= 0),
+  PRIMARY KEY (player_id, date_key, category, round_index)
+);
+
+CREATE TABLE IF NOT EXISTS public.daily_leaderboard (
+  id TEXT PRIMARY KEY,
+  player_id UUID NOT NULL,
+  date_key DATE NOT NULL,
+  category TEXT NOT NULL CHECK (category IN ('all', 'thai', 'international')),
+  player_name TEXT NOT NULL CHECK (length(trim(player_name)) BETWEEN 1 AND 24),
+  score INTEGER NOT NULL CHECK (score BETWEEN 0 AND 5000),
+  correct_count SMALLINT NOT NULL CHECK (correct_count BETWEEN 0 AND 5),
+  skip_count SMALLINT NOT NULL CHECK (skip_count BETWEEN 0 AND 5),
+  total_answer_time_ms INTEGER NOT NULL CHECK (total_answer_time_ms >= 0),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE (player_id, date_key, category)
+);
+
+CREATE INDEX IF NOT EXISTS daily_leaderboard_rank_idx
+  ON public.daily_leaderboard (
+    date_key, category, score DESC, correct_count DESC, skip_count ASC,
+    total_answer_time_ms ASC, player_name ASC, id ASC
+  );
+
+-- ==========================================================================
+-- 5b. Song Guesser terminal results (also kept in migration 002)
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS public.guesser_round_results (
+  round_id TEXT PRIMARY KEY,
+  result TEXT NOT NULL CHECK (result IN ('correct', 'wrong', 'skipped')),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
 -- ============================================================================
 -- 5b. Table: artist_sync_jobs (Persistent Background Job State & Recovery)
 -- ============================================================================
@@ -143,6 +190,11 @@ ALTER TABLE public.track_artists ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.daily_challenges ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.leaderboard ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.artist_sync_jobs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.daily_round_progress ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.daily_leaderboard ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.guesser_round_results ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON public.daily_round_progress, public.daily_leaderboard, public.guesser_round_results FROM anon, authenticated;
+GRANT ALL ON public.daily_round_progress, public.daily_leaderboard, public.guesser_round_results TO service_role;
 
 DO $$
 BEGIN

@@ -882,7 +882,7 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
               artistName: selectedSong.artistName,
               stageIndex: currentStage,
               clipSeconds: activeClipSeconds,
-              status: 'wrong',
+              status: data.roundResult === 'skipped' ? 'skipped' : 'wrong',
             },
           ]);
           setOutcome('failed');
@@ -1015,12 +1015,12 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ roundToken: round.roundToken, giveUp: true }),
       });
-      const json = await res.json();
+      const json = await res.json().catch(() => null);
       if (
         !res.ok ||
         json.code !== 0 ||
-        json.data?.outcome !== 'failed' ||
-        json.data?.roundResult !== 'skipped' ||
+        !['correct', 'failed'].includes(json.data?.outcome) ||
+        !['correct', 'wrong', 'skipped'].includes(json.data?.roundResult) ||
         !json.data?.reveal
       ) {
         const serverMessage = typeof json.message === 'string' ? ` ${json.message}` : '';
@@ -1029,6 +1029,25 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         return;
       }
       const data = json.data as RoundActionResponse;
+      if (data.roundResult !== 'skipped') {
+        const reveal = data.reveal;
+        if (!reveal) return;
+        setHistory((prev) => [...prev, {
+          trackId: reveal.id,
+          title: reveal.title,
+          artistName: reveal.artistName,
+          stageIndex: currentStage,
+          clipSeconds: activeClipSeconds,
+          status: data.roundResult === 'correct' ? 'correct' : 'wrong',
+        }]);
+        setOutcome(data.outcome === 'correct' ? 'correct' : 'failed');
+        setRevealSong(reveal);
+        if (reveal.previewUrl) prefetchAudio(reveal.previewUrl);
+        recordPlayedTrack(reveal.id);
+        if (data.roundResult === 'correct') setStreak((value) => value + 1);
+        else setStreak(0);
+        return;
+      }
       setGuesserSkipCount((count) => count + 1);
       setGuesserFeedback('Skipped · no points awarded');
       if (data.reveal?.id) recordPlayedTrack(data.reveal.id);

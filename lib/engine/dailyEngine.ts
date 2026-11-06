@@ -139,8 +139,25 @@ export async function handleDaily(req: Request, res: Response): Promise<void> {
         playerId, dateKey, category, summary.currentIndex, songs[summary.currentIndex]
       );
       if (!currentRound) {
-        res.status(503).json({ code: -503, message: 'Could not load your current Daily Challenge round.' });
-        return;
+        // A prior tab/request can finish a round between the progress read and
+        // round start. Re-read once so the caller advances to the actual next
+        // pending round instead of receiving a stale-index 503.
+        progress = await dbService.getDailyRoundProgress(playerId, dateKey, category);
+        summary = summarizeDailyProgress(progress);
+        if (summary.currentIndex < DAILY_ROUND_COUNT) {
+          currentRound = await getOrStartRound(
+            playerId, dateKey, category, summary.currentIndex, songs[summary.currentIndex]
+          );
+        }
+        if (summary.currentIndex < DAILY_ROUND_COUNT && !currentRound) {
+          console.warn('[Daily] Could not create current round progress', {
+            dateKey,
+            category,
+            roundIndex: summary.currentIndex,
+          });
+          res.status(503).json({ code: -503, message: 'Could not load your current Daily Challenge round.' });
+          return;
+        }
       }
       progress = await dbService.getDailyRoundProgress(playerId, dateKey, category);
       summary = summarizeDailyProgress(progress);
