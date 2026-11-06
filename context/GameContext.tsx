@@ -189,7 +189,7 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     mode: 'standard',
     yearFilter: 'any',
     genreFilter: 'any',
-    timeRangePreset: 'songspot',
+    timeRangePreset: 'standard',
     customStages: DEFAULT_TIME_STAGES,
   });
 
@@ -216,6 +216,7 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const playedIdsRef = useRef<string[]>([]);
   const hasAutoPlayedRevealRef = useRef(false);
   const roundAbortControllerRef = useRef<AbortController | null>(null);
+  const inFlightRoundSigRef = useRef<string | null>(null);
   const lastRoundStartRef = useRef<number>(0);
 
   const recordPlayedTrack = useCallback((trackId: string) => {
@@ -491,14 +492,29 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   // Start a new round
   const startNewRound = useCallback(
     async (activeCfg: GameConfig = config) => {
-      // Cooldown throttle: prevent double-clicks within 600ms (bypass when switching modes or categories)
+      const roundSig = JSON.stringify({
+        mode: activeCfg.mode,
+        category: activeCfg.category,
+        difficulty: activeCfg.difficulty,
+        artist: activeCfg.artistName || '',
+        year: activeCfg.yearFilter || 'any',
+        genre: activeCfg.genreFilter || 'any',
+        stages: activeCfg.customStages || [],
+      });
+
+      // Deduplicate identical in-flight round starts (prevents mount double-fetch)
+      if (roundAbortControllerRef.current && inFlightRoundSigRef.current === roundSig) {
+        return;
+      }
+
+      // Cooldown throttle: prevent double-clicks within 600ms (bypass when config signature changes)
       const now = Date.now();
-      const isModeSwitch =
-        activeCfg.mode !== config.mode || activeCfg.category !== config.category;
-      if (!isModeSwitch && now - lastRoundStartRef.current < 600) {
+      const isConfigChange = inFlightRoundSigRef.current !== roundSig;
+      if (!isConfigChange && now - lastRoundStartRef.current < 600) {
         return;
       }
       lastRoundStartRef.current = now;
+      inFlightRoundSigRef.current = roundSig;
 
       // Abort previous in-flight round requests to avoid race conditions
       if (roundAbortControllerRef.current) {
@@ -623,6 +639,7 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         console.error('Failed to start round:', err);
       } finally {
         if (!controller.signal.aborted) {
+          roundAbortControllerRef.current = null;
           setLoadingRound(false);
         }
       }
@@ -638,6 +655,9 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       const { ids: validPlayed } = loadValidPlayedIds();
       playedIdsRef.current = validPlayed;
       const path = typeof window !== 'undefined' ? window.location.pathname : '/';
+      if (path.startsWith('/categories') || path.startsWith('/admin')) {
+        return;
+      }
       const initialMode: GameMode = path.startsWith('/daily')
         ? 'daily'
         : path.startsWith('/guesser')
@@ -647,7 +667,9 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       if (initialMode !== config.mode) {
         setConfig(initialCfg);
       }
-      startNewRound(initialCfg);
+      if (!roundAbortControllerRef.current) {
+        startNewRound(initialCfg);
+      }
     }
   }, [config, startNewRound]);
 

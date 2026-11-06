@@ -5,9 +5,23 @@
 import assert from 'node:assert/strict';
 import { performance } from 'node:perf_hooks';
 import { ensureCatalogLoaded, songPool } from '../lib/engine/songPool';
-import { getAllArtists, invalidateAllArtistsCache, deleteCustomArtist } from '../lib/engine/artists';
+import {
+  getAllArtists,
+  invalidateAllArtistsCache,
+  deleteCustomArtist,
+  extractSoloArtistNames,
+  parseTrackArtistCredits,
+} from '../lib/engine/artists';
 import { handleGetArtists } from '../lib/engine/artistRoutes';
-import { handleStartRound, handleAutocomplete, handleGuess, handleSkip } from '../lib/engine/roundEngine';
+import {
+  handleStartRound,
+  handleAutocomplete,
+  handleGuess,
+  handleSkip,
+  matchesArtistFilter,
+  parseCustomStages,
+} from '../lib/engine/roundEngine';
+import { MAX_SNIPPET_DURATION, MIN_SNIPPET_DURATION, TIME_RANGE_PRESETS } from '../shared/types';
 import { handleDaily } from '../lib/engine/dailyEngine';
 import { handleGetLeaderboard } from '../lib/engine/leaderboard';
 import {
@@ -495,6 +509,113 @@ async function main() {
     assert.equal(resLb.getStatus(), 200);
     const totalMs = Number((performance.now() - t0).toFixed(2));
     return `All 3 navigation endpoints responded in ${totalMs} ms total`;
+  });
+
+  // 14. Collaboration parsing: solo, 2-artist collab, multi-collab, featured, protected bands
+  await runTest(14, 'Artist collaboration parsing & protected band names', async () => {
+    assert.deepEqual(extractSoloArtistNames('Taylor Swift'), ['Taylor Swift']);
+    assert.deepEqual(extractSoloArtistNames('ROSÉ & Bruno Mars'), ['ROSÉ', 'Bruno Mars']);
+    assert.deepEqual(
+      extractSoloArtistNames('ILLSLICK, SANTAZ & DM'),
+      ['ILLSLICK', 'SANTAZ', 'DM']
+    );
+    for (const band of ['Whal & Dolph', 'Earth, Wind & Fire', 'AC/DC', 'Marina and the Diamonds', 'Lil Nas X']) {
+      assert.deepEqual(extractSoloArtistNames(band), [band], `Band "${band}" must not be split`);
+    }
+    assert.deepEqual(extractSoloArtistNames('JENNIE (from BLACKPINK)'), ['JENNIE']);
+
+    const feat = parseTrackArtistCredits('t1', 'Ed Sheeran', 'Shape (feat. Bruno Mars)');
+    assert.equal(feat.length, 2);
+    assert.equal(feat[0].role, 'primary');
+    assert.equal(feat[1].role, 'featured');
+    assert.equal(feat[1].artistName, 'Bruno Mars');
+
+    const inlineFeat = parseTrackArtistCredits('t2', 'Ed Sheeran feat. Bruno Mars', 'Song');
+    assert.deepEqual(inlineFeat.map((c) => c.artistName), ['Ed Sheeran', 'Bruno Mars']);
+
+    const collab = parseTrackArtistCredits('t3', 'ROSÉ & Bruno Mars', 'APT.');
+    assert.deepEqual(collab.map((c) => c.role), ['primary', 'collaborator']);
+    return `solo/collab/multi/featured/protected-band cases parsed correctly`;
+  });
+
+  // 15. Collaboration sync: canonical solo artist + each collaborator selectable in Artist Mode
+  await runTest(15, 'Collab sync never creates combined artist; each collaborator selectable', async () => {
+    clearItunesMemoryCaches();
+    const query = 'CollabTestSoloA';
+    const partner = 'CollabTestSoloB';
+    globalThis.fetch = (async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes('itunes.apple.com')) {
+        if (url.includes('entity=musicArtist')) {
+          return new Response(JSON.stringify({ results: [] }), { status: 200 });
+        }
+        const tracks = [
+          { trackId: 444000001, trackName: 'Duet Hit', artistName: `${query} & ${partner}` },
+          { trackId: 444000002, trackName: 'Solo Hit', artistName: query },
+        ].map((t) => ({
+          ...t,
+          wrapperType: 'track',
+          kind: 'song',
+          collectionName: 'Collab',
+          previewUrl: `https://audio-ssl.itunes.apple.com/${t.trackId}.m4a`,
+          releaseDate: '2024-01-01T00:00:00Z',
+          primaryGenreName: 'Pop',
+        }));
+        return new Response(JSON.stringify({ results: tracks }), { status: 200 });
+      }
+      return realFetch(input);
+    }) as typeof fetch;
+
+    try {
+      const res = await syncArtistSongs(query, 'international', 50, true);
+      assert.equal(res.status, 200);
+      assert.equal(res.body.data?.artist.name, query, 'Canonical name must be the queried solo artist');
+      assert.ok(!getAllArtists(songPool).some((a) => a.name.includes('&') && a.name.includes(query)));
+
+      const duet = songPool.get('444000001')!;
+      assert.ok(duet.artistIds && duet.artistIds.length === 2, 'Duet must carry two artist credits');
+      assert.ok(matchesArtistFilter(duet, query));
+      assert.ok(matchesArtistFilter(duet, partner));
+      assert.ok(!matchesArtistFilter(songPool.get('444000002')!, partner));
+      assert.deepEqual(
+        dbService.getTrackIdsByArtist(duet.artistIds![1]).includes('444000001'),
+        true,
+        'track_artists row must persist for collaborator'
+      );
+      return `Duet stored once with ${duet.artistIds!.length} credits; both artists selectable`;
+    } finally {
+      globalThis.fetch = realFetch;
+      songPool.delete('444000001');
+      songPool.delete('444000002');
+      deleteCustomArtist('artist_collabtestsoloa');
+      deleteCustomArtist('artist_collabtestsolob');
+      dbService.deleteSongsByArtist(query);
+      dbService.deleteSongsByArtist(`${query} & ${partner}`);
+      dbService.deleteSyncJob('job_collabtestsoloa');
+      clearItunesMemoryCaches();
+    }
+  });
+
+  // 16. Time range bounds (custom 0.1–15s, standard 0.5–15s, songspot 0.1–15s)
+  await runTest(16, 'Snippet time range presets & custom bounds', async () => {
+    assert.equal(MIN_SNIPPET_DURATION, 0.1);
+    assert.equal(MAX_SNIPPET_DURATION, 15);
+    assert.deepEqual(parseCustomStages('0.1,2,15'), [0.1, 2, 15]);
+    assert.deepEqual(parseCustomStages('0.05,2,30'), null, 'Out-of-range stages must be rejected');
+    assert.deepEqual(TIME_RANGE_PRESETS.standard.stages, [0.5, 2, 6, 8, 15]);
+    assert.deepEqual(TIME_RANGE_PRESETS.songspot.stages, [0.1, 0.5, 2, 8, 15]);
+    return `custom=[0.1..15], standard=${TIME_RANGE_PRESETS.standard.stages}, songspot=${TIME_RANGE_PRESETS.songspot.stages}`;
+  });
+
+  // 17. GET /api/artists/sync is read-only (no recovery side effects)
+  await runTest(17, 'GET /api/artists/sync is read-only; recover requires POST', async () => {
+    const { GET } = await import('../app/api/artists/sync/route');
+    const res = await GET(new Request('http://localhost/api/artists/sync?recover=true'));
+    const body = await res.json();
+    assert.equal(res.status, 200);
+    assert.ok(body.data?.recoverable !== undefined, 'GET must only list recoverable jobs');
+    assert.equal(body.data?.recovered, undefined, 'GET must never trigger recovery');
+    return `GET ignored ?recover=true and returned read-only job list`;
   });
 
   console.log('\n==============================================================');

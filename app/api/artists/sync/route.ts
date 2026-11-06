@@ -9,12 +9,6 @@ export async function GET(req: Request) {
   try {
     const url = new URL(req.url);
     const jobId = url.searchParams.get('jobId')?.trim();
-    const recover = url.searchParams.get('recover') === 'true';
-
-    if (recover) {
-      const recovered = await recoverPendingArtistSyncJobs();
-      return NextResponse.json({ code: 0, message: 'ok', data: { recovered } });
-    }
 
     if (jobId) {
       const job = dbService.getSyncJob(jobId);
@@ -37,10 +31,28 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   try {
     const configuredKey = process.env.ADMIN_API_KEY;
+    const cronSecret = process.env.CRON_SECRET;
     const providedKey =
       req.headers.get('x-admin-key') ||
       req.headers.get('authorization')?.replace(/^Bearer\s+/i, '');
-    const isAdmin = Boolean(configuredKey && providedKey === configuredKey);
+    const isAdmin = Boolean(
+      (configuredKey && providedKey === configuredKey) ||
+        (cronSecret && providedKey === cronSecret)
+    );
+
+    const rawBody = await req.json().catch(() => null);
+
+    // State-mutating recovery action requires Admin or Cron authorization
+    if (rawBody && typeof rawBody === 'object' && (rawBody as any).action === 'recover') {
+      if ((configuredKey || cronSecret) && !isAdmin) {
+        return NextResponse.json(
+          { code: 401, message: 'Unauthorized recovery request' },
+          { status: 401 }
+        );
+      }
+      const recovered = await recoverPendingArtistSyncJobs();
+      return NextResponse.json({ code: 0, message: 'ok', data: { recovered } });
+    }
 
     // Hybrid Permission Guardrails:
     // General users (public) are capped at 5 sync requests per minute to prevent Apple iTunes 429 bans
@@ -66,7 +78,6 @@ export async function POST(req: Request) {
       }
     }
 
-    const rawBody = await req.json().catch(() => null);
     const parsed = parseArtistSyncDTO(rawBody);
     if (!parsed.ok || parsed.data.name.length < 2) {
       return NextResponse.json(
