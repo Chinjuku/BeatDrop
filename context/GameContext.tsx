@@ -553,6 +553,7 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       setRevealSong(null);
       setHistory([]);
       setRoundLoadError(null);
+      if (activeCfg.mode === 'guesser') setGuesserFeedback(null);
 
       let dailyRequestTimedOut = false;
       let dailyRequestTimeoutId: number | undefined;
@@ -821,7 +822,19 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           candidateArtist: selectedSong.artistName,
         }),
       });
-      const json = await res.json();
+      const json = await res.json().catch(() => null);
+      if (!res.ok || json?.code !== 0 || !json.data) {
+        const serverMessage = typeof json?.message === 'string' ? ` ${json.message}` : '';
+        if (config.mode === 'guesser') {
+          setGuesserFeedback(`Could not check that answer. Please try again.${serverMessage}`);
+        }
+        console.warn('[Game] Guess request was rejected', {
+          mode: config.mode,
+          status: res.status,
+          code: json?.code,
+        });
+        return;
+      }
       if (json.code === 0 && json.data) {
         const data: RoundActionResponse = json.data;
         if (data.outcome === 'correct' && data.reveal) {
@@ -909,7 +922,10 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         }
       }
     } catch (err) {
-      console.error('Error submitting guess:', err);
+      console.error('[Game] Error submitting guess:', err);
+      if (config.mode === 'guesser') {
+        setGuesserFeedback('Could not check that answer. Check your connection and try again.');
+      }
     } finally {
       roundActionLockRef.current = false;
       setSubmittingGuess(false);
@@ -1007,7 +1023,8 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         json.data?.roundResult !== 'skipped' ||
         !json.data?.reveal
       ) {
-        setGuesserFeedback('Skip could not be recorded. Please retry.');
+        const serverMessage = typeof json.message === 'string' ? ` ${json.message}` : '';
+        setGuesserFeedback(`Skip could not be recorded. Please retry.${serverMessage}`);
         console.warn('[Game] Song Guesser skip was rejected', { status: res.status, code: json.code });
         return;
       }
