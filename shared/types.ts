@@ -107,6 +107,15 @@ export const TIME_RANGE_PRESETS: Record<Exclude<TimeRangePresetId, 'custom'>, Ti
   },
 };
 
+// Daily rounds use the complete Songspot clip progression as their answer window.
+// This derived constant keeps client and server timing in sync with that preset.
+export const SONGSPOT_STAGES = TIME_RANGE_PRESETS.songspot.stages;
+export const DAILY_ALLOWED_TIME_MS = SONGSPOT_STAGES.reduce((sum, seconds) => sum + seconds * 1000, 0);
+export const DAILY_BASE_SCORE = 500;
+export const DAILY_MAX_SPEED_BONUS = 500;
+export const DAILY_SKIP_PENALTY = 300;
+export const DAILY_ROUND_COUNT = 5;
+
 export const DIFFICULTY_PRESETS: Record<DifficultyLevel, DifficultyPreset> = {
   easy: {
     id: 'easy',
@@ -332,6 +341,11 @@ export interface RoundActionResponse {
   clipSeconds: number;
   mistakes: number;
   reveal?: Song;
+  dailyResult?: 'correct' | 'wrong' | 'skipped' | 'expired';
+  roundResult?: 'correct' | 'wrong' | 'skipped';
+  scoreDelta?: number;
+  speedBonus?: number;
+  elapsedTimeMs?: number;
 }
 
 export const GENRE_OPTIONS = [
@@ -361,6 +375,9 @@ export interface LeaderboardEntry {
   category: CategoryType;
   isDaily?: boolean;
   dateKey?: string;
+  correctCount?: number;
+  skipCount?: number;
+  totalAnswerTimeMs?: number;
   createdAt: string;
 }
 
@@ -369,6 +386,38 @@ export interface DailyChallengeInfo {
   category: CategoryType;
   totalRounds: number;
   rounds: RoundStartResponse[];
+  currentIndex: number;
+  results: Array<'correct' | 'wrong' | 'skipped' | 'expired' | 'pending'>;
+  score: number;
+  correctCount: number;
+  skipCount: number;
+  totalAnswerTimeMs: number;
+}
+
+export interface DailyRoundProgress {
+  playerId: string;
+  dateKey: string;
+  category: CategoryType;
+  roundIndex: number;
+  trackId: string;
+  startedAt: number;
+  status: 'pending' | 'correct' | 'wrong' | 'skipped' | 'expired';
+  score: number;
+  speedBonus: number;
+  answerTimeMs: number;
+}
+
+export interface DailyLeaderboardEntry {
+  id: string;
+  playerId: string;
+  dateKey: string;
+  category: CategoryType;
+  playerName: string;
+  score: number;
+  correctCount: number;
+  skipCount: number;
+  totalAnswerTimeMs: number;
+  createdAt: string;
 }
 
 export type SyncJobStatus = 'pending' | 'processing' | 'completed' | 'failed';

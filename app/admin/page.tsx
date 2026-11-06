@@ -21,6 +21,7 @@ import {
   X,
 } from 'lucide-react';
 import { Artist, CategoryType } from '../../shared/types';
+import { Modal } from '../../components/Modal';
 
 export default function AdminDashboardPage() {
   const [adminKey, setAdminKey] = useState<string>('');
@@ -34,6 +35,7 @@ export default function AdminDashboardPage() {
   const [loadingArtists, setLoadingArtists] = useState<boolean>(false);
   const [syncingId, setSyncingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [pendingDeleteArtist, setPendingDeleteArtist] = useState<Artist | null>(null);
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [categoryFilter, setCategoryFilter] = useState<CategoryType>('all');
 
@@ -148,11 +150,6 @@ export default function AdminDashboardPage() {
 
   // Delete Artist and their songs
   const handleDelete = async (artist: Artist) => {
-    const confirmDelete = window.confirm(
-      `ยืนยันการลบศิลปิน "${artist.name}" และเพลงทั้งหมดของศิลปินนี้ออกจากคลังหรือไม่? การกระทำนี้ไม่สามารถย้อนกลับได้`
-    );
-    if (!confirmDelete) return;
-
     setDeletingId(artist.id);
     setToast(null);
     try {
@@ -650,7 +647,7 @@ export default function AdminDashboardPage() {
                     <button
                       type="button"
                       disabled={isSyncing || isDeleting}
-                      onClick={() => handleDelete(artist)}
+                      onClick={() => setPendingDeleteArtist(artist)}
                       className="p-2 rounded-xl border transition hover:brightness-110 disabled:opacity-50 text-rose-400 border-rose-500/30 bg-rose-500/10"
                       title={`ลบศิลปิน ${artist.name} ออกจากระบบ`}
                     >
@@ -663,6 +660,45 @@ export default function AdminDashboardPage() {
           </div>
         )}
       </div>
+      <Modal
+        open={pendingDeleteArtist !== null}
+        onClose={() => setPendingDeleteArtist(null)}
+        title="Confirm artist deletion"
+        dismissOnBackdrop={false}
+        panelClassName="!w-[calc(100vw-24px)] sm:!max-w-md !p-5 sm:!p-6"
+      >
+        <div className="space-y-4">
+          <div>
+            <h2 className="text-base font-extrabold">Delete {pendingDeleteArtist?.name}?</h2>
+            <p className="mt-2 text-sm" style={{ color: 'var(--modal-muted)' }}>
+              This removes the artist and all of their songs from the catalog. This action cannot be undone.
+            </p>
+          </div>
+          <div className="flex justify-end gap-2">
+            <button
+              type="button"
+              onClick={() => setPendingDeleteArtist(null)}
+              className="min-h-11 rounded-xl border px-4 text-sm font-bold"
+              style={{ backgroundColor: 'var(--modal-elevated)', borderColor: 'var(--modal-border)' }}
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              disabled={!pendingDeleteArtist || deletingId !== null}
+              onClick={() => {
+                if (!pendingDeleteArtist || deletingId !== null) return;
+                const artist = pendingDeleteArtist;
+                setPendingDeleteArtist(null);
+                void handleDelete(artist);
+              }}
+              className="min-h-11 rounded-xl bg-rose-600 px-4 text-sm font-extrabold text-white disabled:opacity-50"
+            >
+              Delete artist
+            </button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }

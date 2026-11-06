@@ -44,7 +44,9 @@ export async function POST(req: Request) {
 
     // State-mutating recovery action requires Admin or Cron authorization
     if (rawBody && typeof rawBody === 'object' && (rawBody as any).action === 'recover') {
-      if ((configuredKey || cronSecret) && !isAdmin) {
+      // Fail closed when no server-side secret is configured. Recovery replays
+      // queued work and must never be exposed as a public endpoint.
+      if (!isAdmin) {
         return NextResponse.json(
           { code: 401, message: 'Unauthorized recovery request' },
           { status: 401 }

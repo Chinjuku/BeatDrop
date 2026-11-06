@@ -9,23 +9,33 @@ import { AppShell } from '../components/AppShell';
 export const metadata: Metadata = {
   title: 'BeatDrop • เกมทายเพลงไทย & สากล จากเสี้ยววินาที',
   description: 'Hear less. Know more. Thai & International Music Guessing Game on Next.js + Supabase.',
+  applicationName: 'BeatDrop',
+  appleWebApp: {
+    capable: true,
+    title: 'BeatDrop',
+    statusBarStyle: 'black-translucent',
+  },
+  formatDetection: { telephone: false },
+  icons: {
+    icon: [
+      { url: '/icons/icon-192.png', sizes: '192x192', type: 'image/png' },
+      { url: '/icons/icon-512.png', sizes: '512x512', type: 'image/png' },
+    ],
+    apple: [{ url: '/icons/apple-touch-icon.png', sizes: '180x180', type: 'image/png' }],
+  },
 };
 
 export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
-  maximumScale: 1,
-  userScalable: false,
+  viewportFit: 'cover',
+  themeColor: '#030704',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="th" className="dark">
       <head>
-        <meta
-          name="viewport"
-          content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, shrink-to-fit=no"
-        />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link

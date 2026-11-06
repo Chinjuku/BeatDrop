@@ -48,8 +48,12 @@ export async function GET(req: Request) {
       },
     });
   } catch (err) {
+    console.error('[Daily Cron] Challenge generation failed', {
+      dateKey,
+      errorType: err instanceof Error ? err.name : 'unknown',
+    });
     return NextResponse.json(
-      { code: -500, message: (err as Error).message || 'Failed to generate daily challenge' },
+      { code: -500, message: 'Failed to generate daily challenge.' },
       { status: 500 }
     );
   }

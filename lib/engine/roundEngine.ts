@@ -8,6 +8,8 @@ import {
   GameMode,
   MAX_SNIPPET_DURATION,
   MIN_SNIPPET_DURATION,
+  DAILY_ALLOWED_TIME_MS,
+  SONGSPOT_STAGES,
   RoundActionResponse,
   RoundStartResponse,
   Song,
@@ -20,6 +22,9 @@ import { songPool, ingestArtistSongs, fetchItunesSongs } from './songPool';
 import { buildCanonicalArtistId, getAllArtists, normalizeText } from './artists';
 import { redis, isRedisConfigured } from '../redis';
 import { isSupabaseConfigured, supabaseAdmin } from '../supabase';
+import { readDailyPlayerId } from './dailySession';
+import { finalizeDailyRound, isDailyRoundExpired } from './dailyScoring';
+import { selectGuesserChoices } from './guesserChoices';
 
 export interface ActiveRoundState {
   track: Song;
@@ -32,6 +37,10 @@ export interface ActiveRoundState {
   mode: GameMode;
   artistFilter?: string;
   startedAt?: number;
+  dailyDateKey?: string;
+  dailyRoundIndex?: number;
+  dailyPlayerId?: string;
+  roundId?: string;
 }
 
 export const activeRounds = new Map<string, ActiveRoundState>();
@@ -369,7 +378,18 @@ export async function handleStartRound(req: Request, res: Response): Promise<voi
     }
   }
 
-  const selectedTrack = candidates[Math.floor(Math.random() * candidates.length)];
+  let selectedTrack = candidates[Math.floor(Math.random() * candidates.length)];
+  let choices: Array<{ id: string; title: string; artistName: string; artworkUrl?: string }> | undefined;
+  if (mode === 'guesser') {
+    const guesserRound = selectGuesserChoices(candidates);
+    if (!guesserRound) {
+      res.status(503).json({ code: -503, message: 'Not enough distinct artists with compatible answer metadata for Song Guesser.' });
+      return;
+    }
+    selectedTrack = guesserRound.answer;
+    choices = guesserRound.choices;
+  }
+  const roundId = mode === 'guesser' ? crypto.randomUUID() : undefined;
   const roundState: ActiveRoundState = {
     track: selectedTrack,
     difficulty,
@@ -381,52 +401,15 @@ export async function handleStartRound(req: Request, res: Response): Promise<voi
     mode,
     artistFilter: artistFilter && artistFilter !== 'any' ? artistFilter : undefined,
     startedAt: Date.now(),
+    roundId,
   };
   const roundToken = signRoundToken(roundState);
   const roundKey = `rk_${crypto.randomUUID()}`;
-
-  let choices: Array<{ id: string; title: string; artistName: string; artworkUrl?: string }> | undefined;
-  if (mode === 'guesser') {
-    const distractorPool = Array.from(songPool.values()).filter(
-      (s) =>
-        s.id !== selectedTrack.id &&
-        normalizeText(s.title) !== normalizeText(selectedTrack.title) &&
-        s.category === selectedTrack.category &&
-        !isJunkTrack(s.title, s.albumName, s.artistName)
-    );
-    const sameArtistOrGenre = distractorPool.filter(
-      (s) =>
-        normalizeText(s.artistName) === normalizeText(selectedTrack.artistName) ||
-        s.genre.toLowerCase() === selectedTrack.genre.toLowerCase()
-    );
-    const poolToUse = sameArtistOrGenre.length >= 6 ? sameArtistOrGenre : distractorPool;
-    const shuffledDistractors = [...poolToUse].sort(() => Math.random() - 0.5);
-    const pickedDistractors: Song[] = [];
-    const seenTitles = new Set<string>([normalizeText(selectedTrack.title)]);
-
-    for (const d of shuffledDistractors) {
-      const tNorm = normalizeText(d.title);
-      if (!seenTitles.has(tNorm)) {
-        seenTitles.add(tNorm);
-        pickedDistractors.push(d);
-      }
-      if (pickedDistractors.length >= 3) break;
-    }
-
-    const rawOptions = [selectedTrack, ...pickedDistractors].map((s) => ({
-      id: s.id,
-      title: s.title,
-      artistName: s.artistName,
-      artworkUrl: s.artworkUrl,
-    }));
-    choices = rawOptions.sort(() => Math.random() - 0.5);
-  }
 
   activeRounds.set(roundToken, roundState);
 
   const responsePayload: RoundStartResponse = {
     roundToken,
-    roundKey,
     audioUrl: selectedTrack.previewUrl,
     difficulty,
     stages: roundStages,
@@ -437,6 +420,7 @@ export async function handleStartRound(req: Request, res: Response): Promise<voi
     artistFilter: artistFilter && artistFilter !== 'any' ? artistFilter : undefined,
     yearFilter,
     genreFilter,
+    roundKey: mode === 'guesser' ? `rk_${roundId}` : roundKey,
     choices,
     poolSize: totalMatchingPoolSize,
     expiresAt: Date.now() + 15 * 60 * 1000,
@@ -561,6 +545,45 @@ export async function handleAutocomplete(req: Request, res: Response): Promise<v
   });
 }
 
+function dailySessionMatches(req: Request, active: ActiveRoundState): boolean {
+  const playerId = readDailyPlayerId(req as unknown as { headers?: Record<string, string | string[] | undefined> });
+  return Boolean(
+    playerId && active.dailyPlayerId === playerId && active.dailyDateKey &&
+    Number.isInteger(active.dailyRoundIndex) && active.startedAt
+  );
+}
+
+async function finalizeDailyAction(
+  req: Request,
+  res: Response,
+  roundToken: string,
+  active: ActiveRoundState,
+  requestedOutcome: 'correct' | 'wrong' | 'skipped' | 'expired'
+): Promise<Awaited<ReturnType<typeof finalizeDailyRound>> | null> {
+  if (!dailySessionMatches(req, active) || !active.dailyPlayerId || !active.dailyDateKey || active.dailyRoundIndex === undefined) {
+    res.status(401).json({ code: -401, message: 'Daily Challenge session is invalid.' });
+    return null;
+  }
+  const result = await finalizeDailyRound({
+    playerId: active.dailyPlayerId,
+    dateKey: active.dailyDateKey,
+    category: active.category,
+    roundIndex: active.dailyRoundIndex,
+    trackId: active.track.id,
+    startedAt: active.startedAt || Date.now(),
+    outcome: requestedOutcome,
+  });
+  if (!result.updated) {
+    consumeToken(roundToken);
+    activeRounds.delete(roundToken);
+    res.status(409).json({ code: -409, message: 'Daily Challenge round has already been finalized.' });
+    return null;
+  }
+  consumeToken(roundToken);
+  activeRounds.delete(roundToken);
+  return result;
+}
+
 export async function handleGuess(req: Request, res: Response): Promise<void> {
   const parsed = parseGuessDTO(req.body);
   if (!parsed.ok) {
@@ -579,6 +602,23 @@ export async function handleGuess(req: Request, res: Response): Promise<void> {
   if (!active) {
     res.status(400).json({ code: -1, message: 'Invalid or expired round token' });
     return;
+  }
+
+  if (active.mode === 'daily') {
+    if (!dailySessionMatches(req, active)) {
+      res.status(401).json({ code: -401, message: 'Daily Challenge session is invalid.' });
+      return;
+    }
+    if (isDailyRoundExpired(active.startedAt || Date.now())) {
+      const finalized = await finalizeDailyAction(req, res, roundToken, active, 'expired');
+      if (!finalized) return;
+      res.json({ code: 0, message: 'ok', data: {
+        outcome: 'failed', stage: active.stage, clipSeconds: active.clipSeconds,
+        mistakes: active.mistakes, reveal: active.track, dailyResult: 'expired',
+        scoreDelta: finalized.scoreDelta, speedBonus: 0, elapsedTimeMs: finalized.elapsedTimeMs,
+      } });
+      return;
+    }
   }
 
   // Anti-cheat: Bot detection (human reaction time cannot be < 50ms)
@@ -600,6 +640,14 @@ export async function handleGuess(req: Request, res: Response): Promise<void> {
       normalizeText(guessedArtist).includes(normalizeText(active.track.artistName)));
 
   if (exactIdMatch || titleMatch) {
+    const dailyFinal = active.mode === 'daily'
+      ? await finalizeDailyAction(req, res, roundToken, active, 'correct')
+      : null;
+    if (active.mode === 'daily' && !dailyFinal) return;
+    if (active.mode === 'guesser' && (!active.roundId || !await dbService.claimGuesserRoundResult(active.roundId, 'correct'))) {
+      res.status(409).json({ code: -409, message: 'Song Guesser round has already been finalized.' });
+      return;
+    }
     consumeToken(roundToken);
     activeRounds.delete(roundToken);
     const payload: RoundActionResponse = {
@@ -608,12 +656,23 @@ export async function handleGuess(req: Request, res: Response): Promise<void> {
       clipSeconds: active.clipSeconds,
       mistakes: active.mistakes,
       reveal: active.track,
+      roundResult: 'correct',
+      ...(dailyFinal ? {
+        dailyResult: 'correct' as const,
+        scoreDelta: dailyFinal.scoreDelta,
+        speedBonus: dailyFinal.speedBonus,
+        elapsedTimeMs: dailyFinal.elapsedTimeMs,
+      } : {}),
     };
     res.json({ code: 0, message: 'ok', data: payload });
     return;
   }
 
   if (active.mode === 'guesser') {
+    if (!active.roundId || !await dbService.claimGuesserRoundResult(active.roundId, 'wrong')) {
+      res.status(409).json({ code: -409, message: 'Song Guesser round has already been finalized.' });
+      return;
+    }
     consumeToken(roundToken);
     activeRounds.delete(roundToken);
     const payload: RoundActionResponse = {
@@ -622,6 +681,7 @@ export async function handleGuess(req: Request, res: Response): Promise<void> {
       clipSeconds: active.clipSeconds,
       mistakes: active.mistakes + 1,
       reveal: active.track,
+      roundResult: 'wrong',
     };
     res.json({ code: 0, message: 'ok', data: payload });
     return;
@@ -631,6 +691,10 @@ export async function handleGuess(req: Request, res: Response): Promise<void> {
   active.stage += 1;
 
   if (active.stage >= active.stages.length) {
+    const dailyFinal = active.mode === 'daily'
+      ? await finalizeDailyAction(req, res, roundToken, active, 'wrong')
+      : null;
+    if (active.mode === 'daily' && !dailyFinal) return;
     consumeToken(roundToken);
     activeRounds.delete(roundToken);
     const payload: RoundActionResponse = {
@@ -639,6 +703,12 @@ export async function handleGuess(req: Request, res: Response): Promise<void> {
       clipSeconds: active.stages[active.stages.length - 1],
       mistakes: active.mistakes,
       reveal: active.track,
+      ...(dailyFinal ? {
+        dailyResult: 'wrong' as const,
+        scoreDelta: 0,
+        speedBonus: 0,
+        elapsedTimeMs: dailyFinal.elapsedTimeMs,
+      } : {}),
     };
     res.json({ code: 0, message: 'ok', data: payload });
     return;
@@ -680,6 +750,39 @@ export async function handleSkip(req: Request, res: Response): Promise<void> {
     return;
   }
 
+  if (active.mode === 'daily') {
+    if (!dailySessionMatches(req, active)) {
+      res.status(401).json({ code: -401, message: 'Daily Challenge session is invalid.' });
+      return;
+    }
+    const requestedOutcome = isDailyRoundExpired(active.startedAt || Date.now()) ? 'expired' : 'skipped';
+    const finalized = await finalizeDailyAction(req, res, roundToken, active, requestedOutcome);
+    if (!finalized) return;
+    res.json({ code: 0, message: 'ok', data: {
+      outcome: 'failed', stage: active.stage, clipSeconds: active.clipSeconds,
+      mistakes: active.mistakes, reveal: active.track,
+      dailyResult: finalized.status,
+      scoreDelta: finalized.scoreDelta,
+      speedBonus: 0,
+      elapsedTimeMs: finalized.elapsedTimeMs,
+    } });
+    return;
+  }
+
+  if (active.mode === 'guesser' && giveUp) {
+    if (!active.roundId || !await dbService.claimGuesserRoundResult(active.roundId, 'skipped')) {
+      res.status(409).json({ code: -409, message: 'Song Guesser round has already been finalized.' });
+      return;
+    }
+    consumeToken(roundToken);
+    activeRounds.delete(roundToken);
+    res.json({ code: 0, message: 'ok', data: {
+      outcome: 'failed', stage: active.stage, clipSeconds: active.clipSeconds,
+      mistakes: active.mistakes, reveal: active.track, roundResult: 'skipped',
+    } });
+    return;
+  }
+
   active.stage += 1;
 
   if (giveUp || active.stage >= active.stages.length) {
@@ -691,6 +794,7 @@ export async function handleSkip(req: Request, res: Response): Promise<void> {
       clipSeconds: active.stages[active.stages.length - 1],
       mistakes: active.mistakes,
       reveal: active.track,
+      roundResult: giveUp ? 'skipped' : undefined,
     };
     res.json({ code: 0, message: 'ok', data: payload });
     return;
@@ -708,7 +812,37 @@ export async function handleSkip(req: Request, res: Response): Promise<void> {
     stage: active.stage,
     clipSeconds: active.clipSeconds,
     mistakes: active.mistakes,
+    roundResult: 'skipped',
   };
   res.json({ code: 0, message: 'ok', data: payload });
+}
+
+export async function handleExpireDailyRound(req: Request, res: Response): Promise<void> {
+  const roundToken = typeof req.body?.roundToken === 'string' ? req.body.roundToken : '';
+  if (!roundToken || await isTokenConsumed(roundToken)) {
+    res.status(409).json({ code: -409, message: 'Daily Challenge round has already ended.' });
+    return;
+  }
+  const active = activeRounds.get(roundToken) || verifyRoundToken(roundToken);
+  if (!active || active.mode !== 'daily' || !dailySessionMatches(req, active)) {
+    res.status(401).json({ code: -401, message: 'Daily Challenge session is invalid.' });
+    return;
+  }
+  const startedAt = active.startedAt || Date.now();
+  if (!isDailyRoundExpired(startedAt)) {
+    res.status(409).json({
+      code: -409,
+      message: 'This round has not expired yet.',
+      remainingMs: Math.max(0, DAILY_ALLOWED_TIME_MS - (Date.now() - startedAt)),
+    });
+    return;
+  }
+  const finalized = await finalizeDailyAction(req, res, roundToken, active, 'expired');
+  if (!finalized) return;
+  res.json({ code: 0, message: 'ok', data: {
+    outcome: 'failed', stage: active.stage, clipSeconds: active.clipSeconds,
+    mistakes: active.mistakes, reveal: active.track, dailyResult: 'expired',
+    scoreDelta: 0, speedBonus: 0, elapsedTimeMs: finalized.elapsedTimeMs,
+  } });
 }
 

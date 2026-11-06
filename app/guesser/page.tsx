@@ -1,5 +1,5 @@
 'use client';
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useGame } from '../../context/GameContext';
 import { AudioPlayer } from '../../components/AudioPlayer';
 import { SpinningAlbumArt } from '../../components/SpinningAlbumArt';
@@ -14,6 +14,8 @@ const SongGuesserPage: React.FC = () => {
     handleDailyDifficultySelect,
     round,
     loadingRound,
+    roundLoadError,
+    retryRound,
     submittingGuess,
     outcome,
     revealSong,
@@ -33,9 +35,17 @@ const SongGuesserPage: React.FC = () => {
     handleToggleFullPreview,
     onSeek,
     handleSelectGuess,
+    handleGuesserSkip,
+    guesserSkipCount,
+    guesserFeedback,
     handleNextRoundOrDaily,
     setTicketModalOpen,
   } = useGame();
+  const [selectedChoiceId, setSelectedChoiceId] = useState<string | null>(null);
+
+  useEffect(() => {
+    setSelectedChoiceId(null);
+  }, [round?.roundToken]);
 
   // Ensure config mode is guesser
   useEffect(() => {
@@ -91,6 +101,9 @@ const SongGuesserPage: React.FC = () => {
           >
             <ListChecks className="w-3.5 h-3.5" />
             <span>4 CHOICES</span>
+          </span>
+          <span className="text-xs font-bold px-2.5 py-1 sm:py-1.5 rounded-full border" style={{ backgroundColor: 'var(--song-surface)', borderColor: 'var(--song-border)', color: 'var(--song-muted)' }}>
+            Skipped: {guesserSkipCount}
           </span>
           <span
             className="text-xs font-bold px-2.5 py-1 sm:py-1.5 rounded-full border"
@@ -186,7 +199,28 @@ const SongGuesserPage: React.FC = () => {
               กำลังสุ่มโจทย์ 4 ตัวเลือก...
             </p>
           </div>
+        ) : roundLoadError ? (
+          <div className="py-12 px-4 flex flex-col items-center text-center gap-3">
+            <p className="text-sm font-bold" role="alert">{roundLoadError}</p>
+            <button
+              type="button"
+              onClick={() => void retryRound()}
+              disabled={loadingRound}
+              className="min-h-11 rounded-xl px-5 font-extrabold transition hover:brightness-110 disabled:opacity-50"
+              style={{ backgroundColor: 'var(--song-accent)', color: 'var(--song-accent-on)' }}
+            >
+              {loadingRound ? 'Retrying…' : 'Retry'}
+            </button>
+          </div>
         ) : outcome && revealSong ? (
+          <>
+          <div className="w-full text-center text-sm font-bold mb-2" role="status" aria-live="polite">
+            {outcome === 'correct'
+              ? 'Correct choice · points recorded through your streak'
+              : history.at(-1)?.status === 'skipped'
+                ? 'Skipped · no points awarded'
+                : `Incorrect choice${history.at(-1)?.title ? `: ${history.at(-1)?.title} — ${history.at(-1)?.artistName || ''}` : ''}`}
+          </div>
           <SpinningAlbumArt
             song={revealSong}
             outcome={outcome}
@@ -205,8 +239,14 @@ const SongGuesserPage: React.FC = () => {
             onNextSong={handleNextRoundOrDaily}
             onOpenTicket={() => setTicketModalOpen(true)}
           />
+          </>
         ) : (
           <div className="flex flex-col items-center">
+            {guesserFeedback && (
+              <div className="w-full text-center text-xs font-bold mb-2 text-amber-300" role="status" aria-live="polite">
+                {guesserFeedback}
+              </div>
+            )}
             {/* Audio Snippet Controller */}
             <AudioPlayer
               stages={stages}
@@ -248,13 +288,14 @@ const SongGuesserPage: React.FC = () => {
                         key={`${choice.id}-${idx}`}
                         type="button"
                         disabled={loadingRound || submittingGuess || !round || alreadyGuessedWrong}
-                        onClick={() =>
+                        onClick={() => {
+                          setSelectedChoiceId(choice.id);
                           handleSelectGuess({
                             id: choice.id,
                             title: choice.title,
                             artistName: choice.artistName,
-                          })
-                        }
+                          });
+                        }}
                         className="group relative flex items-center gap-3 p-3 rounded-2xl border text-left transition-all hover:scale-[1.01] disabled:opacity-45 disabled:pointer-events-none"
                         style={
                           alreadyGuessedWrong
@@ -262,6 +303,12 @@ const SongGuesserPage: React.FC = () => {
                                 backgroundColor: 'rgba(239, 68, 68, 0.1)',
                                 borderColor: 'rgba(239, 68, 68, 0.45)',
                                 color: 'var(--song-muted)',
+                              }
+                            : selectedChoiceId === choice.id
+                            ? {
+                                backgroundColor: 'rgba(181, 122, 255, 0.18)',
+                                borderColor: '#b57aff',
+                                color: 'var(--song-text)',
                               }
                             : {
                                 backgroundColor: 'var(--song-surface-soft)',
@@ -310,6 +357,14 @@ const SongGuesserPage: React.FC = () => {
                     );
                   })}
                 </div>
+                <button
+                  type="button"
+                  onClick={() => void handleGuesserSkip()}
+                  disabled={loadingRound || submittingGuess || !round}
+                  className="w-full min-h-12 rounded-2xl border-2 border-amber-400/70 bg-amber-400/10 px-4 py-3 text-sm font-black tracking-[0.2em] text-amber-300 transition hover:bg-amber-400/20 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {submittingGuess ? 'SKIPPING…' : 'SKIP'}
+                </button>
               </div>
             )}
           </div>

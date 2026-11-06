@@ -12,8 +12,14 @@ import {
   handleAutocomplete,
   handleGuess,
   handleSkip,
+  handleExpireDailyRound,
 } from './engine/roundEngine';
-import { handleDaily } from './engine/dailyEngine';
+import {
+  handleDaily,
+  handleStartDailyRound,
+  handleSubmitDailyScore,
+  handleGetDailyLeaderboard,
+} from './engine/dailyEngine';
 import {
   handleGetLeaderboard,
   handlePostLeaderboard,
@@ -126,6 +132,10 @@ app.post('/api/songspot/skip', handleSkip);
 
 // 5. Daily Challenge Endpoint
 app.get('/api/daily', handleDaily);
+app.post('/api/daily/round', handleStartDailyRound);
+app.post('/api/daily/expire', handleExpireDailyRound);
+app.post('/api/daily/submit', handleSubmitDailyScore);
+app.get('/api/daily/leaderboard', handleGetDailyLeaderboard);
 
 // 6. Leaderboard Endpoints
 app.get('/api/leaderboard', handleGetLeaderboard);

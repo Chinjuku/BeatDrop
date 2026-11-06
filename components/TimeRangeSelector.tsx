@@ -1,5 +1,6 @@
 'use client';
 import React, { useState, useEffect } from 'react';
+import { Modal } from './Modal';
 import { Clock, Settings2, Sliders, X, Plus, Trash2, Check, RotateCcw } from 'lucide-react';
 import {
   DEFAULT_TIME_STAGES,
@@ -221,7 +222,7 @@ export const TimeRangeSelector: React.FC<TimeRangeSelectorProps> = ({
 
       {/* Custom Stages Configuration Modal */}
       {modalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-6 bg-black/80 backdrop-blur-md overflow-y-auto overflow-x-hidden animate-in fade-in duration-200">
+        <Modal open={modalOpen} onClose={() => setModalOpen(false)} title="Custom snippet stages" dismissOnBackdrop={false} panelClassName="!bg-transparent !border-0 !shadow-none !overflow-visible !max-h-none">
           <div
             className="m-auto w-[calc(100vw-16px)] sm:w-full max-w-lg md:max-w-xl rounded-2xl border p-3.5 sm:p-6 shadow-2xl flex flex-col gap-4 relative my-auto animate-in zoom-in-95 duration-200 max-h-[92dvh] overflow-y-auto"
             style={{
@@ -441,7 +442,7 @@ export const TimeRangeSelector: React.FC<TimeRangeSelectorProps> = ({
               </button>
             </div>
           </div>
-        </div>
+        </Modal>
       )}
     </>
   );

@@ -1,6 +1,5 @@
 'use client';
 import React, { useEffect, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import {
@@ -28,6 +27,7 @@ import {
 import { CategoryType, GameMode, THEME_PRESETS, ThemeId } from '../types';
 import { useTheme } from '../context/ThemeContext';
 import { BeatDropLogo } from './BeatDropLogo';
+import { Modal } from './Modal';
 
 export interface NavbarProps {
   category: CategoryType;
@@ -751,28 +751,18 @@ export const Navbar: React.FC<NavbarProps> = ({
       </div>
 
       {/* Mobile Drawer Backdrop & Full-Height Drawer (Portalled to document.body to escape header backdrop-filter) */}
-      {mounted &&
-        activeMenu === 'mobile' &&
-        createPortal(
-          <div
-            ref={mobileDrawerRef}
-            className="fixed inset-0 z-[100] max-[1140px]:block min-[1141px]:hidden animate-in fade-in duration-200"
-          >
-            {/* Full-screen Dark Blurred Backdrop */}
+      <Modal
+        open={mounted && activeMenu === 'mobile'}
+        onClose={() => setActiveMenu(null)}
+        title="Navigation menu"
+        placement="right"
+        className="max-[1140px]:flex min-[1141px]:hidden"
+        panelClassName="!p-4 sm:!p-5 !overflow-y-auto !border-l !rounded-l-3xl"
+      >
             <div
-              className="fixed inset-0 bg-black/80 backdrop-blur-md"
-              onClick={() => setActiveMenu(null)}
-              aria-hidden="true"
-            />
-
-            {/* Full-Height Slide Drawer */}
-            <div
-              className="fixed top-0 right-0 bottom-0 w-[min(88vw,360px)] h-full border-l z-[101] p-4 sm:p-5 overflow-y-auto flex flex-col gap-4 shadow-2xl animate-in slide-in-from-right duration-250 ease-out"
-              style={{
-                backgroundColor: 'var(--song-surface, #0c110d)',
-                borderColor: 'var(--song-border, rgba(255, 255, 255, 0.1))',
-                color: 'var(--song-text, #f3f7f4)',
-              }}
+              ref={mobileDrawerRef}
+              className="h-full flex flex-col gap-4 animate-in slide-in-from-right duration-250 ease-out"
+              style={{ color: 'var(--song-text)' }}
             >
               <div className="flex items-center justify-between pb-3 border-b border-[var(--song-border)]">
                 <span className="text-xs font-extrabold uppercase tracking-wider" style={{ color: 'var(--song-muted)' }}>
@@ -1038,10 +1028,8 @@ export const Navbar: React.FC<NavbarProps> = ({
                   </span>
                 )}
               </div>
-            </div>
-          </div>,
-          document.body
-        )}
+          </div>
+      </Modal>
     </header>
   );
 };

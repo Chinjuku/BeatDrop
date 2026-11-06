@@ -1,19 +1,24 @@
 import { Request, Response } from 'express';
+import crypto from 'node:crypto';
 import {
   CategoryType,
+  DAILY_ALLOWED_TIME_MS,
+  DAILY_ROUND_COUNT,
   DailyChallengeInfo,
-  DEFAULT_TIME_STAGES,
-  DIFFICULTY_PRESETS,
-  DifficultyLevel,
   RoundStartResponse,
   Song,
+  SONGSPOT_STAGES,
 } from '../../shared/types';
 import { signRoundToken, getBangkokDateKey } from '../token';
-import { isSupabaseConfigured, supabaseAdmin } from '../supabase';
-import { redis, isRedisConfigured } from '../redis';
+import { isDbLocal, isSupabaseConfigured, supabaseAdmin } from '../supabase';
 import { songPool } from './songPool';
-import { activeRounds, parseCustomStages } from './roundEngine';
+import { activeRounds } from './roundEngine';
 import { normalizeText } from './artists';
+import { getDailyPlayerId, readDailyPlayerId } from './dailySession';
+import { dbService } from '../db';
+import { summarizeDailyProgress } from './dailyScoring';
+
+const ALLOWED_CATEGORIES = new Set<CategoryType>(['all', 'thai', 'international']);
 
 export function seededHash(str: string): number {
   let h = 2166136261;
@@ -24,112 +29,236 @@ export function seededHash(str: string): number {
   return h >>> 0;
 }
 
-export async function handleDaily(req: Request, res: Response): Promise<void> {
-  const category = ((req.query.category as CategoryType) || 'all') as CategoryType;
-  const difficulty = ((req.query.difficulty as DifficultyLevel) || 'medium') as DifficultyLevel;
-  const preset = DIFFICULTY_PRESETS[difficulty] || DIFFICULTY_PRESETS.medium;
-  const customStagesParam = parseCustomStages(req.query.customStages);
-  const roundStages = customStagesParam || (req.query.difficulty ? preset.stages : DEFAULT_TIME_STAGES);
-  const dateKey = getBangkokDateKey();
-
-  let dailySongs: Song[] = [];
-  let poolCount = songPool.size;
-  const redisDailyKey = `beatdrop:daily:${dateKey}:${category}`;
-
-  // Check Upstash Redis cache first for High Availability / instant cold start
-  if (isRedisConfigured && redis) {
-    try {
-      const cached = await redis.get<Song[]>(redisDailyKey);
-      if (cached && Array.isArray(cached) && cached.length >= 5) {
-        dailySongs = cached;
-      }
-    } catch {}
+function chooseDailySongs(dateKey: string, category: CategoryType): Song[] {
+  let candidates = Array.from(songPool.values());
+  if (category === 'thai' || category === 'international') {
+    candidates = candidates.filter((song) => song.category === category);
   }
-
-  if (dailySongs.length < 5 && isSupabaseConfigured()) {
-    try {
-      const sbSongs = await supabaseAdmin.getOrCreateDailyChallengeSongs(dateKey, category);
-      if (sbSongs.length >= 5) {
-        dailySongs = sbSongs;
-      }
-    } catch (err) {
-      console.warn('[Daily] Supabase daily challenge fallback to memory pool:', (err as Error).message);
-    }
+  const unique = new Map<string, Song>();
+  for (const song of candidates) {
+    const key = `${normalizeText(song.title)}::${normalizeText(song.artistName)}`;
+    if (!unique.has(key)) unique.set(key, song);
   }
-
-  if (dailySongs.length < 5) {
-    let candidates = Array.from(songPool.values());
-    if (category === 'thai' || category === 'international') {
-      candidates = candidates.filter((s) => s.category === category);
-    }
-    if (candidates.length < 5) {
-      candidates = Array.from(songPool.values());
-    }
-    poolCount = candidates.length;
-
-    const sorted = [...candidates].sort((a, b) => {
-      const ha = seededHash(`${dateKey}:${category}:${a.id}`);
-      const hb = seededHash(`${dateKey}:${category}:${b.id}`);
-      return ha - hb;
-    });
-
-    const usedArtists = new Set<string>();
-    for (const s of sorted) {
-      const aNorm = normalizeText(s.artistName);
-      if (!usedArtists.has(aNorm)) {
-        usedArtists.add(aNorm);
-        dailySongs.push(s);
-      }
-      if (dailySongs.length >= 5) break;
-    }
-    while (dailySongs.length < 5 && sorted.length > dailySongs.length) {
-      const next = sorted.find((s) => !dailySongs.some((d) => d.id === s.id));
-      if (next) dailySongs.push(next);
-      else break;
-    }
-  }
-
-  // Persist computed daily challenge to Redis for fast multi-pod reuse (24hr TTL)
-  if (isRedisConfigured && redis && dailySongs.length >= 5) {
-    redis.set(redisDailyKey, dailySongs, { ex: 86400 }).catch(() => {});
-  }
-
-  const rounds: RoundStartResponse[] = dailySongs.map((track, idx) => {
-    const roundState = {
-      track,
-      difficulty,
-      stages: roundStages,
-      stage: 0,
-      clipSeconds: roundStages[0],
-      mistakes: 0,
-      category,
-      mode: 'daily' as const,
-    };
-    const roundToken = signRoundToken(roundState);
-    activeRounds.set(roundToken, roundState);
-
-    return {
-      roundToken,
-      roundKey: `rk_daily_${dateKey}_${idx}`,
-      audioUrl: track.previewUrl,
-      difficulty,
-      stages: roundStages,
-      stage: 0,
-      clipSeconds: roundStages[0],
-      category,
-      mode: 'daily',
-      poolSize: poolCount,
-      expiresAt: Date.now() + 1000 * 60 * 60 * 12,
-    };
-  });
-
-  const info: DailyChallengeInfo = {
-    dateKey,
-    category,
-    totalRounds: rounds.length,
-    rounds,
-  };
-
-  res.json({ code: 0, message: 'ok', data: info });
+  return Array.from(unique.values())
+    .sort((a, b) => seededHash(`${dateKey}:${category}:${a.id}`) - seededHash(`${dateKey}:${category}:${b.id}`))
+    .slice(0, DAILY_ROUND_COUNT);
 }
 
+async function getDailySongs(dateKey: string, category: CategoryType): Promise<Song[]> {
+  if (isSupabaseConfigured() && !isDbLocal()) {
+    return supabaseAdmin.getOrCreateDailyChallengeSongs(dateKey, category);
+  }
+
+  const selected = chooseDailySongs(dateKey, category);
+  if (selected.length !== DAILY_ROUND_COUNT) return [];
+  const ids = dbService.getOrCreateLocalDailyChallengeIds(dateKey, category, selected.map((song) => song.id));
+  if (ids.length !== DAILY_ROUND_COUNT) return [];
+  return ids.map((id) => songPool.get(id)).filter((song): song is Song => Boolean(song));
+}
+
+async function getOrStartRound(
+  playerId: string,
+  dateKey: string,
+  category: CategoryType,
+  roundIndex: number,
+  track: Song
+): Promise<RoundStartResponse | null> {
+  const progress = await dbService.getOrCreateDailyRoundProgress({
+    playerId,
+    dateKey,
+    category,
+    roundIndex,
+    trackId: track.id,
+    startedAt: Date.now(),
+    status: 'pending',
+    score: 0,
+    speedBonus: 0,
+    answerTimeMs: 0,
+  });
+  if (!progress || progress.status !== 'pending' || progress.trackId !== track.id) return null;
+
+  const difficulty = 'medium' as const;
+  const roundState = {
+    track,
+    difficulty,
+    stages: SONGSPOT_STAGES,
+    stage: 0,
+    clipSeconds: SONGSPOT_STAGES[0],
+    mistakes: 0,
+    category,
+    mode: 'daily' as const,
+    startedAt: progress.startedAt,
+    dailyDateKey: dateKey,
+    dailyRoundIndex: roundIndex,
+    dailyPlayerId: playerId,
+  };
+  const roundToken = signRoundToken(roundState, DAILY_ALLOWED_TIME_MS + 60_000);
+  activeRounds.set(roundToken, roundState);
+
+  return {
+    roundToken,
+    roundKey: `rk_daily_${dateKey}_${category}_${roundIndex}`,
+    audioUrl: track.previewUrl,
+    difficulty,
+    stages: SONGSPOT_STAGES,
+    stage: 0,
+    clipSeconds: SONGSPOT_STAGES[0],
+    category,
+    mode: 'daily',
+    poolSize: songPool.size,
+    expiresAt: progress.startedAt + DAILY_ALLOWED_TIME_MS,
+  };
+}
+
+export async function handleDaily(req: Request, res: Response): Promise<void> {
+  const rawCategory = typeof req.query.category === 'string' ? req.query.category : 'all';
+  const category = ALLOWED_CATEGORIES.has(rawCategory as CategoryType)
+    ? rawCategory as CategoryType
+    : 'all';
+  const playerId = getDailyPlayerId(req, res);
+  const dateKey = getBangkokDateKey();
+
+  try {
+    const songs = await getDailySongs(dateKey, category);
+    if (songs.length !== DAILY_ROUND_COUNT) {
+      console.warn('[Daily] Challenge unavailable for current catalog', {
+        dateKey,
+        category,
+        expectedRounds: DAILY_ROUND_COUNT,
+        actualRounds: songs.length,
+      });
+      res.status(503).json({ code: -503, message: 'Daily challenge is not available for this catalog yet.' });
+      return;
+    }
+
+    let progress = await dbService.getDailyRoundProgress(playerId, dateKey, category);
+    let summary = summarizeDailyProgress(progress);
+    let currentRound: RoundStartResponse | null = null;
+    if (summary.currentIndex < DAILY_ROUND_COUNT) {
+      currentRound = await getOrStartRound(
+        playerId, dateKey, category, summary.currentIndex, songs[summary.currentIndex]
+      );
+      if (!currentRound) {
+        res.status(503).json({ code: -503, message: 'Could not load your current Daily Challenge round.' });
+        return;
+      }
+      progress = await dbService.getDailyRoundProgress(playerId, dateKey, category);
+      summary = summarizeDailyProgress(progress);
+    }
+
+    const rounds: RoundStartResponse[] = songs.map((track, roundIndex) => ({
+      roundToken: roundIndex === summary.currentIndex ? currentRound?.roundToken || '' : '',
+      roundKey: `rk_daily_${dateKey}_${category}_${roundIndex}`,
+      audioUrl: track.previewUrl,
+      difficulty: 'medium',
+      stages: SONGSPOT_STAGES,
+      stage: 0,
+      clipSeconds: SONGSPOT_STAGES[0],
+      category,
+      mode: 'daily',
+      poolSize: songPool.size,
+      expiresAt: roundIndex === summary.currentIndex ? currentRound?.expiresAt || 0 : 0,
+    }));
+
+    const info: DailyChallengeInfo = {
+      dateKey,
+      category,
+      totalRounds: DAILY_ROUND_COUNT,
+      rounds,
+      ...summary,
+    };
+    res.json({ code: 0, message: 'ok', data: info });
+  } catch (err) {
+    console.error('[Daily] Failed to create challenge', {
+      dateKey,
+      category,
+      errorType: err instanceof Error ? err.name : 'unknown',
+    });
+    res.status(503).json({ code: -503, message: 'Daily Challenge could not be loaded.' });
+  }
+}
+
+export async function handleStartDailyRound(req: Request, res: Response): Promise<void> {
+  const playerId = readDailyPlayerId(req);
+  const roundIndex = Number(req.body?.roundIndex);
+  if (!playerId || !Number.isInteger(roundIndex) || roundIndex < 0 || roundIndex >= DAILY_ROUND_COUNT) {
+    res.status(400).json({ code: -1, message: 'Invalid Daily Challenge round request.' });
+    return;
+  }
+
+  const requestedDate = typeof req.body?.dateKey === 'string' ? req.body.dateKey : '';
+  const dateKey = /^\d{4}-\d{2}-\d{2}$/.test(requestedDate) ? requestedDate : getBangkokDateKey();
+  const category = ALLOWED_CATEGORIES.has(req.body?.category) ? req.body.category as CategoryType : 'all';
+  try {
+    const progress = await dbService.getDailyRoundProgress(playerId, dateKey, category);
+    if (dateKey !== getBangkokDateKey() && progress.length === 0) {
+      res.status(409).json({ code: -409, message: 'No active challenge exists for that date.' });
+      return;
+    }
+    const songs = await getDailySongs(dateKey, category);
+    const nextIndex = summarizeDailyProgress(progress).currentIndex;
+    if (songs.length !== DAILY_ROUND_COUNT || roundIndex !== nextIndex) {
+      res.status(409).json({ code: -409, message: 'Daily Challenge round is out of sequence.' });
+      return;
+    }
+    const round = await getOrStartRound(playerId, dateKey, category, roundIndex, songs[roundIndex]);
+    if (!round) {
+      res.status(409).json({ code: -409, message: 'Daily Challenge round is already complete.' });
+      return;
+    }
+    res.json({ code: 0, message: 'ok', data: round });
+  } catch {
+    res.status(503).json({ code: -503, message: 'Could not start the Daily Challenge round.' });
+  }
+}
+
+export async function handleSubmitDailyScore(req: Request, res: Response): Promise<void> {
+  const playerId = readDailyPlayerId(req);
+  const playerName = typeof req.body?.playerName === 'string' ? req.body.playerName.trim().slice(0, 24) : '';
+  const category = ALLOWED_CATEGORIES.has(req.body?.category) ? req.body.category as CategoryType : null;
+  if (!playerId || !playerName || !category) {
+    res.status(400).json({ code: -1, message: 'Player name and category are required.' });
+    return;
+  }
+  const submittedDate = typeof req.body?.dateKey === 'string' ? req.body.dateKey : '';
+  const dateKey = /^\d{4}-\d{2}-\d{2}$/.test(submittedDate) ? submittedDate : getBangkokDateKey();
+  const progress = await dbService.getDailyRoundProgress(playerId, dateKey, category);
+  const summary = summarizeDailyProgress(progress);
+  if (summary.currentIndex !== DAILY_ROUND_COUNT || progress.length !== DAILY_ROUND_COUNT) {
+    res.status(409).json({ code: -409, message: 'Finish all five rounds before submitting.' });
+    return;
+  }
+  const entry = {
+    id: `daily-${dateKey}-${category}-${crypto.randomUUID()}`,
+    playerId,
+    dateKey,
+    category,
+    playerName,
+    score: summary.score,
+    correctCount: summary.correctCount,
+    skipCount: summary.skipCount,
+    totalAnswerTimeMs: summary.totalAnswerTimeMs,
+    createdAt: new Date().toISOString(),
+  };
+  const result = await dbService.submitDailyLeaderboard(entry);
+  if (!result.entry) {
+    res.status(503).json({ code: -503, message: 'Could not save Daily Challenge score.' });
+    return;
+  }
+  res.status(result.inserted ? 200 : 409).json({
+    code: result.inserted ? 0 : -409,
+    message: result.inserted ? 'ok' : 'A Daily Challenge submission already exists for this player today.',
+    data: result.entry,
+  });
+}
+
+export async function handleGetDailyLeaderboard(req: Request, res: Response): Promise<void> {
+  const rawCategory = typeof req.query.category === 'string' ? req.query.category : 'all';
+  const category = ALLOWED_CATEGORIES.has(rawCategory as CategoryType)
+    ? rawCategory as CategoryType
+    : 'all';
+  const requestedDate = typeof req.query.dateKey === 'string' ? req.query.dateKey : '';
+  const dateKey = /^\d{4}-\d{2}-\d{2}$/.test(requestedDate) ? requestedDate : getBangkokDateKey();
+  const entries = await dbService.getDailyLeaderboard(dateKey, category, 50);
+  res.json({ code: 0, message: 'ok', data: entries });
+}

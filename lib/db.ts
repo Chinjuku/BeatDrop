@@ -2,12 +2,12 @@ import { DatabaseSync, type SQLInputValue } from 'node:sqlite';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { Artist, ArtistRole, ArtistSyncJob, CategoryType, LeaderboardEntry, Song, TrackArtistCredit } from '../shared/types';
+import { Artist, ArtistRole, ArtistSyncJob, CategoryType, DailyLeaderboardEntry, DailyRoundProgress, LeaderboardEntry, Song, TrackArtistCredit } from '../shared/types';
 import { isDbLocal, isSupabaseConfigured, supabaseAdmin } from './supabase';
 import { getArtistCandidateTokens, normalizeText } from './itunes';
 
 const DATA_DIR = path.resolve(process.cwd(), 'data');
-const LOCAL_DB_FILE = path.join(DATA_DIR, 'beatdrop.db');
+const LOCAL_DB_FILE = process.env.BEATDROP_SQLITE_PATH || path.join(DATA_DIR, 'beatdrop.db');
 
 function resolveDbFile(): string {
   // On Vercel Serverless, /var/task is read-only; copy seed DB to /tmp/beatdrop.db
@@ -124,6 +124,51 @@ function ensureDb(): DatabaseSync {
 
     CREATE INDEX IF NOT EXISTS idx_track_artists_artist_id ON track_artists (artist_id);
     CREATE INDEX IF NOT EXISTS idx_track_artists_artist_name ON track_artists (artist_name COLLATE NOCASE);
+
+    CREATE TABLE IF NOT EXISTS daily_challenges (
+      date_key TEXT NOT NULL,
+      category TEXT NOT NULL,
+      song_ids TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      PRIMARY KEY (date_key, category)
+    );
+
+    CREATE TABLE IF NOT EXISTS daily_round_progress (
+      player_id TEXT NOT NULL,
+      date_key TEXT NOT NULL,
+      category TEXT NOT NULL,
+      round_index INTEGER NOT NULL,
+      track_id TEXT NOT NULL,
+      started_at INTEGER NOT NULL,
+      status TEXT NOT NULL DEFAULT 'pending',
+      score INTEGER NOT NULL DEFAULT 0,
+      speed_bonus INTEGER NOT NULL DEFAULT 0,
+      answer_time_ms INTEGER NOT NULL DEFAULT 0,
+      PRIMARY KEY (player_id, date_key, category, round_index)
+    );
+
+    CREATE TABLE IF NOT EXISTS daily_leaderboard (
+      id TEXT PRIMARY KEY,
+      player_id TEXT NOT NULL,
+      date_key TEXT NOT NULL,
+      category TEXT NOT NULL,
+      player_name TEXT NOT NULL,
+      score INTEGER NOT NULL,
+      correct_count INTEGER NOT NULL,
+      skip_count INTEGER NOT NULL,
+      total_answer_time_ms INTEGER NOT NULL,
+      created_at TEXT NOT NULL,
+      UNIQUE (player_id, date_key, category)
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_daily_leaderboard_rank
+      ON daily_leaderboard (date_key, category, score DESC, correct_count DESC, skip_count ASC, total_answer_time_ms ASC, player_name COLLATE NOCASE ASC, id ASC);
+
+    CREATE TABLE IF NOT EXISTS guesser_round_results (
+      round_id TEXT PRIMARY KEY,
+      result TEXT NOT NULL CHECK (result IN ('correct', 'wrong', 'skipped')),
+      created_at TEXT NOT NULL
+    );
   `);
 
   _insertSongStmt = instance.prepare(`
@@ -292,6 +337,200 @@ function rowToLeaderboard(row: LeaderboardRow): LeaderboardEntry {
 // ---------------- Public Database Operations ---------------- //
 
 export const dbService = {
+  async claimGuesserRoundResult(roundId: string, result: 'correct' | 'wrong' | 'skipped'): Promise<boolean> {
+    if (isSupabaseConfigured() && !isDbLocal()) {
+      return supabaseAdmin.claimGuesserRoundResult(roundId, result);
+    }
+    try {
+      const inserted = db.prepare(`
+        INSERT INTO guesser_round_results (round_id, result, created_at)
+        VALUES (?, ?, ?)
+        ON CONFLICT(round_id) DO NOTHING
+      `).run(roundId, result, new Date().toISOString());
+      return Number(inserted.changes) === 1;
+    } catch (err) {
+      console.error('Failed to claim Song Guesser round result:', err);
+      return false;
+    }
+  },
+  getOrCreateLocalDailyChallengeIds(
+    dateKey: string,
+    category: CategoryType,
+    candidateIds: string[]
+  ): string[] {
+    if (isServerlessSupabase() || (isSupabaseConfigured() && !isDbLocal())) return [];
+    try {
+      db.prepare(`
+        INSERT INTO daily_challenges (date_key, category, song_ids, created_at)
+        VALUES (?, ?, ?, ?)
+        ON CONFLICT(date_key, category) DO NOTHING
+      `).run(dateKey, category, JSON.stringify(candidateIds), new Date().toISOString());
+      const row = db.prepare(
+        'SELECT song_ids FROM daily_challenges WHERE date_key = ? AND category = ?'
+      ).get(dateKey, category) as { song_ids: string } | undefined;
+      const ids = row ? JSON.parse(row.song_ids) : [];
+      return Array.isArray(ids) ? ids.map(String) : [];
+    } catch (err) {
+      console.error('Failed to get/create local daily challenge:', err);
+      return [];
+    }
+  },
+
+  async getOrCreateDailyRoundProgress(progress: DailyRoundProgress): Promise<DailyRoundProgress | null> {
+    if (isSupabaseConfigured() && !isDbLocal()) {
+      return supabaseAdmin.getOrCreateDailyRoundProgress(progress);
+    }
+    try {
+      db.prepare(`
+        INSERT INTO daily_round_progress (
+          player_id, date_key, category, round_index, track_id, started_at,
+          status, score, speed_bonus, answer_time_ms
+        ) VALUES (?, ?, ?, ?, ?, ?, 'pending', 0, 0, 0)
+        ON CONFLICT(player_id, date_key, category, round_index) DO NOTHING
+      `).run(
+        progress.playerId, progress.dateKey, progress.category, progress.roundIndex,
+        progress.trackId, progress.startedAt
+      );
+      const rows = await this.getDailyRoundProgress(
+        progress.playerId, progress.dateKey, progress.category, progress.roundIndex
+      );
+      return rows[0] || null;
+    } catch (err) {
+      console.error('Failed to create daily round progress:', err);
+      return null;
+    }
+  },
+
+  async getDailyRoundProgress(
+    playerId: string,
+    dateKey: string,
+    category: CategoryType,
+    roundIndex?: number
+  ): Promise<DailyRoundProgress[]> {
+    if (isSupabaseConfigured() && !isDbLocal()) {
+      return supabaseAdmin.getDailyRoundProgress(playerId, dateKey, category, roundIndex);
+    }
+    try {
+      const whereIndex = roundIndex === undefined ? '' : ' AND round_index = ?';
+      const params: Array<string | number> = [playerId, dateKey, category];
+      if (roundIndex !== undefined) params.push(roundIndex);
+      const rows = db.prepare(
+        `SELECT * FROM daily_round_progress WHERE player_id = ? AND date_key = ? AND category = ?${whereIndex} ORDER BY round_index ASC`
+      ).all(...params) as unknown as Array<Record<string, unknown>>;
+      return rows.map((row) => ({
+        playerId: String(row.player_id),
+        dateKey: String(row.date_key),
+        category: row.category as CategoryType,
+        roundIndex: Number(row.round_index),
+        trackId: String(row.track_id),
+        startedAt: Number(row.started_at),
+        status: row.status as DailyRoundProgress['status'],
+        score: Number(row.score),
+        speedBonus: Number(row.speed_bonus),
+        answerTimeMs: Number(row.answer_time_ms),
+      }));
+    } catch (err) {
+      console.error('Failed to get daily round progress:', err);
+      return [];
+    }
+  },
+
+  async finalizeDailyRoundProgress(input: {
+    playerId: string;
+    dateKey: string;
+    category: CategoryType;
+    roundIndex: number;
+    trackId: string;
+    status: Exclude<DailyRoundProgress['status'], 'pending'>;
+    score: number;
+    speedBonus: number;
+    answerTimeMs: number;
+  }): Promise<{ updated: boolean; progress: DailyRoundProgress | null }> {
+    if (isSupabaseConfigured() && !isDbLocal()) {
+      return supabaseAdmin.finalizeDailyRoundProgress(input);
+    }
+    try {
+      const result = db.prepare(`
+        UPDATE daily_round_progress
+        SET status = ?, score = ?, speed_bonus = ?, answer_time_ms = ?
+        WHERE player_id = ? AND date_key = ? AND category = ? AND round_index = ?
+          AND track_id = ? AND status = 'pending'
+      `).run(
+        input.status, input.score, input.speedBonus, input.answerTimeMs,
+        input.playerId, input.dateKey, input.category, input.roundIndex, input.trackId
+      );
+      const rows = await this.getDailyRoundProgress(
+        input.playerId, input.dateKey, input.category, input.roundIndex
+      );
+      return { updated: Number(result.changes) === 1, progress: rows[0] || null };
+    } catch (err) {
+      console.error('Failed to finalize daily round:', err);
+      return { updated: false, progress: null };
+    }
+  },
+
+  async submitDailyLeaderboard(entry: DailyLeaderboardEntry): Promise<{ inserted: boolean; entry: DailyLeaderboardEntry | null }> {
+    if (isSupabaseConfigured() && !isDbLocal()) {
+      return supabaseAdmin.submitDailyLeaderboard(entry);
+    }
+    try {
+      const result = db.prepare(`
+        INSERT INTO daily_leaderboard (
+          id, player_id, date_key, category, player_name, score, correct_count,
+          skip_count, total_answer_time_ms, created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(player_id, date_key, category) DO NOTHING
+      `).run(
+        entry.id, entry.playerId, entry.dateKey, entry.category, entry.playerName,
+        entry.score, entry.correctCount, entry.skipCount, entry.totalAnswerTimeMs, entry.createdAt
+      );
+      const row = db.prepare(`
+        SELECT * FROM daily_leaderboard WHERE player_id = ? AND date_key = ? AND category = ?
+      `).get(entry.playerId, entry.dateKey, entry.category) as Record<string, unknown> | undefined;
+      return {
+        inserted: Number(result.changes) === 1,
+        entry: row ? {
+          id: String(row.id), playerId: String(row.player_id), dateKey: String(row.date_key),
+          category: row.category as CategoryType, playerName: String(row.player_name),
+          score: Number(row.score), correctCount: Number(row.correct_count),
+          skipCount: Number(row.skip_count), totalAnswerTimeMs: Number(row.total_answer_time_ms),
+          createdAt: String(row.created_at),
+        } : null,
+      };
+    } catch (err) {
+      console.error('Failed to submit daily leaderboard entry:', err);
+      return { inserted: false, entry: null };
+    }
+  },
+
+  async getDailyLeaderboard(
+    dateKey: string,
+    category: CategoryType,
+    limit = 50
+  ): Promise<DailyLeaderboardEntry[]> {
+    if (isSupabaseConfigured() && !isDbLocal()) {
+      return supabaseAdmin.getDailyLeaderboard(dateKey, category, limit);
+    }
+    try {
+      const rows = db.prepare(`
+        SELECT * FROM daily_leaderboard WHERE date_key = ? AND category = ?
+        ORDER BY score DESC, correct_count DESC, skip_count ASC,
+          total_answer_time_ms ASC, player_name COLLATE NOCASE ASC, id ASC
+        LIMIT ?
+      `).all(dateKey, category, limit) as unknown as Array<Record<string, unknown>>;
+      return rows.map((row) => ({
+        id: String(row.id), playerId: String(row.player_id), dateKey: String(row.date_key),
+        category: row.category as CategoryType, playerName: String(row.player_name),
+        score: Number(row.score), correctCount: Number(row.correct_count),
+        skipCount: Number(row.skip_count), totalAnswerTimeMs: Number(row.total_answer_time_ms),
+        createdAt: String(row.created_at),
+      }));
+    } catch (err) {
+      console.error('Failed to get daily leaderboard:', err);
+      return [];
+    }
+  },
+
   /**
    * Save a single song into SQLite
    */

@@ -1,4 +1,4 @@
-import type { Artist, ArtistSyncJob, CategoryType, LeaderboardEntry, Song, TrackArtistCredit } from './types';
+import type { Artist, ArtistSyncJob, CategoryType, DailyLeaderboardEntry, DailyRoundProgress, LeaderboardEntry, Song, TrackArtistCredit } from './types';
 
 export interface SupabaseSongRow {
   id: string;
@@ -108,6 +108,187 @@ export function rowToSong(r: SupabaseSongRow): Song {
 }
 
 export const supabaseAdmin = {
+  async claimGuesserRoundResult(roundId: string, result: 'correct' | 'wrong' | 'skipped'): Promise<boolean> {
+    if (!isSupabaseConfigured()) return false;
+    try {
+      const response = await supabaseFetch(getRestUrl('guesser_round_results?on_conflict=round_id'), {
+        method: 'POST',
+        headers: getSupabaseHeaders('resolution=ignore-duplicates,return=representation'),
+        body: JSON.stringify({
+          round_id: roundId,
+          result,
+          created_at: new Date().toISOString(),
+        }),
+      });
+      if (!response.ok) {
+        console.error('[Song Guesser] Could not persist round result', { status: response.status });
+        return false;
+      }
+      const rows = await response.json() as unknown[];
+      return rows.length === 1;
+    } catch (err) {
+      console.error('[Song Guesser] Round result persistence request failed', {
+        errorType: err instanceof Error ? err.name : 'unknown',
+      });
+      return false;
+    }
+  },
+
+  async getOrCreateDailyRoundProgress(progress: DailyRoundProgress): Promise<DailyRoundProgress | null> {
+    if (!isSupabaseConfigured()) return null;
+    const post = await supabaseFetch(getRestUrl('daily_round_progress?on_conflict=player_id,date_key,category,round_index'), {
+      method: 'POST',
+      headers: getSupabaseHeaders('resolution=ignore-duplicates,return=minimal'),
+      body: JSON.stringify({
+        player_id: progress.playerId,
+        date_key: progress.dateKey,
+        category: progress.category,
+        round_index: progress.roundIndex,
+        track_id: progress.trackId,
+        started_at: progress.startedAt,
+      }),
+    });
+    if (!post.ok) return null;
+    const rows = await this.getDailyRoundProgress(
+      progress.playerId, progress.dateKey, progress.category, progress.roundIndex
+    );
+    return rows[0] || null;
+  },
+
+  async getDailyRoundProgress(
+    playerId: string,
+    dateKey: string,
+    category: CategoryType,
+    roundIndex?: number
+  ): Promise<DailyRoundProgress[]> {
+    if (!isSupabaseConfigured()) return [];
+    const indexFilter = roundIndex === undefined ? '' : `&round_index=eq.${roundIndex}`;
+    try {
+      const res = await supabaseFetch(getRestUrl(
+        `daily_round_progress?player_id=eq.${encodeURIComponent(playerId)}&date_key=eq.${encodeURIComponent(dateKey)}&category=eq.${encodeURIComponent(category)}${indexFilter}&select=*&order=round_index.asc`
+      ));
+      if (!res.ok) return [];
+      const rows = await res.json() as Array<Record<string, unknown>>;
+      return rows.map((row) => ({
+        playerId: String(row.player_id),
+        dateKey: String(row.date_key),
+        category: row.category as CategoryType,
+        roundIndex: Number(row.round_index),
+        trackId: String(row.track_id),
+        startedAt: Number(row.started_at),
+        status: row.status as DailyRoundProgress['status'],
+        score: Number(row.score),
+        speedBonus: Number(row.speed_bonus),
+        answerTimeMs: Number(row.answer_time_ms),
+      }));
+    } catch {
+      return [];
+    }
+  },
+
+  async finalizeDailyRoundProgress(input: {
+    playerId: string;
+    dateKey: string;
+    category: CategoryType;
+    roundIndex: number;
+    trackId: string;
+    status: Exclude<DailyRoundProgress['status'], 'pending'>;
+    score: number;
+    speedBonus: number;
+    answerTimeMs: number;
+  }): Promise<{ updated: boolean; progress: DailyRoundProgress | null }> {
+    if (!isSupabaseConfigured()) return { updated: false, progress: null };
+    try {
+      const res = await supabaseFetch(getRestUrl(
+        `daily_round_progress?player_id=eq.${encodeURIComponent(input.playerId)}&date_key=eq.${encodeURIComponent(input.dateKey)}&category=eq.${encodeURIComponent(input.category)}&round_index=eq.${input.roundIndex}&track_id=eq.${encodeURIComponent(input.trackId)}&status=eq.pending`
+      ), {
+        method: 'PATCH',
+        headers: getSupabaseHeaders('return=representation'),
+        body: JSON.stringify({
+          status: input.status,
+          score: input.score,
+          speed_bonus: input.speedBonus,
+          answer_time_ms: input.answerTimeMs,
+        }),
+      });
+      if (!res.ok) return { updated: false, progress: null };
+      const rows = await res.json() as Array<Record<string, unknown>>;
+      const progress = rows[0] ? {
+        playerId: String(rows[0].player_id),
+        dateKey: String(rows[0].date_key),
+        category: rows[0].category as CategoryType,
+        roundIndex: Number(rows[0].round_index),
+        trackId: String(rows[0].track_id),
+        startedAt: Number(rows[0].started_at),
+        status: rows[0].status as DailyRoundProgress['status'],
+        score: Number(rows[0].score),
+        speedBonus: Number(rows[0].speed_bonus),
+        answerTimeMs: Number(rows[0].answer_time_ms),
+      } : null;
+      return { updated: Boolean(progress), progress };
+    } catch {
+      return { updated: false, progress: null };
+    }
+  },
+
+  async submitDailyLeaderboard(entry: DailyLeaderboardEntry): Promise<{ inserted: boolean; entry: DailyLeaderboardEntry | null }> {
+    if (!isSupabaseConfigured()) return { inserted: false, entry: null };
+    try {
+      const res = await supabaseFetch(getRestUrl('daily_leaderboard?on_conflict=player_id,date_key,category'), {
+        method: 'POST',
+        headers: getSupabaseHeaders('resolution=ignore-duplicates,return=representation'),
+        body: JSON.stringify({
+          id: entry.id,
+          player_id: entry.playerId,
+          date_key: entry.dateKey,
+          category: entry.category,
+          player_name: entry.playerName,
+          score: entry.score,
+          correct_count: entry.correctCount,
+          skip_count: entry.skipCount,
+          total_answer_time_ms: entry.totalAnswerTimeMs,
+          created_at: entry.createdAt,
+        }),
+      });
+      if (!res.ok) return { inserted: false, entry: null };
+      const rows = await res.json() as Array<Record<string, unknown>>;
+      const row = rows[0];
+      if (!row) {
+        const prior = await this.getDailyLeaderboard(entry.dateKey, entry.category, 500);
+        return { inserted: false, entry: prior.find((item) => item.playerId === entry.playerId) || null };
+      }
+      return { inserted: true, entry: {
+        id: String(row.id), playerId: String(row.player_id), dateKey: String(row.date_key),
+        category: row.category as CategoryType, playerName: String(row.player_name),
+        score: Number(row.score), correctCount: Number(row.correct_count),
+        skipCount: Number(row.skip_count), totalAnswerTimeMs: Number(row.total_answer_time_ms),
+        createdAt: String(row.created_at),
+      } };
+    } catch {
+      return { inserted: false, entry: null };
+    }
+  },
+
+  async getDailyLeaderboard(dateKey: string, category: CategoryType, limit = 50): Promise<DailyLeaderboardEntry[]> {
+    if (!isSupabaseConfigured()) return [];
+    try {
+      const res = await supabaseFetch(getRestUrl(
+        `daily_leaderboard?date_key=eq.${encodeURIComponent(dateKey)}&category=eq.${encodeURIComponent(category)}&select=*&order=score.desc,correct_count.desc,skip_count.asc,total_answer_time_ms.asc,player_name.asc,id.asc&limit=${Math.max(1, Math.min(100, limit))}`
+      ));
+      if (!res.ok) return [];
+      const rows = await res.json() as Array<Record<string, unknown>>;
+      return rows.map((row) => ({
+        id: String(row.id), playerId: String(row.player_id), dateKey: String(row.date_key),
+        category: row.category as CategoryType, playerName: String(row.player_name),
+        score: Number(row.score), correctCount: Number(row.correct_count),
+        skipCount: Number(row.skip_count), totalAnswerTimeMs: Number(row.total_answer_time_ms),
+        createdAt: String(row.created_at),
+      }));
+    } catch {
+      return [];
+    }
+  },
+
   /**
    * Batch Upsert songs (ON CONFLICT (id) DO UPDATE) with controlled concurrency
    */
@@ -436,14 +617,26 @@ export const supabaseAdmin = {
   /**
    * Trigger PostgreSQL RPC generate_daily_challenges(target_date)
    */
-  async rpcGenerateDailyChallenges(dateKey: string): Promise<boolean> {
+  async rpcGenerateDailyChallenges(dateKey: string, signal?: AbortSignal): Promise<boolean> {
     if (!isSupabaseConfigured()) return false;
-    const res = await fetch(getRestUrl('rpc/generate_daily_challenges'), {
-      method: 'POST',
-      headers: getSupabaseHeaders(),
-      body: JSON.stringify({ target_date: dateKey }),
-    });
-    return res.ok;
+    try {
+      const res = await supabaseFetch(getRestUrl('rpc/generate_daily_challenges'), {
+        method: 'POST',
+        headers: getSupabaseHeaders(),
+        body: JSON.stringify({ target_date: dateKey }),
+        signal,
+      });
+      if (!res.ok) {
+        console.warn('[Daily] Challenge generation RPC unavailable', { dateKey, status: res.status });
+      }
+      return res.ok;
+    } catch (err) {
+      console.warn('[Daily] Challenge generation RPC request failed', {
+        dateKey,
+        errorType: err instanceof Error ? err.name : 'unknown',
+      });
+      return false;
+    }
   },
 
   /**
@@ -451,16 +644,20 @@ export const supabaseAdmin = {
    */
   async getOrCreateDailyChallengeSongs(dateKey: string, category: CategoryType): Promise<Song[]> {
     if (!isSupabaseConfigured()) return [];
+    const challengeDeadline = AbortSignal.timeout(8_000);
 
     // 1. Check daily_challenges table
     const fetchRow = async () => {
-      const res = await fetch(
+      const res = await supabaseFetch(
         getRestUrl(
           `daily_challenges?date_key=eq.${encodeURIComponent(dateKey)}&category=eq.${encodeURIComponent(category)}&limit=1`
         ),
-        { headers: getSupabaseHeaders() }
+        { headers: getSupabaseHeaders(), signal: challengeDeadline }
       );
-      if (!res.ok) return null;
+      if (!res.ok) {
+        console.warn('[Daily] Challenge lookup failed', { dateKey, category, status: res.status });
+        return null;
+      }
       const rows = (await res.json()) as Array<{ date_key: string; category: string; song_ids: string[] }>;
       return rows[0] || null;
     };
@@ -469,17 +666,20 @@ export const supabaseAdmin = {
 
     // 2. Self-healing: invoke SQL RPC if missing
     if (!dailyRow || !dailyRow.song_ids?.length) {
-      await this.rpcGenerateDailyChallenges(dateKey);
+      await this.rpcGenerateDailyChallenges(dateKey, challengeDeadline);
       dailyRow = await fetchRow();
     }
 
     // 3. Fallback: if RPC wasn't created yet, pick 5 songs in JS and insert into daily_challenges
     if (!dailyRow || !dailyRow.song_ids?.length) {
       const catFilter = category === 'thai' || category === 'international' ? `&category=eq.${category}` : '';
-      const candRes = await fetch(
+      const candRes = await supabaseFetch(
         getRestUrl(`songs?select=*${catFilter}&order=popularity_score.desc&limit=100`),
-        { headers: getSupabaseHeaders() }
+        { headers: getSupabaseHeaders(), signal: challengeDeadline }
       );
+      if (!candRes.ok) {
+        console.warn('[Daily] Candidate song lookup failed', { dateKey, category, status: candRes.status });
+      }
       const candidates = candRes.ok ? ((await candRes.json()) as SupabaseSongRow[]).map(rowToSong) : [];
       const picked: Song[] = [];
       const seenArtists = new Set<string>();
@@ -492,79 +692,45 @@ export const supabaseAdmin = {
         if (picked.length >= 5) break;
       }
       if (picked.length === 5) {
-        await fetch(getRestUrl('daily_challenges?on_conflict=date_key,category'), {
+        const insertResponse = await supabaseFetch(getRestUrl('daily_challenges?on_conflict=date_key,category'), {
           method: 'POST',
           headers: getSupabaseHeaders('resolution=ignore-duplicates,return=minimal'),
+          signal: challengeDeadline,
           body: JSON.stringify({
             date_key: dateKey,
             category,
             song_ids: picked.map((p) => p.id),
           }),
         });
-        return picked;
+        if (!insertResponse.ok) {
+          console.warn('[Daily] Challenge persistence failed', { dateKey, category, status: insertResponse.status });
+        }
+        // A concurrent request may have won the unique-key insert with a different
+        // deterministic sequence. Always return the persisted winner's sequence.
+        dailyRow = await fetchRow();
       }
-      return picked;
+      if (!dailyRow?.song_ids?.length) return [];
     }
 
     // 4. Fetch the 5 songs in exact order of song_ids
     const idsParam = dailyRow.song_ids.map((id) => `"${id}"`).join(',');
-    const songsRes = await fetch(getRestUrl(`songs?id=in.(${idsParam})&select=*`), {
+    const songsRes = await supabaseFetch(getRestUrl(`songs?id=in.(${idsParam})&select=*`), {
       headers: getSupabaseHeaders(),
+      signal: challengeDeadline,
     });
-    if (!songsRes.ok) return [];
+    if (!songsRes.ok) {
+      console.warn('[Daily] Challenge track hydration failed', { dateKey, category, status: songsRes.status });
+      return [];
+    }
     const rows = (await songsRes.json()) as SupabaseSongRow[];
     const existingSongs = dailyRow.song_ids
       .map((id) => rows.find((r) => r.id === id))
       .filter((r): r is SupabaseSongRow => Boolean(r))
       .map(rowToSong);
 
-    // Self-healing: if some song IDs are missing or row has < 5 songs, backfill up to 5 songs
-    if (existingSongs.length < 5) {
-      const catFilter = category === 'thai' || category === 'international' ? `&category=eq.${category}` : '';
-      const candRes = await fetch(
-        getRestUrl(`songs?select=*${catFilter}&order=popularity_score.desc&limit=150`),
-        { headers: getSupabaseHeaders() }
-      );
-      if (candRes.ok) {
-        const candidates = ((await candRes.json()) as SupabaseSongRow[]).map(rowToSong);
-        const seenArtists = new Set(existingSongs.map((s) => s.artistName.toLowerCase()));
-        const seenIds = new Set(existingSongs.map((s) => s.id));
-
-        for (const s of candidates) {
-          if (existingSongs.length >= 5) break;
-          const aKey = s.artistName.toLowerCase();
-          if (!seenIds.has(s.id) && !seenArtists.has(aKey)) {
-            seenArtists.add(aKey);
-            seenIds.add(s.id);
-            existingSongs.push(s);
-          }
-        }
-
-        for (const s of candidates) {
-          if (existingSongs.length >= 5) break;
-          if (!seenIds.has(s.id)) {
-            seenIds.add(s.id);
-            existingSongs.push(s);
-          }
-        }
-
-        // Persist the repaired 5 song IDs to daily_challenges table
-        if (existingSongs.length === 5) {
-          await fetch(
-            getRestUrl(`daily_challenges?date_key=eq.${encodeURIComponent(dateKey)}&category=eq.${encodeURIComponent(category)}`),
-            {
-              method: 'PATCH',
-              headers: getSupabaseHeaders('return=minimal'),
-              body: JSON.stringify({
-                song_ids: existingSongs.map((s) => s.id),
-              }),
-            }
-          );
-        }
-      }
-    }
-
-    return existingSongs;
+    // Historical sequences are immutable. Missing catalog rows make the challenge
+    // unavailable rather than silently changing the rules for that date.
+    return existingSongs.length === 5 ? existingSongs : [];
   },
 
   /**

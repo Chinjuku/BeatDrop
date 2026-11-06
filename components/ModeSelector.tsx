@@ -23,6 +23,7 @@ import {
   YEAR_OPTIONS,
 } from '../types';
 import { TimeRangeSelector } from './TimeRangeSelector';
+import { Modal } from './Modal';
 
 interface ModeSelectorProps {
   config: GameConfig;
@@ -140,9 +141,9 @@ const GenrePickerModal: React.FC<{
   );
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-150">
+    <Modal open={isOpen} onClose={onClose} title="All Genres" dismissOnBackdrop={false} panelClassName="!bg-transparent !border-0 !shadow-none !overflow-visible !max-h-none">
       <div
-        className="w-full max-w-md rounded-2xl border p-4 sm:p-5 shadow-2xl space-y-4 max-h-[85vh] flex flex-col"
+        className="w-full max-w-md self-center rounded-2xl border p-4 sm:p-5 shadow-2xl space-y-4 max-h-[85vh] flex flex-col"
         style={{
           backgroundColor: 'var(--song-surface)',
           borderColor: 'var(--song-border)',
@@ -247,7 +248,7 @@ const GenrePickerModal: React.FC<{
           </div>
         </div>
       </div>
-    </div>
+    </Modal>
   );
 };
 
@@ -263,9 +264,9 @@ const EraPickerModal: React.FC<{
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-150">
+    <Modal open={isOpen} onClose={onClose} title="All Eras and Years" dismissOnBackdrop={false} panelClassName="!bg-transparent !border-0 !shadow-none !overflow-visible !max-h-none">
       <div
-        className="w-full max-w-md rounded-2xl border p-4 sm:p-5 shadow-2xl space-y-4 max-h-[85vh] flex flex-col"
+        className="w-full max-w-md self-center rounded-2xl border p-4 sm:p-5 shadow-2xl space-y-4 max-h-[85vh] flex flex-col"
         style={{
           backgroundColor: 'var(--song-surface)',
           borderColor: 'var(--song-border)',
@@ -395,7 +396,7 @@ const EraPickerModal: React.FC<{
           </div>
         </div>
       </div>
-    </div>
+    </Modal>
   );
 };
 
@@ -448,9 +449,9 @@ const ArtistPickerModal: React.FC<{
   });
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-150">
+    <Modal open={isOpen} onClose={onClose} title="Choose an artist" dismissOnBackdrop={false} panelClassName="!bg-transparent !border-0 !shadow-none !overflow-visible !max-h-none">
       <div
-        className="w-full max-w-lg rounded-2xl border p-4 sm:p-5 shadow-2xl space-y-3.5 max-h-[85vh] flex flex-col"
+        className="w-full max-w-lg self-center rounded-2xl border p-4 sm:p-5 shadow-2xl space-y-3.5 max-h-[85vh] flex flex-col"
         style={{
           backgroundColor: 'var(--song-surface)',
           borderColor: 'var(--song-border)',
@@ -669,7 +670,7 @@ const ArtistPickerModal: React.FC<{
           </div>
         )}
       </div>
-    </div>
+    </Modal>
   );
 };
 
