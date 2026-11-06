@@ -14,6 +14,8 @@ const SongGuesserPage: React.FC = () => {
     handleDailyDifficultySelect,
     round,
     loadingRound,
+    roundLoadError,
+    retryRound,
     submittingGuess,
     outcome,
     revealSong,
@@ -196,6 +198,19 @@ const SongGuesserPage: React.FC = () => {
             <p className="text-xs font-bold uppercase tracking-wider" style={{ color: 'var(--song-muted)' }}>
               กำลังสุ่มโจทย์ 4 ตัวเลือก...
             </p>
+          </div>
+        ) : roundLoadError ? (
+          <div className="py-12 px-4 flex flex-col items-center text-center gap-3">
+            <p className="text-sm font-bold" role="alert">{roundLoadError}</p>
+            <button
+              type="button"
+              onClick={() => void retryRound()}
+              disabled={loadingRound}
+              className="min-h-11 rounded-xl px-5 font-extrabold transition hover:brightness-110 disabled:opacity-50"
+              style={{ backgroundColor: 'var(--song-accent)', color: 'var(--song-accent-on)' }}
+            >
+              {loadingRound ? 'Retrying…' : 'Retry'}
+            </button>
           </div>
         ) : outcome && revealSong ? (
           <>

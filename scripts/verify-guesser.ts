@@ -113,6 +113,18 @@ await handleSkip({ body: { roundToken, giveUp: true }, headers: {} } as never, r
 assert.equal(response.statusCode, 200);
 assert.equal((response.body as { data: { roundResult: string } }).data.roundResult, 'skipped');
 assert.equal(await dbService.claimGuesserRoundResult(roundId, 'correct'), false, 'a skipped round cannot later win or add score');
+assert.equal(activeRounds.has(roundToken), false, 'skipping consumes and stops the previous round');
+const nextRoundResponse = {
+  statusCode: 200,
+  body: null as unknown,
+  status(code: number) { this.statusCode = code; return this; },
+  json(body: unknown) { this.body = body; return this; },
+};
+await handleStartRound({ query: { category: 'thai', difficulty: 'easy', mode: 'guesser' } } as never, nextRoundResponse as never);
+assert.equal(nextRoundResponse.statusCode, 200);
+const nextRound = (nextRoundResponse.body as { data: { roundToken: string; choices: unknown[] } }).data;
+assert.notEqual(nextRound.roundToken, roundToken, 'a successful skip transitions to a new round');
+assert.equal(nextRound.choices.length, 4, 'the next Song Guesser round retains its four choices');
 const duplicateSkip = { ...response, body: null as unknown, statusCode: 200 };
 await handleSkip({ body: { roundToken, giveUp: true }, headers: {} } as never, duplicateSkip as never);
 assert.notEqual(duplicateSkip.statusCode, 200, 'duplicate skip submissions must be rejected');
@@ -139,5 +151,5 @@ const wrongRoundClaim = await dbService.claimGuesserRoundResult('test-guesser-wr
 assert.equal(wrongRoundClaim, true);
 assert.equal(await dbService.claimGuesserRoundResult('test-guesser-wrong-round', 'correct'), false, 'wrong answers cannot be replayed as correct answers');
 
-console.log('Song Guesser checks passed: helper and real-route four-choice behavior, distinct artist IDs, male/female gender consistency, genre preference, unknown metadata fallback, insufficient-data handling, terminal skip, duplicate/concurrent skip rejection, and no skipped/wrong round score claim.');
+console.log('Song Guesser checks passed: helper and real-route four-choice behavior, distinct artist IDs, male/female gender consistency, genre preference, unknown metadata fallback, insufficient-data handling, skip-to-next-round transition, duplicate/concurrent skip rejection, and no skipped/wrong round score claim.');
 fs.rmSync(tempDir, { recursive: true, force: true });

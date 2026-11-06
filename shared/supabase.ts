@@ -120,10 +120,16 @@ export const supabaseAdmin = {
           created_at: new Date().toISOString(),
         }),
       });
-      if (!response.ok) return false;
+      if (!response.ok) {
+        console.error('[Song Guesser] Could not persist round result', { status: response.status });
+        return false;
+      }
       const rows = await response.json() as unknown[];
       return rows.length === 1;
-    } catch {
+    } catch (err) {
+      console.error('[Song Guesser] Round result persistence request failed', {
+        errorType: err instanceof Error ? err.name : 'unknown',
+      });
       return false;
     }
   },
@@ -611,14 +617,26 @@ export const supabaseAdmin = {
   /**
    * Trigger PostgreSQL RPC generate_daily_challenges(target_date)
    */
-  async rpcGenerateDailyChallenges(dateKey: string): Promise<boolean> {
+  async rpcGenerateDailyChallenges(dateKey: string, signal?: AbortSignal): Promise<boolean> {
     if (!isSupabaseConfigured()) return false;
-    const res = await fetch(getRestUrl('rpc/generate_daily_challenges'), {
-      method: 'POST',
-      headers: getSupabaseHeaders(),
-      body: JSON.stringify({ target_date: dateKey }),
-    });
-    return res.ok;
+    try {
+      const res = await supabaseFetch(getRestUrl('rpc/generate_daily_challenges'), {
+        method: 'POST',
+        headers: getSupabaseHeaders(),
+        body: JSON.stringify({ target_date: dateKey }),
+        signal,
+      });
+      if (!res.ok) {
+        console.warn('[Daily] Challenge generation RPC unavailable', { dateKey, status: res.status });
+      }
+      return res.ok;
+    } catch (err) {
+      console.warn('[Daily] Challenge generation RPC request failed', {
+        dateKey,
+        errorType: err instanceof Error ? err.name : 'unknown',
+      });
+      return false;
+    }
   },
 
   /**
@@ -626,16 +644,20 @@ export const supabaseAdmin = {
    */
   async getOrCreateDailyChallengeSongs(dateKey: string, category: CategoryType): Promise<Song[]> {
     if (!isSupabaseConfigured()) return [];
+    const challengeDeadline = AbortSignal.timeout(8_000);
 
     // 1. Check daily_challenges table
     const fetchRow = async () => {
-      const res = await fetch(
+      const res = await supabaseFetch(
         getRestUrl(
           `daily_challenges?date_key=eq.${encodeURIComponent(dateKey)}&category=eq.${encodeURIComponent(category)}&limit=1`
         ),
-        { headers: getSupabaseHeaders() }
+        { headers: getSupabaseHeaders(), signal: challengeDeadline }
       );
-      if (!res.ok) return null;
+      if (!res.ok) {
+        console.warn('[Daily] Challenge lookup failed', { dateKey, category, status: res.status });
+        return null;
+      }
       const rows = (await res.json()) as Array<{ date_key: string; category: string; song_ids: string[] }>;
       return rows[0] || null;
     };
@@ -644,17 +666,20 @@ export const supabaseAdmin = {
 
     // 2. Self-healing: invoke SQL RPC if missing
     if (!dailyRow || !dailyRow.song_ids?.length) {
-      await this.rpcGenerateDailyChallenges(dateKey);
+      await this.rpcGenerateDailyChallenges(dateKey, challengeDeadline);
       dailyRow = await fetchRow();
     }
 
     // 3. Fallback: if RPC wasn't created yet, pick 5 songs in JS and insert into daily_challenges
     if (!dailyRow || !dailyRow.song_ids?.length) {
       const catFilter = category === 'thai' || category === 'international' ? `&category=eq.${category}` : '';
-      const candRes = await fetch(
+      const candRes = await supabaseFetch(
         getRestUrl(`songs?select=*${catFilter}&order=popularity_score.desc&limit=100`),
-        { headers: getSupabaseHeaders() }
+        { headers: getSupabaseHeaders(), signal: challengeDeadline }
       );
+      if (!candRes.ok) {
+        console.warn('[Daily] Candidate song lookup failed', { dateKey, category, status: candRes.status });
+      }
       const candidates = candRes.ok ? ((await candRes.json()) as SupabaseSongRow[]).map(rowToSong) : [];
       const picked: Song[] = [];
       const seenArtists = new Set<string>();
@@ -667,15 +692,19 @@ export const supabaseAdmin = {
         if (picked.length >= 5) break;
       }
       if (picked.length === 5) {
-        await fetch(getRestUrl('daily_challenges?on_conflict=date_key,category'), {
+        const insertResponse = await supabaseFetch(getRestUrl('daily_challenges?on_conflict=date_key,category'), {
           method: 'POST',
           headers: getSupabaseHeaders('resolution=ignore-duplicates,return=minimal'),
+          signal: challengeDeadline,
           body: JSON.stringify({
             date_key: dateKey,
             category,
             song_ids: picked.map((p) => p.id),
           }),
         });
+        if (!insertResponse.ok) {
+          console.warn('[Daily] Challenge persistence failed', { dateKey, category, status: insertResponse.status });
+        }
         // A concurrent request may have won the unique-key insert with a different
         // deterministic sequence. Always return the persisted winner's sequence.
         dailyRow = await fetchRow();
@@ -685,10 +714,14 @@ export const supabaseAdmin = {
 
     // 4. Fetch the 5 songs in exact order of song_ids
     const idsParam = dailyRow.song_ids.map((id) => `"${id}"`).join(',');
-    const songsRes = await fetch(getRestUrl(`songs?id=in.(${idsParam})&select=*`), {
+    const songsRes = await supabaseFetch(getRestUrl(`songs?id=in.(${idsParam})&select=*`), {
       headers: getSupabaseHeaders(),
+      signal: challengeDeadline,
     });
-    if (!songsRes.ok) return [];
+    if (!songsRes.ok) {
+      console.warn('[Daily] Challenge track hydration failed', { dateKey, category, status: songsRes.status });
+      return [];
+    }
     const rows = (await songsRes.json()) as SupabaseSongRow[];
     const existingSongs = dailyRow.song_ids
       .map((id) => rows.find((r) => r.id === id))

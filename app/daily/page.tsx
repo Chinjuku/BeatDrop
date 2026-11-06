@@ -30,6 +30,8 @@ const DailyChallengePage: React.FC = () => {
     nextStageSeconds,
     streak,
     dailyInfo,
+    dailyLoadError,
+    retryDailyChallenge,
     dailyIndex,
     dailyResults,
     dailyScore,
@@ -53,18 +55,29 @@ const DailyChallengePage: React.FC = () => {
     setTicketModalOpen,
     setLeaderboardOpen,
   } = useGame();
+  const handleConfigChangeRef = useRef(handleConfigChange);
+  handleConfigChangeRef.current = handleConfigChange;
   const [remainingMs, setRemainingMs] = useState(0);
   const timeoutTriggeredFor = useRef<string | null>(null);
   const timeoutHandlerRef = useRef(handleDailyTimeout);
   timeoutHandlerRef.current = handleDailyTimeout;
 
-  // Daily Challenge inherits Songspot's canonical timing preset.
+  // Normalize only configuration. Missing challenge data is handled as a load error below,
+  // so a failed request cannot trigger an automatic request loop.
   useEffect(() => {
+    const matchesSongspotStages =
+      config.customStages?.length === SONGSPOT_STAGES.length &&
+      config.customStages.every((seconds, index) => seconds === SONGSPOT_STAGES[index]);
     if (
       config.mode !== 'daily' ||
-      (!loadingRound && (!dailyInfo || dailyInfo.category !== config.category))
+      config.timeRangePreset !== 'songspot' ||
+      !matchesSongspotStages ||
+      Boolean(config.artistName) ||
+      (config.yearFilter || 'any') !== 'any' ||
+      (config.genreFilter || 'any') !== 'any' ||
+      (dailyInfo && dailyInfo.category !== config.category)
     ) {
-      handleConfigChange(
+      handleConfigChangeRef.current(
         {
           ...config,
           mode: 'daily',
@@ -77,7 +90,16 @@ const DailyChallengePage: React.FC = () => {
         true
       );
     }
-  }, [config.mode, config.category, dailyInfo, loadingRound]);
+  }, [
+    config.mode,
+    config.category,
+    config.timeRangePreset,
+    config.customStages,
+    config.artistName,
+    config.yearFilter,
+    config.genreFilter,
+    dailyInfo?.category,
+  ]);
 
   useEffect(() => {
     if (config.mode !== 'daily' || !round?.expiresAt || outcome) {
@@ -308,6 +330,19 @@ const DailyChallengePage: React.FC = () => {
                 <span>เล่นโหมดฝึกซ้อม (Play)</span>
               </button>
             </div>
+          </div>
+        ) : dailyLoadError ? (
+          <div className="py-12 px-4 flex flex-col items-center text-center gap-3">
+            <p className="text-sm font-bold" role="alert">{dailyLoadError}</p>
+            <button
+              type="button"
+              onClick={() => void retryDailyChallenge()}
+              disabled={loadingRound}
+              className="min-h-11 rounded-xl px-5 font-extrabold transition hover:brightness-110 disabled:opacity-50"
+              style={{ backgroundColor: 'var(--song-accent)', color: 'var(--song-accent-on)' }}
+            >
+              {loadingRound ? 'Retrying…' : 'Retry'}
+            </button>
           </div>
         ) : loadingRound || !dailyInfo || config.mode !== 'daily' || !round ? (
           <div className="py-20 flex flex-col items-center justify-center gap-3">

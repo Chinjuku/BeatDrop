@@ -15,7 +15,7 @@ const scoring = await import('../lib/engine/dailyScoring');
 const token = await import('../lib/token');
 const session = await import('../lib/engine/dailySession');
 const { dbService } = await import('../lib/db');
-const { ensureCatalogLoaded } = await import('../lib/engine/songPool');
+const { ensureCatalogLoaded, songPool } = await import('../lib/engine/songPool');
 const { handleDaily } = await import('../lib/engine/dailyEngine');
 const { handleGuess, handleSkip } = await import('../lib/engine/roundEngine');
 const { getDailyPlayerId } = session;
@@ -231,5 +231,21 @@ const concurrentSubmissions = await Promise.all([
 assert.equal(concurrentSubmissions.filter((result) => result.inserted).length, 1);
 assert.equal((await dbService.getDailyLeaderboard(rankingDate, 'all')).length, 5);
 
-console.log('Daily Challenge regression checks passed: timing inheritance, scoring bounds, timeout, Bangkok reset, signed sessions, stable shared sequence and refresh, correct/wrong/skip gameplay, atomic duplicate finalization, deterministic ranking, and concurrent/duplicate leaderboard submissions.');
+const catalogSnapshot = [...songPool.entries()];
+songPool.clear();
+const emptyCatalogResponse = mockResponse();
+await handleDaily({ query: { category: 'all' }, headers: {} } as never, emptyCatalogResponse as never);
+assert.equal(emptyCatalogResponse.statusCode, 503, 'an empty catalog must end loading with an unavailable response');
+assert.equal((emptyCatalogResponse.body as { code: number }).code, -503);
+for (const [id, song] of catalogSnapshot) songPool.set(id, song);
+
+const originalProgressReader = dbService.getDailyRoundProgress;
+dbService.getDailyRoundProgress = async () => { throw new Error('private database connection detail'); };
+const failedDatabaseResponse = mockResponse();
+await handleDaily({ query: { category: 'all' }, headers: {} } as never, failedDatabaseResponse as never);
+assert.equal(failedDatabaseResponse.statusCode, 503);
+assert.ok(!(failedDatabaseResponse.body as { message: string }).message.includes('private database connection detail'));
+dbService.getDailyRoundProgress = originalProgressReader;
+
+console.log('Daily Challenge regression checks passed: timing inheritance, scoring bounds, timeout, Bangkok reset, signed sessions, stable shared sequence and refresh, successful five-round response, empty catalog and database errors, correct/wrong/skip gameplay, atomic duplicate finalization, deterministic ranking, and concurrent/duplicate leaderboard submissions.');
 fs.rmSync(tempDir, { recursive: true, force: true });

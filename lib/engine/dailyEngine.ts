@@ -121,6 +121,12 @@ export async function handleDaily(req: Request, res: Response): Promise<void> {
   try {
     const songs = await getDailySongs(dateKey, category);
     if (songs.length !== DAILY_ROUND_COUNT) {
+      console.warn('[Daily] Challenge unavailable for current catalog', {
+        dateKey,
+        category,
+        expectedRounds: DAILY_ROUND_COUNT,
+        actualRounds: songs.length,
+      });
       res.status(503).json({ code: -503, message: 'Daily challenge is not available for this catalog yet.' });
       return;
     }
@@ -163,7 +169,11 @@ export async function handleDaily(req: Request, res: Response): Promise<void> {
     };
     res.json({ code: 0, message: 'ok', data: info });
   } catch (err) {
-    console.error('[Daily] Failed to create challenge:', (err as Error).message);
+    console.error('[Daily] Failed to create challenge', {
+      dateKey,
+      category,
+      errorType: err instanceof Error ? err.name : 'unknown',
+    });
     res.status(503).json({ code: -503, message: 'Daily Challenge could not be loaded.' });
   }
 }
