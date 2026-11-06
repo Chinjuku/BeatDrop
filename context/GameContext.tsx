@@ -637,7 +637,17 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       didInitRef.current = true;
       const { ids: validPlayed } = loadValidPlayedIds();
       playedIdsRef.current = validPlayed;
-      startNewRound(config);
+      const path = typeof window !== 'undefined' ? window.location.pathname : '/';
+      const initialMode: GameMode = path.startsWith('/daily')
+        ? 'daily'
+        : path.startsWith('/guesser')
+        ? 'guesser'
+        : config.mode;
+      const initialCfg = initialMode !== config.mode ? { ...config, mode: initialMode } : config;
+      if (initialMode !== config.mode) {
+        setConfig(initialCfg);
+      }
+      startNewRound(initialCfg);
     }
   }, [config, startNewRound]);
 
