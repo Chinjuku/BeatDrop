@@ -111,31 +111,37 @@ const MusicCategoriesPage: React.FC = () => {
   };
 
   return (
-    <div className="w-full flex flex-col items-center max-w-4xl my-auto">
+    <div className="w-full flex flex-col items-center max-w-4xl pt-1 sm:pt-4 pb-8 sm:pb-12">
       {/* Hero Header */}
-      <div className="text-center mb-6">
+      <div className="text-center mb-5 sm:mb-6 px-2">
         <div
-          className="inline-flex items-center gap-2 px-3 py-1 rounded-full border mb-2 text-xs font-bold"
+          className="inline-flex items-center gap-1.5 sm:gap-2 px-3 py-1 rounded-full border mb-2 text-[11px] sm:text-xs font-bold"
           style={{
             backgroundColor: 'color-mix(in srgb, var(--song-accent) 15%, transparent)',
             borderColor: 'var(--song-accent)',
             color: 'var(--song-accent-text)',
           }}
         >
-          <Compass className="w-4 h-4" />
+          <Compass className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
           <span>MUSIC CATEGORIES</span>
         </div>
-        <h1 className="text-2xl sm:text-4xl font-extrabold tracking-tight">
-          Music Categories (สำรวจแนวเพลง ยุคสมัย และศิลปิน)
+        <h1 className="text-xl sm:text-3xl md:text-4xl font-extrabold tracking-tight leading-snug">
+          Music Categories{' '}
+          <span className="block sm:inline text-sm sm:text-xl md:text-2xl font-bold opacity-80 mt-0.5 sm:mt-0">
+            (สำรวจแนวเพลง ยุคสมัย และศิลปิน)
+          </span>
         </h1>
-        <p className="text-xs sm:text-sm mt-1.5 opacity-70" style={{ color: 'var(--song-muted)' }}>
+        <p
+          className="text-xs sm:text-sm mt-1.5 opacity-70 max-w-lg mx-auto leading-relaxed"
+          style={{ color: 'var(--song-muted)' }}
+        >
           ท้าทายความจำด้วยการฟังเสี้ยววินาที หรือตอบแบบ 4 ตัวเลือก ในแนวเพลง ยุคสมัย หรือศิลปินที่คุณชื่นชอบ
         </p>
       </div>
 
-      {/* Segmented Filter Switcher */}
+      {/* Segmented Filter Switcher (Equal-width 3-tab layout that never breaks to 2 lines) */}
       <div
-        className="flex flex-wrap sm:flex-nowrap items-center justify-center gap-1 sm:gap-2 p-1 sm:p-1.5 rounded-2xl border mb-6 max-w-full overflow-x-auto"
+        className="w-full max-w-md grid grid-cols-3 gap-1 p-1 sm:p-1.5 rounded-2xl border mb-4 sm:mb-6"
         style={{
           backgroundColor: 'var(--song-surface)',
           borderColor: 'var(--song-border)',
@@ -144,7 +150,7 @@ const MusicCategoriesPage: React.FC = () => {
         <button
           type="button"
           onClick={() => setSelectedTab('artists')}
-          className="px-2.5 sm:px-4 py-1.5 sm:py-2 rounded-xl text-xs sm:text-sm font-extrabold flex items-center gap-1.5 sm:gap-2 transition whitespace-nowrap"
+          className="w-full py-2 px-1 sm:px-3 rounded-xl text-xs sm:text-sm font-extrabold flex items-center justify-center gap-1 sm:gap-2 transition truncate"
           style={
             selectedTab === 'artists'
               ? {
@@ -156,14 +162,16 @@ const MusicCategoriesPage: React.FC = () => {
                 }
           }
         >
-          <Mic2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-          <span>ศิลปิน (Artists)</span>
+          <Mic2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
+          <span className="truncate">
+            ศิลปิน <span className="hidden sm:inline">(Artists)</span>
+          </span>
         </button>
 
         <button
           type="button"
           onClick={() => setSelectedTab('genres')}
-          className="px-2.5 sm:px-4 py-1.5 sm:py-2 rounded-xl text-xs sm:text-sm font-extrabold flex items-center gap-1.5 sm:gap-2 transition whitespace-nowrap"
+          className="w-full py-2 px-1 sm:px-3 rounded-xl text-xs sm:text-sm font-extrabold flex items-center justify-center gap-1 sm:gap-2 transition truncate"
           style={
             selectedTab === 'genres'
               ? {
@@ -175,14 +183,16 @@ const MusicCategoriesPage: React.FC = () => {
                 }
           }
         >
-          <Radio className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-          <span>แนวเพลง (Genres)</span>
+          <Radio className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
+          <span className="truncate">
+            แนวเพลง <span className="hidden sm:inline">(Genres)</span>
+          </span>
         </button>
 
         <button
           type="button"
           onClick={() => setSelectedTab('eras')}
-          className="px-2.5 sm:px-4 py-1.5 sm:py-2 rounded-xl text-xs sm:text-sm font-extrabold flex items-center gap-1.5 sm:gap-2 transition whitespace-nowrap"
+          className="w-full py-2 px-1 sm:px-3 rounded-xl text-xs sm:text-sm font-extrabold flex items-center justify-center gap-1 sm:gap-2 transition truncate"
           style={
             selectedTab === 'eras'
               ? {
@@ -194,13 +204,15 @@ const MusicCategoriesPage: React.FC = () => {
                 }
           }
         >
-          <Calendar className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-          <span>ยุคสมัย (Decades)</span>
+          <Calendar className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
+          <span className="truncate">
+            ยุคสมัย <span className="hidden sm:inline">(Decades)</span>
+          </span>
         </button>
       </div>
 
       {/* Quick Search Input */}
-      <div className="w-full max-w-md mb-6 relative">
+      <div className="w-full max-w-md mb-4 sm:mb-6 relative">
         <div
           className="flex items-center px-3.5 py-2.5 rounded-2xl border transition focus-within:ring-2"
           style={{
@@ -213,8 +225,8 @@ const MusicCategoriesPage: React.FC = () => {
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="ค้นหาชื่อศิลปินในคลัง (เช่น Illslick, Bodyslam, LISA, Taylor Swift)..."
-            className="w-full bg-transparent border-0 outline-none text-base sm:text-sm font-semibold placeholder:opacity-50"
+            placeholder="ค้นหาศิลปิน (เช่น Bodyslam, LISA, Taylor Swift)..."
+            className="w-full bg-transparent border-0 outline-none text-xs sm:text-sm font-semibold placeholder:opacity-50"
             style={{ color: 'var(--song-text)' }}
           />
           {searchQuery ? (
@@ -232,108 +244,115 @@ const MusicCategoriesPage: React.FC = () => {
 
       {/* Tab: Artists */}
       {selectedTab === 'artists' && (
-        <div className="w-full space-y-4">
+        <div className="w-full space-y-3 sm:space-y-4">
           <div
-            className="p-3.5 sm:p-4 rounded-2xl border flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3"
+            className="p-3 sm:p-4 rounded-2xl border flex flex-col gap-2.5 sm:gap-3"
             style={{
               backgroundColor: 'var(--song-surface)',
               borderColor: 'var(--song-border)',
             }}
           >
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2">
-                <h3 className="text-sm font-extrabold flex items-center gap-1.5">
-                  <span>ทายเพลงเฉพาะศิลปินคนโปรด</span>
-                  <span className="text-xs font-mono font-bold text-emerald-400">
-                    ({displayArtists.length} ศิลปิน)
-                  </span>
+            {/* Header Top Row: Title + Add Artist Button */}
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-1.5 min-w-0">
+                <h3 className="text-xs sm:text-sm font-extrabold truncate">
+                  ทายเพลงเฉพาะศิลปินคนโปรด
                 </h3>
-                <button
-                  type="button"
-                  onClick={() => setAddArtistOpen(true)}
-                  className="ml-auto sm:ml-2 inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-bold rounded-lg bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/25 transition cursor-pointer"
-                  title="เพิ่มศิลปินใหม่จาก Apple iTunes"
-                >
-                  <Plus className="w-3 h-3" />
-                  <span>เพิ่มศิลปินใหม่</span>
-                </button>
+                <span className="text-[11px] sm:text-xs font-mono font-bold text-emerald-400 shrink-0">
+                  ({displayArtists.length})
+                </span>
               </div>
-              <p className="text-xs opacity-75 mt-0.5" style={{ color: 'var(--song-muted)' }}>
-                เลือกศิลปินในคลังเพื่อทายเฉพาะเพลง หรือค้นหาเพื่อเล่นได้ทันที
-              </p>
+              <button
+                type="button"
+                onClick={() => setAddArtistOpen(true)}
+                className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-bold rounded-lg bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/25 transition shrink-0 cursor-pointer whitespace-nowrap"
+                title="เพิ่มศิลปินใหม่จาก Apple iTunes"
+              >
+                <Plus className="w-3 h-3" />
+                <span>เพิ่มศิลปินใหม่</span>
+              </button>
             </div>
 
-            {/* Category Filter Pills (ทั้งหมด / เพลงไทย / สากล) */}
-            <div
-              className="flex items-center gap-1 p-1 rounded-xl border shrink-0"
-              style={{
-                backgroundColor: 'var(--song-surface-soft)',
-                borderColor: 'var(--song-border)',
-              }}
-            >
-              <button
-                type="button"
-                onClick={() => setArtistCategoryFilter('all')}
-                className="px-2.5 py-1 rounded-lg text-xs font-bold transition"
-                style={
-                  artistCategoryFilter === 'all'
-                    ? {
-                        backgroundColor: 'var(--song-accent)',
-                        color: 'var(--song-accent-on)',
-                      }
-                    : { color: 'var(--song-muted)' }
-                }
+            {/* Header Bottom Row: Description + Responsive Category Filter Pills */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <p className="text-[11px] sm:text-xs opacity-75" style={{ color: 'var(--song-muted)' }}>
+                เลือกศิลปินในคลังเพื่อทายเฉพาะเพลง หรือค้นหาเพื่อเล่นได้ทันที
+              </p>
+
+              {/* Category Filter Pills (ทั้งหมด / เพลงไทย / สากล) */}
+              <div
+                className="grid grid-cols-3 sm:flex items-center gap-1 p-1 rounded-xl border w-full sm:w-auto shrink-0"
+                style={{
+                  backgroundColor: 'var(--song-surface-soft)',
+                  borderColor: 'var(--song-border)',
+                }}
               >
-                ทั้งหมด
-              </button>
-              <button
-                type="button"
-                onClick={() => setArtistCategoryFilter('thai')}
-                className="px-2.5 py-1 rounded-lg text-xs font-bold transition flex items-center gap-1"
-                style={
-                  artistCategoryFilter === 'thai'
-                    ? {
-                        backgroundColor: 'var(--song-accent)',
-                        color: 'var(--song-accent-on)',
-                      }
-                    : { color: 'var(--song-muted)' }
-                }
-              >
-                <span>🇹🇭 เพลงไทย</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setArtistCategoryFilter('international')}
-                className="px-2.5 py-1 rounded-lg text-xs font-bold transition flex items-center gap-1"
-                style={
-                  artistCategoryFilter === 'international'
-                    ? {
-                        backgroundColor: 'var(--song-accent)',
-                        color: 'var(--song-accent-on)',
-                      }
-                    : { color: 'var(--song-muted)' }
-                }
-              >
-                <span>🌍 เพลงสากล</span>
-              </button>
+                <button
+                  type="button"
+                  onClick={() => setArtistCategoryFilter('all')}
+                  className="px-2 py-1.5 sm:px-2.5 sm:py-1 rounded-lg text-[11px] sm:text-xs font-bold transition text-center justify-center flex items-center"
+                  style={
+                    artistCategoryFilter === 'all'
+                      ? {
+                          backgroundColor: 'var(--song-accent)',
+                          color: 'var(--song-accent-on)',
+                        }
+                      : { color: 'var(--song-muted)' }
+                  }
+                >
+                  ทั้งหมด
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setArtistCategoryFilter('thai')}
+                  className="px-2 py-1.5 sm:px-2.5 sm:py-1 rounded-lg text-[11px] sm:text-xs font-bold transition text-center justify-center flex items-center gap-1"
+                  style={
+                    artistCategoryFilter === 'thai'
+                      ? {
+                          backgroundColor: 'var(--song-accent)',
+                          color: 'var(--song-accent-on)',
+                        }
+                      : { color: 'var(--song-muted)' }
+                  }
+                >
+                  <span>🇹🇭</span>
+                  <span>เพลงไทย</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setArtistCategoryFilter('international')}
+                  className="px-2 py-1.5 sm:px-2.5 sm:py-1 rounded-lg text-[11px] sm:text-xs font-bold transition text-center justify-center flex items-center gap-1"
+                  style={
+                    artistCategoryFilter === 'international'
+                      ? {
+                          backgroundColor: 'var(--song-accent)',
+                          color: 'var(--song-accent-on)',
+                        }
+                      : { color: 'var(--song-muted)' }
+                  }
+                >
+                  <span>🌍</span>
+                  <span>เพลงสากล</span>
+                </button>
+              </div>
             </div>
           </div>
 
           {/* Grid of Artist Cards */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2.5">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 sm:gap-2.5">
             {displayArtists.map((art) => (
               <button
                 key={art.id + art.name}
                 type="button"
                 onClick={() => handleLaunchQuiz('standard', { artist: art.name })}
-                className="p-2.5 sm:p-3 rounded-xl border text-left flex items-center gap-2.5 transition hover:scale-[1.02] hover:border-[var(--song-accent)] group"
+                className="p-2 sm:p-3 rounded-xl border text-left flex items-center gap-2 sm:gap-2.5 transition hover:scale-[1.02] hover:border-[var(--song-accent)] group"
                 style={{
                   backgroundColor: 'var(--song-surface)',
                   borderColor: 'var(--song-border)',
                 }}
               >
-                {/* Artist Photo Avatar (Replaces mic icon) */}
-                <div className="relative w-9 h-9 sm:w-10 sm:h-10 rounded-full overflow-hidden shrink-0 border border-white/10 bg-neutral-800 shadow-sm">
+                {/* Artist Photo Avatar */}
+                <div className="relative w-8 h-8 sm:w-10 sm:h-10 rounded-full overflow-hidden shrink-0 border border-white/10 bg-neutral-800 shadow-sm">
                   <img
                     src={
                       art.avatarUrl ||
@@ -350,10 +369,10 @@ const MusicCategoriesPage: React.FC = () => {
                 </div>
 
                 <div className="min-w-0 flex-1">
-                  <div className="font-extrabold text-xs sm:text-sm truncate group-hover:text-[var(--song-accent-text)]">
+                  <div className="font-extrabold text-[11px] sm:text-sm truncate group-hover:text-[var(--song-accent-text)]">
                     {art.name}
                   </div>
-                  <div className="text-[10px] opacity-60 truncate">
+                  <div className="text-[9px] sm:text-[10px] opacity-60 truncate">
                     {art.mainGenre || (art.category === 'thai' ? 'เพลงไทย' : 'สากล')}
                   </div>
                 </div>
@@ -364,13 +383,13 @@ const MusicCategoriesPage: React.FC = () => {
               Array.from({ length: 8 }).map((_, i) => (
                 <div
                   key={`skeleton-${i}`}
-                  className="p-2.5 sm:p-3 rounded-xl border flex items-center gap-2.5 animate-pulse"
+                  className="p-2 sm:p-3 rounded-xl border flex items-center gap-2 sm:gap-2.5 animate-pulse"
                   style={{
                     backgroundColor: 'var(--song-surface)',
                     borderColor: 'var(--song-border)',
                   }}
                 >
-                  <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-white/10 shrink-0" />
+                  <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-white/10 shrink-0" />
                   <div className="flex-1 space-y-1.5 min-w-0">
                     <div className="h-3 w-3/4 rounded bg-white/10" />
                     <div className="h-2 w-1/2 rounded bg-white/5" />
@@ -379,7 +398,7 @@ const MusicCategoriesPage: React.FC = () => {
               ))
             ) : displayArtists.length === 0 ? (
               <div
-                className="col-span-full p-8 text-center rounded-2xl border text-xs sm:text-sm space-y-3"
+                className="col-span-full p-6 sm:p-8 text-center rounded-2xl border text-xs sm:text-sm space-y-3"
                 style={{
                   backgroundColor: 'var(--song-surface)',
                   borderColor: 'var(--song-border)',
@@ -425,7 +444,7 @@ const MusicCategoriesPage: React.FC = () => {
 
       {/* Tab: Genres */}
       {selectedTab === 'genres' && (
-        <div className="w-full grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
+        <div className="w-full grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5 sm:gap-3.5">
           {(searchQuery.trim()
             ? genres.filter(
                 (g) =>
@@ -436,27 +455,27 @@ const MusicCategoriesPage: React.FC = () => {
           ).map((g) => (
             <div
               key={g.name}
-              className="p-4 rounded-2xl border flex flex-col justify-between transition hover:border-[var(--song-accent)]"
+              className="p-3.5 sm:p-4 rounded-2xl border flex flex-col justify-between transition hover:border-[var(--song-accent)]"
               style={{
                 backgroundColor: 'var(--song-surface)',
                 borderColor: 'var(--song-border)',
               }}
             >
               <div>
-                <div className="flex items-center gap-2 text-xl mb-1.5">
+                <div className="flex items-center gap-2 text-lg sm:text-xl mb-1 sm:mb-1.5">
                   <span>{g.icon}</span>
-                  <span className="font-extrabold text-base">{g.name}</span>
+                  <span className="font-extrabold text-sm sm:text-base">{g.name}</span>
                 </div>
-                <p className="text-xs opacity-75 line-clamp-2" style={{ color: 'var(--song-muted)' }}>
+                <p className="text-[11px] sm:text-xs opacity-75 line-clamp-2" style={{ color: 'var(--song-muted)' }}>
                   {g.desc}
                 </p>
               </div>
 
-              <div className="flex items-center gap-2 mt-4 pt-3 border-t border-[var(--song-border)]">
+              <div className="flex items-center gap-2 mt-3 sm:mt-4 pt-2.5 sm:pt-3 border-t border-[var(--song-border)]">
                 <button
                   type="button"
                   onClick={() => handleLaunchQuiz('standard', { genre: g.name })}
-                  className="flex-1 py-2 px-3 rounded-xl text-xs font-extrabold flex items-center justify-center gap-1.5 transition hover:brightness-110 shadow-sm"
+                  className="flex-1 py-1.5 sm:py-2 px-2.5 sm:px-3 rounded-xl text-xs font-extrabold flex items-center justify-center gap-1.5 transition hover:brightness-110 shadow-sm"
                   style={{
                     backgroundColor: 'var(--song-accent)',
                     color: 'var(--song-accent-on)',
@@ -469,7 +488,7 @@ const MusicCategoriesPage: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => handleLaunchQuiz('guesser', { genre: g.name })}
-                  className="py-2 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-1 border transition hover:brightness-110"
+                  className="py-1.5 sm:py-2 px-2.5 sm:px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-1 border transition hover:brightness-110 shrink-0"
                   style={{
                     backgroundColor: 'var(--song-surface-soft)',
                     borderColor: 'var(--song-border)',
@@ -488,7 +507,7 @@ const MusicCategoriesPage: React.FC = () => {
 
       {/* Tab: Eras */}
       {selectedTab === 'eras' && (
-        <div className="w-full grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
+        <div className="w-full grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5 sm:gap-3.5">
           {(searchQuery.trim()
             ? eras.filter(
                 (e) =>
@@ -499,27 +518,27 @@ const MusicCategoriesPage: React.FC = () => {
           ).map((e) => (
             <div
               key={e.value}
-              className="p-4 rounded-2xl border flex flex-col justify-between transition hover:border-[var(--song-accent)]"
+              className="p-3.5 sm:p-4 rounded-2xl border flex flex-col justify-between transition hover:border-[var(--song-accent)]"
               style={{
                 backgroundColor: 'var(--song-surface)',
                 borderColor: 'var(--song-border)',
               }}
             >
               <div>
-                <div className="flex items-center gap-2 text-lg mb-1.5">
-                  <Calendar className="w-5 h-5 text-emerald-400" />
-                  <span className="font-extrabold text-base">{e.label}</span>
+                <div className="flex items-center gap-2 text-base sm:text-lg mb-1 sm:mb-1.5">
+                  <Calendar className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-400" />
+                  <span className="font-extrabold text-sm sm:text-base">{e.label}</span>
                 </div>
-                <p className="text-xs opacity-75 line-clamp-2" style={{ color: 'var(--song-muted)' }}>
+                <p className="text-[11px] sm:text-xs opacity-75 line-clamp-2" style={{ color: 'var(--song-muted)' }}>
                   {e.desc}
                 </p>
               </div>
 
-              <div className="flex items-center gap-2 mt-4 pt-3 border-t border-[var(--song-border)]">
+              <div className="flex items-center gap-2 mt-3 sm:mt-4 pt-2.5 sm:pt-3 border-t border-[var(--song-border)]">
                 <button
                   type="button"
                   onClick={() => handleLaunchQuiz('standard', { year: e.value })}
-                  className="flex-1 py-2 px-3 rounded-xl text-xs font-extrabold flex items-center justify-center gap-1.5 transition hover:brightness-110 shadow-sm"
+                  className="flex-1 py-1.5 sm:py-2 px-2.5 sm:px-3 rounded-xl text-xs font-extrabold flex items-center justify-center gap-1.5 transition hover:brightness-110 shadow-sm"
                   style={{
                     backgroundColor: 'var(--song-accent)',
                     color: 'var(--song-accent-on)',
@@ -532,7 +551,7 @@ const MusicCategoriesPage: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => handleLaunchQuiz('guesser', { year: e.value })}
-                  className="py-2 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-1 border transition hover:brightness-110"
+                  className="py-1.5 sm:py-2 px-2.5 sm:px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-1 border transition hover:brightness-110 shrink-0"
                   style={{
                     backgroundColor: 'var(--song-surface-soft)',
                     borderColor: 'var(--song-border)',

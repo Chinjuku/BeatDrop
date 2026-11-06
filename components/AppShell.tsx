@@ -115,7 +115,11 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
       {/* Page Content */}
       <main
         className={`flex-1 w-full mx-auto px-3 py-4 sm:px-6 sm:py-8 flex flex-col relative z-10 ${
-          pathname.startsWith('/admin') ? 'max-w-[1600px]' : 'max-w-3xl items-center justify-center'
+          pathname.startsWith('/admin')
+            ? 'max-w-[1600px]'
+            : pathname.startsWith('/categories')
+            ? 'max-w-4xl items-center justify-start'
+            : 'max-w-3xl items-center justify-center'
         }`}
       >
         {children}
