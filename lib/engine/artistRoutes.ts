@@ -3,9 +3,9 @@ import crypto from 'node:crypto';
 import { Artist, CategoryType, Song } from '../../shared/types';
 import { parseArtistSyncDTO } from '../../shared/validation';
 import { dbService } from '../db';
-import { checkArtistStrictMatch } from '../itunes';
+import { checkArtistStrictMatch, syncArtistSongs } from '../itunes';
 import { isSupabaseConfigured, supabaseAdmin } from '../supabase';
-import { songPool, ingestArtistSongs, fetchItunesSongs } from './songPool';
+import { songPool, fetchItunesSongs } from './songPool';
 import {
   getAllArtists,
   addCustomArtist,
@@ -15,6 +15,7 @@ import {
   normalizeGenre,
   normalizeText,
   invalidateAllArtistsCache,
+  syncCustomArtistsInMemory,
 } from './artists';
 
 let cachedSupabaseArtists: Artist[] = [];
@@ -83,7 +84,7 @@ export async function handleGetArtists(req: Request, res: Response): Promise<voi
         };
       } else {
         list.push(resolvedSa);
-        addCustomArtist(resolvedSa);
+        syncCustomArtistsInMemory([resolvedSa]);
       }
     }
   }
@@ -107,7 +108,7 @@ export async function handleGetArtists(req: Request, res: Response): Promise<voi
     });
   }
 
-  if (q.length >= 2 && (discover || list.length < 3)) {
+  if (q.length >= 2 && (discover || list.length === 0)) {
     const searchCountries: Array<{ country: 'TH' | 'US'; cat: 'thai' | 'international' }> =
       category === 'thai'
         ? [{ country: 'TH', cat: 'thai' }]
@@ -192,48 +193,27 @@ export async function handleAddArtist(req: Request, res: Response): Promise<void
       res.status(400).json({ code: -1, message: parsed.error });
       return;
     }
-    const { name, category, mainGenre, avatarUrl } = parsed.data;
-
-    const rawName = name;
-    const soloNames = extractSoloArtistNames(rawName);
-    const cleanName = soloNames.length > 0 ? soloNames[0] : rawName;
-    const validCat: 'thai' | 'international' = category === 'international' ? 'international' : 'thai';
-
-    const existing = getAllArtists(songPool).find(
-      (a) => checkArtistStrictMatch(a.name, cleanName) || normalizeText(a.name) === normalizeText(cleanName)
-    );
-
-    const newArtist: Artist = existing || {
-      id: `custom-${Date.now()}`,
-      name: cleanName,
-      category: validCat,
-      mainGenre: mainGenre || (validCat === 'thai' ? 'T-Pop' : 'Pop'),
-      avatarUrl: avatarUrl || '',
-      isCustom: true,
-    };
+    const { name, category } = parsed.data;
+    const soloNames = extractSoloArtistNames(name);
+    const cleanName = soloNames.length > 0 ? soloNames[0] : name;
 
     const configuredKey = process.env.ADMIN_API_KEY;
     const providedKey = req.headers['x-admin-key'] || req.headers['authorization']?.replace(/^Bearer\s+/i, '');
     const isAdmin = Boolean(configuredKey && providedKey === configuredKey);
     const maxLimit = isAdmin ? 200 : 50;
 
-    await ingestArtistSongs(newArtist, maxLimit);
-
-    if (!existing) {
-      addCustomArtist(newArtist);
+    const result = await syncArtistSongs(cleanName, category, maxLimit);
+    if (result.body.code === 0 && result.body.data?.artist) {
+      invalidateSupabaseArtistsCache(result.body.data.artist);
+      res.status(result.status).json({
+        code: 0,
+        message: 'ok',
+        data: result.body.data.artist,
+      });
+      return;
     }
-    invalidateSupabaseArtistsCache(newArtist);
 
-    const enriched =
-      getAllArtists(songPool).find(
-        (a) => checkArtistStrictMatch(a.name, cleanName) || normalizeText(a.name) === normalizeText(cleanName)
-      ) || newArtist;
-
-    res.json({
-      code: 0,
-      message: 'ok',
-      data: enriched,
-    });
+    res.status(result.status).json(result.body);
   } catch (err) {
     res.status(500).json({ code: -1, message: (err as Error).message });
   }
@@ -241,7 +221,7 @@ export async function handleAddArtist(req: Request, res: Response): Promise<void
 
 export async function handleSyncArtist(req: Request, res: Response): Promise<void> {
   try {
-    const { name, id, category, mainGenre, avatarUrl } = req.body || {};
+    const { name, id, category, forceRefresh } = req.body || {};
     const all = getAllArtists(songPool);
     const existing = all.find(
       (a) =>
@@ -257,52 +237,24 @@ export async function handleSyncArtist(req: Request, res: Response): Promise<voi
 
     const soloNames = extractSoloArtistNames(rawName);
     const cleanName = existing ? existing.name : soloNames.length > 0 ? soloNames[0] : rawName;
-
-    const validCat: 'thai' | 'international' =
-      (existing?.category || category) === 'international' ? 'international' : 'thai';
-
-    const target: Artist = existing || {
-      id: `custom-${Date.now()}`,
-      name: cleanName,
-      category: validCat,
-      mainGenre: mainGenre || (validCat === 'thai' ? 'T-Pop' : 'Pop'),
-      avatarUrl: avatarUrl || '',
-      isCustom: true,
-      trackCount: 0,
-    };
+    const validCat: 'thai' | 'international' | undefined =
+      (existing?.category || category) === 'international'
+        ? 'international'
+        : (existing?.category || category) === 'thai'
+        ? 'thai'
+        : undefined;
 
     const configuredKey = process.env.ADMIN_API_KEY;
     const providedKey = req.headers['x-admin-key'] || req.headers['authorization']?.replace(/^Bearer\s+/i, '');
     const isAdmin = Boolean(configuredKey && providedKey === configuredKey);
     const maxLimit = isAdmin ? 200 : 50;
 
-    const previousCount = target.trackCount || 0;
-    const fetched = await ingestArtistSongs(target, maxLimit);
-
-    if (!existing) {
-      addCustomArtist(target);
+    const result = await syncArtistSongs(cleanName, validCat, maxLimit, Boolean(forceRefresh));
+    if (result.body.code === 0 && result.body.data?.artist) {
+      invalidateSupabaseArtistsCache(result.body.data.artist);
     }
-    invalidateSupabaseArtistsCache(target);
 
-    const enriched =
-      getAllArtists(songPool).find(
-        (a) => checkArtistStrictMatch(a.name, cleanName) || normalizeText(a.name) === normalizeText(cleanName)
-      ) || target;
-    const newCount = enriched.trackCount || previousCount;
-    const added = Math.max(0, newCount - previousCount);
-
-    res.json({
-      code: 0,
-      message: 'ok',
-      data: {
-        ...enriched,
-        artist: enriched,
-        previousCount,
-        newCount,
-        added,
-        fetched,
-      },
-    });
+    res.status(result.status).json(result.body);
   } catch (err) {
     res.status(500).json({ code: -1, message: (err as Error).message });
   }

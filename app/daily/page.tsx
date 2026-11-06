@@ -52,7 +52,10 @@ const DailyChallengePage: React.FC = () => {
 
   // Ensure config mode is daily, stages are default, and daily challenge is loaded
   useEffect(() => {
-    if (config.mode !== 'daily' || !dailyInfo || dailyInfo.category !== config.category) {
+    if (
+      config.mode !== 'daily' ||
+      (!loadingRound && (!dailyInfo || dailyInfo.category !== config.category))
+    ) {
       handleConfigChange(
         {
           ...config,
@@ -66,7 +69,7 @@ const DailyChallengePage: React.FC = () => {
         true
       );
     }
-  }, [config.mode, config.category, dailyInfo]);
+  }, [config.mode, config.category, dailyInfo, loadingRound]);
 
   // Check if all 5 daily songs have been finished
   const isDailyFinished =

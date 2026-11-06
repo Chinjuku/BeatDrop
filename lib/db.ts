@@ -2,9 +2,9 @@ import { DatabaseSync, type SQLInputValue } from 'node:sqlite';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { Artist, CategoryType, LeaderboardEntry, Song } from '../shared/types';
+import { Artist, ArtistRole, ArtistSyncJob, CategoryType, LeaderboardEntry, Song, TrackArtistCredit } from '../shared/types';
 import { isDbLocal, isSupabaseConfigured, supabaseAdmin } from './supabase';
-import { getArtistCandidateTokens } from './itunes';
+import { getArtistCandidateTokens, normalizeText } from './itunes';
 
 const DATA_DIR = path.resolve(process.cwd(), 'data');
 const LOCAL_DB_FILE = path.join(DATA_DIR, 'beatdrop.db');
@@ -31,6 +31,7 @@ const isServerlessSupabase = (): boolean => Boolean(process.env.VERCEL && isSupa
 let _db: DatabaseSync | null = null;
 let _insertSongStmt: ReturnType<DatabaseSync['prepare']> | null = null;
 let _insertArtistStmt: ReturnType<DatabaseSync['prepare']> | null = null;
+let _insertTrackArtistStmt: ReturnType<DatabaseSync['prepare']> | null = null;
 let _insertLeaderboardStmt: ReturnType<DatabaseSync['prepare']> | null = null;
 
 function ensureDb(): DatabaseSync {
@@ -92,6 +93,37 @@ function ensureDb(): DatabaseSync {
     );
 
     CREATE INDEX IF NOT EXISTS idx_leaderboard_cat ON leaderboard (category, is_daily, score DESC);
+    CREATE INDEX IF NOT EXISTS idx_leaderboard_cat_diff ON leaderboard (category, difficulty, score DESC, fastest_seconds ASC);
+    CREATE INDEX IF NOT EXISTS idx_songs_cat_genre_year_pop ON songs (category, genre, release_year, popularity_score DESC);
+
+    CREATE TABLE IF NOT EXISTS artist_sync_jobs (
+      id TEXT PRIMARY KEY,
+      artist_id TEXT NOT NULL,
+      artist_name TEXT NOT NULL COLLATE NOCASE,
+      category TEXT NOT NULL DEFAULT 'thai',
+      status TEXT NOT NULL DEFAULT 'pending',
+      max_limit INTEGER NOT NULL DEFAULT 50,
+      fetched_count INTEGER NOT NULL DEFAULT 0,
+      added_count INTEGER NOT NULL DEFAULT 0,
+      attempts INTEGER NOT NULL DEFAULT 0,
+      last_error TEXT,
+      locked_until INTEGER,
+      updated_at TEXT NOT NULL
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_sync_jobs_status ON artist_sync_jobs (status, locked_until);
+
+    CREATE TABLE IF NOT EXISTS track_artists (
+      track_id TEXT NOT NULL,
+      artist_id TEXT NOT NULL,
+      artist_name TEXT NOT NULL COLLATE NOCASE,
+      role TEXT NOT NULL DEFAULT 'primary',
+      position INTEGER NOT NULL DEFAULT 0,
+      PRIMARY KEY (track_id, artist_id)
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_track_artists_artist_id ON track_artists (artist_id);
+    CREATE INDEX IF NOT EXISTS idx_track_artists_artist_name ON track_artists (artist_name COLLATE NOCASE);
   `);
 
   _insertSongStmt = instance.prepare(`
@@ -130,6 +162,15 @@ function ensureDb(): DatabaseSync {
     ON CONFLICT(id) DO NOTHING
   `);
 
+  _insertTrackArtistStmt = instance.prepare(`
+    INSERT INTO track_artists (track_id, artist_id, artist_name, role, position)
+    VALUES (?, ?, ?, ?, ?)
+    ON CONFLICT(track_id, artist_id) DO UPDATE SET
+      artist_name = excluded.artist_name,
+      role = excluded.role,
+      position = excluded.position
+  `);
+
   _db = instance;
   return instance;
 }
@@ -154,6 +195,12 @@ const insertLeaderboardStmt = {
   run: (...args: SQLInputValue[]) => {
     ensureDb();
     return _insertLeaderboardStmt!.run(...args);
+  },
+};
+const insertTrackArtistStmt = {
+  run: (...args: SQLInputValue[]) => {
+    ensureDb();
+    return _insertTrackArtistStmt!.run(...args);
   },
 };
 
@@ -266,6 +313,17 @@ export const dbService = {
         song.popularityScore || 50,
         Date.now()
       );
+      if (song.artists && song.artists.length > 0) {
+        for (const credit of song.artists) {
+          insertTrackArtistStmt.run(
+            String(song.id),
+            credit.artistId,
+            credit.artistName,
+            credit.role,
+            credit.position
+          );
+        }
+      }
     } catch (err) {
       console.error(`Failed to save song ${song.id}:`, err);
     }
@@ -274,10 +332,10 @@ export const dbService = {
   /**
    * Batch save multiple songs inside a single fast transaction
    */
-  saveSongs(songs: Song[]): void {
+  saveSongs(songs: Song[], syncToCloud = false): void {
     if (!songs || songs.length === 0) return;
     if (isServerlessSupabase()) {
-      supabaseAdmin.upsertSongs(songs).catch(() => {});
+      if (syncToCloud) supabaseAdmin.upsertSongs(songs).catch(() => {});
       return;
     }
     try {
@@ -299,9 +357,20 @@ export const dbService = {
           song.popularityScore || 50,
           Date.now()
         );
+        if (song.artists && song.artists.length > 0) {
+          for (const credit of song.artists) {
+            insertTrackArtistStmt.run(
+              String(song.id),
+              credit.artistId,
+              credit.artistName,
+              credit.role,
+              credit.position
+            );
+          }
+        }
       }
       db.exec('COMMIT');
-      if (isSupabaseConfigured()) {
+      if (syncToCloud && isSupabaseConfigured()) {
         supabaseAdmin.upsertSongs(songs).catch(() => {});
       }
     } catch (err) {
@@ -310,13 +379,104 @@ export const dbService = {
     }
   },
 
+  saveTrackArtists(credits: TrackArtistCredit[]): void {
+    if (!credits || credits.length === 0 || isServerlessSupabase()) return;
+    try {
+      db.exec('BEGIN TRANSACTION');
+      for (const c of credits) {
+        insertTrackArtistStmt.run(c.trackId, c.artistId, c.artistName, c.role, c.position);
+      }
+      db.exec('COMMIT');
+    } catch {
+      try {
+        db.exec('ROLLBACK');
+      } catch {}
+    }
+  },
+
+  getTrackArtists(trackId: string): TrackArtistCredit[] {
+    if (isServerlessSupabase()) return [];
+    try {
+      const rows = db
+        .prepare('SELECT * FROM track_artists WHERE track_id = ? ORDER BY position ASC')
+        .all(String(trackId)) as Array<{
+        track_id: string;
+        artist_id: string;
+        artist_name: string;
+        role: ArtistRole;
+        position: number;
+      }>;
+      return rows.map((r) => ({
+        trackId: r.track_id,
+        artistId: r.artist_id,
+        artistName: r.artist_name,
+        role: r.role,
+        position: r.position,
+      }));
+    } catch {
+      return [];
+    }
+  },
+
+  getTrackIdsByArtist(artistId: string, artistName?: string): string[] {
+    if (isServerlessSupabase()) return [];
+    try {
+      const rows = artistName
+        ? (db
+            .prepare(
+              'SELECT DISTINCT track_id FROM track_artists WHERE artist_id = ? OR artist_name = ? COLLATE NOCASE'
+            )
+            .all(artistId, artistName) as Array<{ track_id: string }>)
+        : (db
+            .prepare('SELECT DISTINCT track_id FROM track_artists WHERE artist_id = ?')
+            .all(artistId) as Array<{ track_id: string }>);
+      return rows.map((r) => r.track_id);
+    } catch {
+      return [];
+    }
+  },
+
   /**
-   * Retrieve all songs stored in SQLite
+   * Retrieve all songs stored in SQLite (with normalized track_artists credits hydrated)
    */
   getAllSongs(): Song[] {
     try {
       const rows = db.prepare('SELECT * FROM songs').all() as unknown as SongRow[];
-      return rows.map(rowToSong);
+      const creditRows = db
+        .prepare('SELECT * FROM track_artists ORDER BY position ASC')
+        .all() as Array<{
+        track_id: string;
+        artist_id: string;
+        artist_name: string;
+        role: ArtistRole;
+        position: number;
+      }>;
+
+      const creditsByTrack = new Map<string, TrackArtistCredit[]>();
+      for (const cr of creditRows) {
+        const item: TrackArtistCredit = {
+          trackId: cr.track_id,
+          artistId: cr.artist_id,
+          artistName: cr.artist_name,
+          role: cr.role,
+          position: cr.position,
+        };
+        const list = creditsByTrack.get(cr.track_id);
+        if (list) list.push(item);
+        else creditsByTrack.set(cr.track_id, [item]);
+      }
+
+      return rows.map((r) => {
+        const song = rowToSong(r);
+        const credits = creditsByTrack.get(song.id);
+        if (credits && credits.length > 0) {
+          song.artists = credits;
+          song.artistIds = credits.map((c) => c.artistId);
+        } else if (song.artistId) {
+          song.artistIds = [song.artistId];
+        }
+        return song;
+      });
     } catch (err) {
       console.error('Failed to get all songs:', err);
       return [];
@@ -357,20 +517,33 @@ export const dbService = {
 
     if (artist && artist !== 'any') {
       const tokens = getArtistCandidateTokens(artist);
+      const artistSlug = `artist_${normalizeText(artist).replace(/\s+/g, '_')}`;
       if (tokens.length > 0) {
         const artistConds = tokens.map(() => 'artist_name LIKE ?').join(' OR ');
-        conditions.push(`(${artistConds})`);
-        params.push(...tokens.map((t) => `%${t}%`));
+        const creditConds = tokens.map(() => 'artist_name LIKE ?').join(' OR ');
+        conditions.push(
+          `((${artistConds}) OR id IN (SELECT track_id FROM track_artists WHERE artist_id = ? OR artist_id = ? OR ${creditConds}))`
+        );
+        params.push(
+          ...tokens.map((t) => `%${t}%`),
+          artist,
+          artistSlug,
+          ...tokens.map((t) => `%${t}%`)
+        );
       } else {
-        conditions.push('(artist_name LIKE ? OR artist_name LIKE ?)');
-        params.push(`%${artist}%`, `${artist}%`);
+        conditions.push(
+          '(artist_name LIKE ? OR artist_name LIKE ? OR id IN (SELECT track_id FROM track_artists WHERE artist_id = ? OR artist_name LIKE ?))'
+        );
+        params.push(`%${artist}%`, `${artist}%`, artistSlug, `%${artist.trim()}%`);
       }
     }
 
     const trimmedQuery = query.trim();
     if (trimmedQuery && (!artist || trimmedQuery.toLowerCase() !== artist.toLowerCase())) {
-      conditions.push('(title LIKE ? OR artist_name LIKE ?)');
-      params.push(`%${trimmedQuery}%`, `%${trimmedQuery}%`);
+      conditions.push(
+        '(title LIKE ? OR artist_name LIKE ? OR id IN (SELECT track_id FROM track_artists WHERE artist_name LIKE ?))'
+      );
+      params.push(`%${trimmedQuery}%`, `%${trimmedQuery}%`, `%${trimmedQuery}%`);
     }
 
     const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
@@ -379,7 +552,17 @@ export const dbService = {
 
     try {
       const rows = db.prepare(sql).all(...params) as unknown as SongRow[];
-      return rows.map(rowToSong);
+      return rows.map((r) => {
+        const song = rowToSong(r);
+        const credits = this.getTrackArtists(song.id);
+        if (credits.length > 0) {
+          song.artists = credits;
+          song.artistIds = credits.map((c) => c.artistId);
+        } else if (song.artistId) {
+          song.artistIds = [song.artistId];
+        }
+        return song;
+      });
     } catch (err) {
       console.error('Failed to search songs in DB:', err);
       return [];
@@ -401,9 +584,9 @@ export const dbService = {
     }
   },
 
-  saveCustomArtist(artist: Artist): void {
+  saveCustomArtist(artist: Artist, syncToCloud = false): void {
     if (isServerlessSupabase()) {
-      supabaseAdmin.upsertArtist(artist).catch(() => {});
+      if (syncToCloud) supabaseAdmin.upsertArtist(artist).catch(() => {});
       return;
     }
     try {
@@ -417,7 +600,7 @@ export const dbService = {
         artist.trackCount || 0,
         Date.now()
       );
-      if (isSupabaseConfigured()) {
+      if (syncToCloud && isSupabaseConfigured()) {
         supabaseAdmin.upsertArtist(artist).catch(() => {});
       }
     } catch (err) {
@@ -425,21 +608,165 @@ export const dbService = {
     }
   },
 
-  updateArtistTrackCount(artistName: string, count: number): void {
+  updateArtistTrackCount(artistName: string, count: number, syncToCloud = false): void {
     if (isServerlessSupabase()) {
-      supabaseAdmin.refreshArtistTrackCount(artistName).catch(() => {});
+      if (syncToCloud) supabaseAdmin.refreshArtistTrackCount(artistName).catch(() => {});
       return;
     }
     try {
       db.prepare(
         'UPDATE custom_artists SET track_count = ? WHERE name = ? COLLATE NOCASE'
       ).run(count, artistName);
-      if (isSupabaseConfigured()) {
+      if (syncToCloud && isSupabaseConfigured()) {
         supabaseAdmin.refreshArtistTrackCount(artistName).catch(() => {});
       }
     } catch (err) {
       console.error('Failed to update artist track count:', err);
     }
+  },
+
+  upsertSyncJob(job: ArtistSyncJob): ArtistSyncJob {
+    if (!isServerlessSupabase()) {
+      try {
+        db.prepare(`
+          INSERT INTO artist_sync_jobs (
+            id, artist_id, artist_name, category, status, max_limit,
+            fetched_count, added_count, attempts, last_error, locked_until, updated_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          ON CONFLICT(id) DO UPDATE SET
+            artist_id = excluded.artist_id,
+            artist_name = excluded.artist_name,
+            category = excluded.category,
+            status = excluded.status,
+            max_limit = excluded.max_limit,
+            fetched_count = excluded.fetched_count,
+            added_count = excluded.added_count,
+            attempts = excluded.attempts,
+            last_error = excluded.last_error,
+            locked_until = excluded.locked_until,
+            updated_at = excluded.updated_at
+        `).run(
+          job.id,
+          job.artistId,
+          job.artistName,
+          job.category,
+          job.status,
+          job.maxLimit,
+          job.fetchedCount,
+          job.addedCount,
+          job.attempts,
+          job.lastError ?? null,
+          job.lockedUntil ?? null,
+          job.updatedAt
+        );
+      } catch (err) {
+        console.error('Failed to upsert sync job in SQLite:', err);
+      }
+    }
+    if (isSupabaseConfigured()) {
+      supabaseAdmin.upsertSyncJob(job).catch(() => {});
+    }
+    return job;
+  },
+
+  getSyncJob(jobId: string): ArtistSyncJob | null {
+    if (isServerlessSupabase()) return null;
+    try {
+      const row = db
+        .prepare('SELECT * FROM artist_sync_jobs WHERE id = ? LIMIT 1')
+        .get(jobId) as
+        | {
+            id: string;
+            artist_id: string;
+            artist_name: string;
+            category: 'thai' | 'international';
+            status: ArtistSyncJob['status'];
+            max_limit: number;
+            fetched_count: number;
+            added_count: number;
+            attempts: number;
+            last_error: string | null;
+            locked_until: number | null;
+            updated_at: string;
+          }
+        | undefined;
+      if (!row) return null;
+      return {
+        id: row.id,
+        artistId: row.artist_id,
+        artistName: row.artist_name,
+        category: row.category,
+        status: row.status,
+        maxLimit: row.max_limit,
+        fetchedCount: row.fetched_count,
+        addedCount: row.added_count,
+        attempts: row.attempts,
+        lastError: row.last_error,
+        lockedUntil: row.locked_until,
+        updatedAt: row.updated_at,
+      };
+    } catch {
+      return null;
+    }
+  },
+
+  getRecoverableSyncJobs(limit = 5): ArtistSyncJob[] {
+    if (isServerlessSupabase()) return [];
+    try {
+      const now = Date.now();
+      const rows = db
+        .prepare(`
+          SELECT * FROM artist_sync_jobs
+          WHERE status IN ('pending', 'failed')
+             OR (status = 'processing' AND (locked_until IS NULL OR locked_until < ?))
+          ORDER BY updated_at ASC
+          LIMIT ?
+        `)
+        .all(now, limit) as Array<{
+        id: string;
+        artist_id: string;
+        artist_name: string;
+        category: 'thai' | 'international';
+        status: ArtistSyncJob['status'];
+        max_limit: number;
+        fetched_count: number;
+        added_count: number;
+        attempts: number;
+        last_error: string | null;
+        locked_until: number | null;
+        updated_at: string;
+      }>;
+      return rows.map((row) => ({
+        id: row.id,
+        artistId: row.artist_id,
+        artistName: row.artist_name,
+        category: row.category,
+        status: row.status,
+        maxLimit: row.max_limit,
+        fetchedCount: row.fetched_count,
+        addedCount: row.added_count,
+        attempts: row.attempts,
+        lastError: row.last_error,
+        lockedUntil: row.locked_until,
+        updatedAt: row.updated_at,
+      }));
+    } catch {
+      return [];
+    }
+  },
+
+  deleteSyncJob(jobId: string): void {
+    if (isServerlessSupabase()) return;
+    try {
+      db.prepare('DELETE FROM artist_sync_jobs WHERE id = ?').run(jobId);
+    } catch {}
+  },
+
+  deleteSongsByArtist(artistName: string): void {
+    if (isServerlessSupabase()) return;
+    try {
+      db.prepare('DELETE FROM songs WHERE artist_name = ?').run(artistName);
+    } catch {}
   },
 
   deleteCustomArtist(id: string): boolean {

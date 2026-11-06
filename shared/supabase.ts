@@ -1,4 +1,4 @@
-import type { Artist, CategoryType, LeaderboardEntry, Song } from './types';
+import type { Artist, ArtistSyncJob, CategoryType, LeaderboardEntry, Song, TrackArtistCredit } from './types';
 
 export interface SupabaseSongRow {
   id: string;
@@ -58,6 +58,18 @@ function getRestUrl(path: string): string {
   return `${base}/rest/v1/${path}`;
 }
 
+const SUPABASE_TIMEOUT_MS = 4500;
+let remoteJobsTableAvailable: boolean | null = null;
+let remoteTrackArtistsTableAvailable: boolean | null = null;
+const memorySyncJobs = new Map<string, ArtistSyncJob>();
+
+async function supabaseFetch(url: string, init?: RequestInit, timeoutMs = SUPABASE_TIMEOUT_MS): Promise<Response> {
+  return fetch(url, {
+    ...init,
+    signal: init?.signal || AbortSignal.timeout(timeoutMs),
+  });
+}
+
 export function songToRow(s: Song): SupabaseSongRow {
   return {
     id: String(s.id),
@@ -97,27 +109,85 @@ export function rowToSong(r: SupabaseSongRow): Song {
 
 export const supabaseAdmin = {
   /**
-   * Batch Upsert songs (ON CONFLICT (id) DO UPDATE)
+   * Batch Upsert songs (ON CONFLICT (id) DO UPDATE) with controlled concurrency
    */
-  async upsertSongs(songs: Song[], chunkSize = 50): Promise<number> {
+  async upsertSongs(songs: Song[], chunkSize = 100): Promise<number> {
     if (!isSupabaseConfigured() || songs.length === 0) return 0;
-    let total = 0;
-
+    const chunks: SupabaseSongRow[][] = [];
     for (let i = 0; i < songs.length; i += chunkSize) {
-      const chunk = songs.slice(i, i + chunkSize).map(songToRow);
-      const res = await fetch(getRestUrl('songs?on_conflict=id'), {
+      chunks.push(songs.slice(i, i + chunkSize).map(songToRow));
+    }
+
+    let total = 0;
+    const concurrency = 2;
+    for (let i = 0; i < chunks.length; i += concurrency) {
+      const batch = chunks.slice(i, i + concurrency);
+      const results = await Promise.all(
+        batch.map(async (chunk, idx) => {
+          try {
+            const res = await supabaseFetch(getRestUrl('songs?on_conflict=id'), {
+              method: 'POST',
+              headers: getSupabaseHeaders('resolution=merge-duplicates,return=minimal'),
+              body: JSON.stringify(chunk),
+            });
+            if (!res.ok) {
+              const errText = await res.text().catch(() => '');
+              console.error(`[Supabase upsertSongs] chunk ${i + idx + 1} failed:`, errText);
+              return 0;
+            }
+            return chunk.length;
+          } catch (err) {
+            console.error(`[Supabase upsertSongs] chunk ${i + idx + 1} network error:`, (err as Error).message);
+            return 0;
+          }
+        })
+      );
+      total += results.reduce((sum, n) => sum + n, 0);
+    }
+
+    const allCredits = songs.flatMap((s) => s.artists || []);
+    if (allCredits.length > 0) {
+      await this.upsertTrackArtists(allCredits).catch(() => {});
+    }
+
+    return total;
+  },
+
+  /**
+   * Batch Upsert track_artists junction rows (ON CONFLICT (track_id, artist_id) DO UPDATE)
+   */
+  async upsertTrackArtists(credits: TrackArtistCredit[]): Promise<void> {
+    if (!isSupabaseConfigured() || credits.length === 0 || remoteTrackArtistsTableAvailable === false) {
+      return;
+    }
+    const deduped = new Map<string, TrackArtistCredit>();
+    for (const c of credits) {
+      deduped.set(`${c.trackId}::${c.artistId}`, c);
+    }
+    const rows = Array.from(deduped.values()).map((c) => ({
+      track_id: String(c.trackId),
+      artist_id: c.artistId,
+      artist_name: c.artistName,
+      role: c.role,
+      position: c.position,
+      updated_at: new Date().toISOString(),
+    }));
+
+    try {
+      const res = await supabaseFetch(getRestUrl('track_artists?on_conflict=track_id,artist_id'), {
         method: 'POST',
         headers: getSupabaseHeaders('resolution=merge-duplicates,return=minimal'),
-        body: JSON.stringify(chunk),
+        body: JSON.stringify(rows.slice(0, 400)),
       });
-      if (!res.ok) {
-        const errText = await res.text().catch(() => '');
-        console.error(`[Supabase upsertSongs] chunk ${i / chunkSize + 1} failed:`, errText);
-      } else {
-        total += chunk.length;
+      if (res.status === 404 || res.status === 400) {
+        const txt = await res.text().catch(() => '');
+        if (txt.includes('track_artists')) {
+          remoteTrackArtistsTableAvailable = false;
+        }
+      } else if (res.ok) {
+        remoteTrackArtistsTableAvailable = true;
       }
-    }
-    return total;
+    } catch {}
   },
 
   /**
@@ -136,25 +206,29 @@ export const supabaseAdmin = {
       updated_at: new Date().toISOString(),
     };
 
-    const res = await fetch(getRestUrl('artists?on_conflict=name'), {
-      method: 'POST',
-      headers: getSupabaseHeaders('resolution=merge-duplicates,return=representation'),
-      body: JSON.stringify(row),
-    });
+    try {
+      const res = await supabaseFetch(getRestUrl('artists?on_conflict=name'), {
+        method: 'POST',
+        headers: getSupabaseHeaders('resolution=merge-duplicates,return=representation'),
+        body: JSON.stringify(row),
+      });
 
-    if (res.ok) {
-      const data = (await res.json()) as SupabaseArtistRow[];
-      if (data[0]) {
-        return {
-          id: data[0].id,
-          name: data[0].name,
-          category: data[0].category,
-          mainGenre: data[0].main_genre || 'Pop',
-          avatarUrl: data[0].avatar_url || '',
-          isCustom: data[0].is_custom,
-          trackCount: data[0].track_count ?? artist.trackCount ?? 0,
-        };
+      if (res.ok) {
+        const data = (await res.json()) as SupabaseArtistRow[];
+        if (data[0]) {
+          return {
+            id: data[0].id,
+            name: data[0].name,
+            category: data[0].category,
+            mainGenre: data[0].main_genre || 'Pop',
+            avatarUrl: data[0].avatar_url || '',
+            isCustom: data[0].is_custom,
+            trackCount: data[0].track_count ?? artist.trackCount ?? 0,
+          };
+        }
       }
+    } catch (err) {
+      console.warn('[Supabase upsertArtist] network warning:', (err as Error).message);
     }
     return artist;
   },
@@ -173,19 +247,23 @@ export const supabaseAdmin = {
           : null;
     if (!query) return null;
 
-    const res = await fetch(getRestUrl(query), { headers: getSupabaseHeaders() });
-    if (!res.ok) return null;
-    const rows = (await res.json()) as SupabaseArtistRow[];
-    if (!rows[0]) return null;
-    return {
-      id: rows[0].id,
-      name: rows[0].name,
-      category: rows[0].category,
-      mainGenre: rows[0].main_genre || 'Pop',
-      avatarUrl: rows[0].avatar_url || '',
-      isCustom: rows[0].is_custom,
-      trackCount: rows[0].track_count ?? 0,
-    };
+    try {
+      const res = await supabaseFetch(getRestUrl(query), { headers: getSupabaseHeaders() });
+      if (!res.ok) return null;
+      const rows = (await res.json()) as SupabaseArtistRow[];
+      if (!rows[0]) return null;
+      return {
+        id: rows[0].id,
+        name: rows[0].name,
+        category: rows[0].category,
+        mainGenre: rows[0].main_genre || 'Pop',
+        avatarUrl: rows[0].avatar_url || '',
+        isCustom: rows[0].is_custom,
+        trackCount: rows[0].track_count ?? 0,
+      };
+    } catch {
+      return null;
+    }
   },
 
   /**
@@ -236,26 +314,123 @@ export const supabaseAdmin = {
    */
   async refreshArtistTrackCount(artistName: string, avatarUrl?: string): Promise<number> {
     if (!isSupabaseConfigured()) return 0;
-    const countRes = await fetch(
-      getRestUrl(`songs?artist_name=ilike.*${encodeURIComponent(artistName)}*&select=id`),
-      { headers: getSupabaseHeaders('count=exact') }
-    );
-    const range = countRes.headers.get('content-range') || '';
-    const total = Number(range.split('/')[1] || 0);
+    try {
+      const countRes = await supabaseFetch(
+        getRestUrl(`songs?artist_name=ilike.*${encodeURIComponent(artistName)}*&select=id`),
+        { headers: getSupabaseHeaders('count=exact') }
+      );
+      const range = countRes.headers.get('content-range') || '';
+      const total = Number(range.split('/')[1] || 0);
 
-    if (total > 0) {
-      const patch: Record<string, unknown> = {
-        track_count: total,
-        updated_at: new Date().toISOString(),
-      };
-      if (avatarUrl) patch.avatar_url = avatarUrl;
-      await fetch(getRestUrl(`artists?name=ilike.${encodeURIComponent(artistName)}`), {
-        method: 'PATCH',
-        headers: getSupabaseHeaders('return=minimal'),
-        body: JSON.stringify(patch),
-      });
+      if (total > 0) {
+        const patch: Record<string, unknown> = {
+          track_count: total,
+          updated_at: new Date().toISOString(),
+        };
+        if (avatarUrl && (avatarUrl.startsWith('http://') || avatarUrl.startsWith('https://'))) {
+          patch.avatar_url = avatarUrl;
+        }
+        await supabaseFetch(getRestUrl(`artists?name=ilike.${encodeURIComponent(artistName)}`), {
+          method: 'PATCH',
+          headers: getSupabaseHeaders('return=minimal'),
+          body: JSON.stringify(patch),
+        });
+      }
+      return total;
+    } catch {
+      return 0;
     }
-    return total;
+  },
+
+  /**
+   * Persistent Artist Sync Job Management (PostgreSQL + In-Memory Fallback)
+   */
+  async upsertSyncJob(job: ArtistSyncJob): Promise<ArtistSyncJob> {
+    memorySyncJobs.set(job.id, job);
+    if (!isSupabaseConfigured() || remoteJobsTableAvailable === false) return job;
+
+    try {
+      const res = await supabaseFetch(getRestUrl('artist_sync_jobs?on_conflict=id'), {
+        method: 'POST',
+        headers: getSupabaseHeaders('resolution=merge-duplicates,return=minimal'),
+        body: JSON.stringify({
+          id: job.id,
+          artist_id: job.artistId,
+          artist_name: job.artistName,
+          category: job.category,
+          status: job.status,
+          max_limit: job.maxLimit,
+          fetched_count: job.fetchedCount,
+          added_count: job.addedCount,
+          attempts: job.attempts,
+          last_error: job.lastError ?? null,
+          locked_until: job.lockedUntil ? new Date(job.lockedUntil).toISOString() : null,
+          updated_at: job.updatedAt || new Date().toISOString(),
+        }),
+      });
+      if (res.status === 404 || res.status === 400) {
+        const txt = await res.text().catch(() => '');
+        if (txt.includes('artist_sync_jobs')) {
+          remoteJobsTableAvailable = false;
+        }
+      } else if (res.ok) {
+        remoteJobsTableAvailable = true;
+      }
+    } catch {}
+    return job;
+  },
+
+  async getSyncJob(jobId: string): Promise<ArtistSyncJob | null> {
+    const mem = memorySyncJobs.get(jobId);
+    if (!isSupabaseConfigured() || remoteJobsTableAvailable === false) {
+      return mem || null;
+    }
+    try {
+      const res = await supabaseFetch(
+        getRestUrl(`artist_sync_jobs?id=eq.${encodeURIComponent(jobId)}&limit=1`),
+        { headers: getSupabaseHeaders() }
+      );
+      if (!res.ok) {
+        const txt = await res.text().catch(() => '');
+        if (txt.includes('artist_sync_jobs')) remoteJobsTableAvailable = false;
+        return mem || null;
+      }
+      remoteJobsTableAvailable = true;
+      const rows = (await res.json()) as Array<{
+        id: string;
+        artist_id: string;
+        artist_name: string;
+        category: 'thai' | 'international';
+        status: ArtistSyncJob['status'];
+        max_limit: number;
+        fetched_count: number;
+        added_count: number;
+        attempts: number;
+        last_error: string | null;
+        locked_until: string | null;
+        updated_at: string;
+      }>;
+      if (!rows[0]) return mem || null;
+      const r = rows[0];
+      const loaded: ArtistSyncJob = {
+        id: r.id,
+        artistId: r.artist_id,
+        artistName: r.artist_name,
+        category: r.category,
+        status: r.status,
+        maxLimit: r.max_limit,
+        fetchedCount: r.fetched_count,
+        addedCount: r.added_count,
+        attempts: r.attempts,
+        lastError: r.last_error,
+        lockedUntil: r.locked_until ? new Date(r.locked_until).getTime() : null,
+        updatedAt: r.updated_at,
+      };
+      memorySyncJobs.set(loaded.id, loaded);
+      return loaded;
+    } catch {
+      return mem || null;
+    }
   },
 
   /**

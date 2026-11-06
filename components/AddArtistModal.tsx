@@ -47,13 +47,14 @@ export const AddArtistModal: React.FC<AddArtistModalProps> = ({
   const [searchError, setSearchError] = useState<string | null>(null);
   const [addingName, setAddingName] = useState<string | null>(null);
   const [toast, setToast] = useState<ToastState | null>(null);
+  const discoveryCacheRef = React.useRef<Map<string, Artist[]>>(new Map());
 
-  // Refresh library artists from database immediately when opening modal
+  // Only fetch artists on modal open if library is empty (prevents duplicate network calls)
   useEffect(() => {
-    if (isOpen) {
+    if (isOpen && artists.length === 0) {
       fetchArtists();
     }
-  }, [isOpen, fetchArtists]);
+  }, [isOpen, artists.length, fetchArtists]);
 
   // Auto-dismiss toast after 5 seconds
   useEffect(() => {
@@ -96,6 +97,15 @@ export const AddArtistModal: React.FC<AddArtistModalProps> = ({
       return;
     }
 
+    const cacheKey = debouncedQuery.toLowerCase();
+    const cachedResult = discoveryCacheRef.current.get(cacheKey);
+    if (cachedResult) {
+      setDiscovered(cachedResult);
+      setSearching(false);
+      setSearchError(null);
+      return;
+    }
+
     let isMounted = true;
     const abortCtrl = new AbortController();
     const timeoutId = setTimeout(() => abortCtrl.abort(), 5000);
@@ -112,6 +122,7 @@ export const AddArtistModal: React.FC<AddArtistModalProps> = ({
       .then((json) => {
         if (!isMounted) return;
         if (json.code === 0 && Array.isArray(json.data)) {
+          discoveryCacheRef.current.set(cacheKey, json.data);
           setDiscovered(json.data);
         } else {
           setDiscovered([]);
