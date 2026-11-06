@@ -7,6 +7,7 @@ import { Navbar } from './Navbar';
 import { AddArtistModal } from './AddArtistModal';
 import { LeaderboardModal } from './LeaderboardModal';
 import { ShareTicketModal } from './ShareTicketModal';
+import { PwaManager } from './PwaManager';
 import { BeatDropLogo } from './BeatDropLogo';
 import { useGame } from '../context/GameContext';
 import { invalidateArtists, invalidateSongs } from '../lib/queryClient';
@@ -111,6 +112,7 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
         currentMode={config.mode}
         onSelectQuiz={handleSelectQuiz}
       />
+      <PwaManager />
 
       {/* Page Content */}
       <main

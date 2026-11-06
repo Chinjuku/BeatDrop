@@ -609,13 +609,31 @@ async function main() {
 
   // 17. GET /api/artists/sync is read-only (no recovery side effects)
   await runTest(17, 'GET /api/artists/sync is read-only; recover requires POST', async () => {
-    const { GET } = await import('../app/api/artists/sync/route');
+    const { GET, POST } = await import('../app/api/artists/sync/route');
     const res = await GET(new Request('http://localhost/api/artists/sync?recover=true'));
     const body = await res.json();
     assert.equal(res.status, 200);
     assert.ok(body.data?.recoverable !== undefined, 'GET must only list recoverable jobs');
     assert.equal(body.data?.recovered, undefined, 'GET must never trigger recovery');
-    return `GET ignored ?recover=true and returned read-only job list`;
+
+    const priorAdminKey = process.env.ADMIN_API_KEY;
+    const priorCronSecret = process.env.CRON_SECRET;
+    delete process.env.ADMIN_API_KEY;
+    delete process.env.CRON_SECRET;
+    try {
+      const unauthorized = await POST(
+        new Request('http://localhost/api/artists/sync', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'recover' }),
+        })
+      );
+      assert.equal(unauthorized.status, 401, 'Recovery must fail closed without configured credentials');
+    } finally {
+      if (priorAdminKey !== undefined) process.env.ADMIN_API_KEY = priorAdminKey;
+      if (priorCronSecret !== undefined) process.env.CRON_SECRET = priorCronSecret;
+    }
+    return `GET ignored ?recover=true; unauthenticated recovery POST returned 401`;
   });
 
   console.log('\n==============================================================');

@@ -2,9 +2,16 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const pwaBuildVersion =
+  process.env.VERCEL_DEPLOYMENT_ID ||
+  process.env.VERCEL_GIT_COMMIT_SHA ||
+  `build-${Date.now().toString(36)}`;
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  env: {
+    NEXT_PUBLIC_PWA_BUILD_VERSION: pwaBuildVersion,
+  },
   reactStrictMode: true,
   outputFileTracingRoot: __dirname,
   typescript: {

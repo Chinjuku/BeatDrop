@@ -11,6 +11,7 @@ import {
   normalizeGenre,
   computeMajorityGenre,
   parseTrackArtistCredits,
+  extractSoloArtistNames,
   backfillCollaborationsInDb,
 } from './artists';
 
@@ -113,7 +114,11 @@ export async function fetchItunesSongs(
         }
 
         const trackIdStr = String(t.trackId);
-        const credits = parseTrackArtistCredits(trackIdStr, t.artistName, t.trackName);
+        const primaryCreditName = extractSoloArtistNames(t.artistName!, t.trackName)[0] || t.artistName!;
+        const credits = parseTrackArtistCredits(trackIdStr, t.artistName!, t.trackName, {
+          id: t.artistId ? String(t.artistId) : undefined,
+          name: primaryCreditName,
+        });
 
         return {
           id: trackIdStr,
