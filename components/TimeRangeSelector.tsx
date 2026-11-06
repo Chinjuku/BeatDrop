@@ -3,6 +3,8 @@ import React, { useState, useEffect } from 'react';
 import { Clock, Settings2, Sliders, X, Plus, Trash2, Check, RotateCcw } from 'lucide-react';
 import {
   DEFAULT_TIME_STAGES,
+  MAX_SNIPPET_DURATION,
+  MIN_SNIPPET_DURATION,
   TIME_RANGE_PRESETS,
   TimeRangePresetId,
 } from '../types';
@@ -15,7 +17,7 @@ interface TimeRangeSelectorProps {
 }
 
 export const TimeRangeSelector: React.FC<TimeRangeSelectorProps> = ({
-  currentPreset = 'songspot',
+  currentPreset = 'standard',
   stages = DEFAULT_TIME_STAGES,
   onChangePreset,
   compact = false,
@@ -57,10 +59,10 @@ export const TimeRangeSelector: React.FC<TimeRangeSelectorProps> = ({
       return;
     }
 
-    // Ensure all <= 15s and > 0
-    const outOfBounds = parsed.some((n) => n <= 0 || n > 15);
+    // Ensure all within [MIN_SNIPPET_DURATION, MAX_SNIPPET_DURATION] (0.1s..15s)
+    const outOfBounds = parsed.some((n) => n < MIN_SNIPPET_DURATION || n > MAX_SNIPPET_DURATION);
     if (outOfBounds) {
-      setValidationError('ช่วงเวลาต้องอยู่ระหว่าง 0.1s ถึงสูงสุด 15s');
+      setValidationError(`ช่วงเวลาต้องอยู่ระหว่าง ${MIN_SNIPPET_DURATION}s ถึงสูงสุด ${MAX_SNIPPET_DURATION}s`);
       return;
     }
 
@@ -138,8 +140,8 @@ export const TimeRangeSelector: React.FC<TimeRangeSelectorProps> = ({
     {
       id: 'songspot',
       label: 'Songspot',
-      sub: '0.5s → 15s',
-      tooltip: 'Songspot (0.5s → 2s → 6s → 8s → 15s)',
+      sub: '0.1s → 15s',
+      tooltip: 'Songspot (0.1s → 0.5s → 2s → 8s → 15s)',
     },
     {
       id: 'custom',
@@ -267,15 +269,15 @@ export const TimeRangeSelector: React.FC<TimeRangeSelectorProps> = ({
                   className="px-2.5 py-1 rounded-lg border text-xs font-semibold hover:border-[var(--song-accent)] transition-all"
                   style={{ backgroundColor: 'var(--song-surface-soft)', borderColor: 'var(--song-border)' }}
                 >
-                  Default (0.5s → 15s)
+                  Standard (0.5s → 15s)
                 </button>
                 <button
                   type="button"
-                  onClick={() => handleTemplateSelect([1, 2, 4, 8, 15])}
+                  onClick={() => handleTemplateSelect([0.1, 0.5, 2, 8, 15])}
                   className="px-2.5 py-1 rounded-lg border text-xs font-semibold hover:border-[var(--song-accent)] transition-all"
                   style={{ backgroundColor: 'var(--song-surface-soft)', borderColor: 'var(--song-border)' }}
                 >
-                  Standard (1s → 15s)
+                  Songspot (0.1s → 15s)
                 </button>
                 <button
                   type="button"

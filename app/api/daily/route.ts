@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import {
   DEFAULT_TIME_STAGES,
   DIFFICULTY_PRESETS,
+  MAX_SNIPPET_DURATION,
+  MIN_SNIPPET_DURATION,
   type CategoryType,
   type DailyChallengeInfo,
   type DifficultyLevel,
@@ -16,8 +18,8 @@ function parseCustomStages(raw?: string | null): number[] | null {
   const nums = raw
     .split(',')
     .map((n) => parseFloat(n.trim()))
-    .filter((n) => !Number.isNaN(n) && n >= 0.1 && n <= 30);
-  if (nums.length === 5) return nums.sort((a, b) => a - b);
+    .filter((n) => !Number.isNaN(n) && n >= MIN_SNIPPET_DURATION && n <= MAX_SNIPPET_DURATION);
+  if (nums.length >= 2) return Array.from(new Set(nums)).sort((a, b) => a - b);
   return null;
 }
 
@@ -32,7 +34,7 @@ export async function GET(req: Request) {
     const difficulty = ((parsedUrl.searchParams.get('difficulty') as DifficultyLevel) || 'medium') as DifficultyLevel;
     const preset = DIFFICULTY_PRESETS[difficulty] || DIFFICULTY_PRESETS.medium;
     const customStagesParam = parseCustomStages(parsedUrl.searchParams.get('customStages'));
-    const roundStages = customStagesParam || DEFAULT_TIME_STAGES;
+    const roundStages = customStagesParam || (parsedUrl.searchParams.get('difficulty') ? preset.stages : DEFAULT_TIME_STAGES);
 
     const dateKey = getBangkokDateKey();
     const dailySongs = await supabaseAdmin.getOrCreateDailyChallengeSongs(dateKey, category);

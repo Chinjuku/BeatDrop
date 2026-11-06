@@ -1,5 +1,6 @@
 'use client';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { MAX_SNIPPET_DURATION, MIN_SNIPPET_DURATION } from '../types';
 
 export type AudioPlaybackState = 'idle' | 'loading' | 'ready' | 'playing' | 'paused' | 'ended' | 'error';
 
@@ -267,8 +268,12 @@ export function useAudioController({ audioUrl, volume }: UseAudioControllerOptio
   // Play a specific snippet length (Songspot B: skips dead air / silence at intro)
   const playSnippet = useCallback(
     (clipSeconds: number) => {
+      const clampedClip = Math.min(
+        MAX_SNIPPET_DURATION,
+        Math.max(MIN_SNIPPET_DURATION, Number(clipSeconds) || MIN_SNIPPET_DURATION)
+      );
       const introOffset = soundStartOffsetRef.current;
-      startPlaybackFrom(introOffset, introOffset + clipSeconds);
+      startPlaybackFrom(introOffset, introOffset + clampedClip);
     },
     [startPlaybackFrom]
   );
