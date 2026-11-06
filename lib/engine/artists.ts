@@ -72,11 +72,14 @@ export let customArtists: Artist[] = [];
 
 let cachedAllArtists: Artist[] | null = null;
 let lastAllArtistsTime = 0;
-const ALL_ARTISTS_CACHE_TTL = 15_000;
+let lastAllArtistsPoolSize = -1;
+const ALL_ARTISTS_CACHE_TTL = 60_000;
+const normCache = new Map<string, string>();
 
 export function invalidateAllArtistsCache(): void {
   cachedAllArtists = null;
   lastAllArtistsTime = 0;
+  lastAllArtistsPoolSize = -1;
 }
 
 export function loadCustomArtists(): void {
@@ -135,13 +138,38 @@ export function deleteCustomArtist(id: string): void {
   dbService.deleteCustomArtist(id);
 }
 
+export function syncCustomArtistsInMemory(incoming: Artist[]): void {
+  for (const newArtist of incoming) {
+    const existingIdx = customArtists.findIndex(
+      (a) => normalizeText(a.name) === normalizeText(newArtist.name) || a.id === newArtist.id
+    );
+    if (existingIdx >= 0) {
+      customArtists[existingIdx] = {
+        ...customArtists[existingIdx],
+        ...newArtist,
+        avatarUrl: newArtist.avatarUrl || customArtists[existingIdx].avatarUrl,
+        trackCount: Math.max(customArtists[existingIdx].trackCount || 0, newArtist.trackCount || 0),
+      };
+    } else {
+      customArtists.push(newArtist);
+    }
+  }
+}
+
 export function normalizeText(str: string): string {
-  return (str || '')
+  if (!str) return '';
+  const cached = normCache.get(str);
+  if (cached !== undefined) return cached;
+  const computed = str
     .toLowerCase()
     .replace(/\(.*?\)|\[.*?\]/g, '')
     .replace(/feat\..*|ft\..*/gi, '')
     .replace(/[^\p{L}\p{N}]+/gu, ' ')
     .trim();
+  if (normCache.size < 15000) {
+    normCache.set(str, computed);
+  }
+  return computed;
 }
 
 export function extractSoloArtistNames(rawName: string): string[] {
@@ -240,30 +268,67 @@ export function computeMajorityGenre(
 
 export function getAllArtists(songPool?: Map<string, Song>): Artist[] {
   const now = Date.now();
-  if (cachedAllArtists && now - lastAllArtistsTime < ALL_ARTISTS_CACHE_TTL) {
+  const currentPoolSize = songPool ? songPool.size : 0;
+  if (
+    cachedAllArtists &&
+    now - lastAllArtistsTime < ALL_ARTISTS_CACHE_TTL &&
+    currentPoolSize === lastAllArtistsPoolSize
+  ) {
     return cachedAllArtists;
   }
 
   try {
     const dbArtists = dbService.getCustomArtists();
     if (dbArtists && dbArtists.length > 0) {
-      customArtists = dbArtists;
+      syncCustomArtistsInMemory(dbArtists);
     }
   } catch {}
 
   const map = new Map<string, Artist>();
   const poolValues = songPool ? Array.from(songPool.values()) : [];
 
+  // Index non-junk songs by unique artistName to reduce O(Artists * Songs) to O(Artists * UniqueArtistNames)
+  const songsByArtistName = new Map<string, Song[]>();
+  const featTitleSongs: Song[] = [];
+  for (const s of poolValues) {
+    if (isJunkTrack(s.title, s.albumName, s.artistName)) continue;
+    const bucket = songsByArtistName.get(s.artistName);
+    if (bucket) {
+      bucket.push(s);
+    } else {
+      songsByArtistName.set(s.artistName, [s]);
+    }
+    if (/\((?:feat\.?|ft\.?|featuring|with|ร่วมกับ)\s+/i.test(s.title)) {
+      featTitleSongs.push(s);
+    }
+  }
+
   for (const a of [...CURATED_ARTISTS, ...customArtists]) {
     const norm = a.name.toLowerCase();
-    const tracks = poolValues.filter(
-      (s) =>
-        checkArtistStrictMatch(s.artistName, a.name, undefined, undefined, s.title) &&
-        !isJunkTrack(s.title, s.albumName, s.artistName)
-    );
+    const matchedSongIds = new Set<string>();
+    const tracks: Song[] = [];
+
+    for (const [rawArtistName, group] of songsByArtistName.entries()) {
+      if (checkArtistStrictMatch(rawArtistName, a.name)) {
+        for (const s of group) {
+          if (!matchedSongIds.has(s.id)) {
+            matchedSongIds.add(s.id);
+            tracks.push(s);
+          }
+        }
+      }
+    }
+
+    for (const s of featTitleSongs) {
+      if (!matchedSongIds.has(s.id) && checkArtistStrictMatch(s.artistName, a.name, undefined, undefined, s.title)) {
+        matchedSongIds.add(s.id);
+        tracks.push(s);
+      }
+    }
+
     const effectiveCount =
       a.trackCount && a.trackCount > 0
-        ? a.trackCount
+        ? Math.max(a.trackCount, tracks.length)
         : tracks.length > 0
         ? tracks.length
         : dbService.searchSongs('', { artist: a.name, limit: 250 }).length;
@@ -287,6 +352,7 @@ export function getAllArtists(songPool?: Map<string, Song>): Artist[] {
   const result = Array.from(map.values());
   cachedAllArtists = result;
   lastAllArtistsTime = now;
+  lastAllArtistsPoolSize = currentPoolSize;
   return result;
 }
 

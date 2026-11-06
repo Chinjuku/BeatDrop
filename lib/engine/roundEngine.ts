@@ -34,6 +34,45 @@ export interface ActiveRoundState {
 
 export const activeRounds = new Map<string, ActiveRoundState>();
 
+let cachedValidLibraryPool: Song[] = [];
+let lastValidPoolSize = -1;
+let lastValidArtistsCount = -1;
+
+function getValidLibraryPool(): Song[] {
+  const libraryArtists = getAllArtists(songPool);
+  if (
+    cachedValidLibraryPool.length > 0 &&
+    songPool.size === lastValidPoolSize &&
+    libraryArtists.length === lastValidArtistsCount
+  ) {
+    return cachedValidLibraryPool;
+  }
+
+  const artistMatchByRawName = new Map<string, boolean>();
+  const valid: Song[] = [];
+  for (const s of songPool.values()) {
+    if (isJunkTrack(s.title, s.albumName, s.artistName)) continue;
+    let matched = artistMatchByRawName.get(s.artistName);
+    if (matched === undefined) {
+      matched = libraryArtists.some((a) => checkArtistStrictMatch(s.artistName, a.name));
+      artistMatchByRawName.set(s.artistName, matched);
+    }
+    if (!matched && /\((?:feat\.?|ft\.?|featuring|with|ร่วมกับ)\s+/i.test(s.title)) {
+      matched = libraryArtists.some((a) =>
+        checkArtistStrictMatch(s.artistName, a.name, undefined, undefined, s.title)
+      );
+    }
+    if (matched) {
+      valid.push(s);
+    }
+  }
+
+  cachedValidLibraryPool = valid;
+  lastValidPoolSize = songPool.size;
+  lastValidArtistsCount = libraryArtists.length;
+  return valid;
+}
+
 // Replay attack protection: record tokens once consumed to prevent duplicate guessing/score pumping
 const consumedRoundTokens = new Set<string>();
 const MAX_CONSUMED_TOKENS = 10_000;
@@ -183,16 +222,7 @@ export async function handleStartRound(req: Request, res: Response): Promise<voi
     }
   }
 
-  let pool = Array.from(songPool.values()).filter(
-    (s) => !isJunkTrack(s.title, s.albumName, s.artistName)
-  );
-
-  const libraryArtists = getAllArtists(songPool);
-  pool = pool.filter((s) =>
-    libraryArtists.some((a) =>
-      checkArtistStrictMatch(s.artistName, a.name, undefined, undefined, s.title)
-    )
-  );
+  let pool = getValidLibraryPool();
 
   if (!artistFilter || artistFilter === 'any') {
     if (category === 'thai' || category === 'international') {
