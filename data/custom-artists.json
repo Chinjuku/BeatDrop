@@ -10,7 +10,7 @@
   },
   {
     "id": "artist_jennie",
-    "name": "JENNIE (from BLACKPINK)",
+    "name": "JENNIE",
     "category": "international",
     "mainGenre": "K-Pop",
     "avatarUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music116/v4/db/28/e7/db28e7c3-f53a-76c8-eaa4-d92a22e4f160/23UMGIM72115.rgb.jpg/600x600bb.jpg",
@@ -193,8 +193,8 @@
     "name": "Bruno Mars",
     "category": "international",
     "mainGenre": "Pop",
-    "avatarUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music211/v4/ed/46/bf/ed46bf4e-7cb9-965a-54f3-03059977fe6c/075679589293.jpg/600x600bb.jpg",
-    "isCustom": false,
+    "avatarUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music221/v4/2d/1a/7d/2d1a7d91-587e-0ceb-d434-327bd66d9e86/075679628312.jpg/600x600bb.jpg",
+    "isCustom": true,
     "trackCount": 161
   },
   {
@@ -538,5 +538,59 @@
     "avatarUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music221/v4/a1/d2/57/a1d257f9-02f8-602a-0cdd-fa0ca33fce14/888332889278.jpg/600x600bb.jpg",
     "isCustom": true,
     "trackCount": 34
+  },
+  {
+    "id": "artist_rosé",
+    "name": "ROSÉ",
+    "category": "international",
+    "mainGenre": "Pop",
+    "avatarUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music221/v4/2d/1a/7d/2d1a7d91-587e-0ceb-d434-327bd66d9e86/075679628312.jpg/600x600bb.jpg",
+    "isCustom": true,
+    "trackCount": 2
+  },
+  {
+    "id": "artist_jack_ü",
+    "name": "Jack Ü",
+    "category": "international",
+    "mainGenre": "EDM",
+    "avatarUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music115/v4/b3/ea/21/b3ea217e-d5d0-4db7-5942-15cdff5ad68d/075679927354.jpg/600x600bb.jpg",
+    "isCustom": true,
+    "trackCount": 1
+  },
+  {
+    "id": "artist_skrillex",
+    "name": "Skrillex",
+    "category": "international",
+    "mainGenre": "EDM",
+    "avatarUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music115/v4/b3/ea/21/b3ea217e-d5d0-4db7-5942-15cdff5ad68d/075679927354.jpg/600x600bb.jpg",
+    "isCustom": true,
+    "trackCount": 1
+  },
+  {
+    "id": "artist_diplo",
+    "name": "Diplo",
+    "category": "international",
+    "mainGenre": "EDM",
+    "avatarUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music115/v4/b3/ea/21/b3ea217e-d5d0-4db7-5942-15cdff5ad68d/075679927354.jpg/600x600bb.jpg",
+    "isCustom": true,
+    "trackCount": 1
+  },
+  {
+    "id": "artist_baby",
+    "name": "Baby",
+    "category": "international",
+    "mainGenre": "Hip-Hop/Rap",
+    "avatarUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music125/v4/d2/98/96/d29896dd-9446-efdc-a8bf-858b0e32f2c4/00602498627556.rgb.jpg/600x600bb.jpg",
+    "isCustom": true,
+    "trackCount": 1
+  },
+  {
+    "id": "artist_mannie_fresh",
+    "name": "Mannie Fresh",
+    "category": "international",
+    "mainGenre": "Hip-Hop/Rap",
+    "avatarUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music125/v4/d2/98/96/d29896dd-9446-efdc-a8bf-858b0e32f2c4/00602498627556.rgb.jpg/600x600bb.jpg",
+    "isCustom": true,
+    "trackCount": 1
   }
 ]

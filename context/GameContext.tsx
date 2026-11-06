@@ -25,7 +25,7 @@ import {
   TIME_RANGE_PRESETS,
   TimeRangePresetId,
 } from '../types';
-import { readDailyChallengeResponse } from '../shared/dailyChallengeClient';
+import { DailyChallengeLoadError, readDailyChallengeResponse } from '../shared/dailyChallengeClient';
 import { useTheme } from './ThemeContext';
 import { useAudioController, prefetchAudio, AudioPlaybackState } from '../hooks/useAudioController';
 import { getCachedArtists, setCachedArtists, getCachedHistory, setCachedHistory } from '../lib/clientDb';
@@ -557,6 +557,7 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
       let dailyRequestTimedOut = false;
       let dailyRequestTimeoutId: number | undefined;
+      let failedRequest: { endpoint?: string; status?: number; apiCode?: unknown; apiMessage?: string } = {};
       try {
         const stagesParam =
           activeCfg.customStages && activeCfg.customStages.length >= 2
@@ -580,6 +581,7 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           const res = await fetch(`/api/daily?${dailyParams.toString()}`, {
             signal: controller.signal,
           });
+          failedRequest = { endpoint: '/api/daily', status: res.status };
           const info = await readDailyChallengeResponse(res);
           if (dailyRequestTimeoutId !== undefined) window.clearTimeout(dailyRequestTimeoutId);
           dailyRequestTimeoutId = undefined;
@@ -626,8 +628,14 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         const res = await fetch(`/api/songs?${params.toString()}`, {
           signal: controller.signal,
         });
-        const json = await res.json();
-        if (!res.ok || json.code !== 0 || !json.data) {
+        const json = await res.json().catch(() => null);
+        failedRequest = {
+          endpoint: '/api/songs',
+          status: res.status,
+          apiCode: json?.code,
+          apiMessage: typeof json?.message === 'string' ? json.message : undefined,
+        };
+        if (!res.ok || json?.code !== 0 || !json?.data) {
           throw new Error('Round request failed');
         }
         if (activeCfg.mode === 'guesser' && (!Array.isArray(json.data.choices) || json.data.choices.length !== 4)) {
@@ -641,10 +649,17 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         } else if (activeCfg.mode === 'guesser') {
           setRoundLoadError('Could not load the next song. Check your connection and retry.');
         }
-        console.error('[Game] Failed to start round', {
+        if (err instanceof DailyChallengeLoadError) {
+          failedRequest.status = err.status;
+          failedRequest.apiCode = err.apiCode;
+          failedRequest.apiMessage = err.apiMessage;
+        }
+        console.error('[Game] Failed to start round', JSON.stringify({
           mode: activeCfg.mode,
           errorType: err instanceof Error ? err.name : 'unknown',
-        });
+          errorMessage: err instanceof Error ? err.message : String(err),
+          ...failedRequest,
+        }));
       } finally {
         if (dailyRequestTimeoutId !== undefined) window.clearTimeout(dailyRequestTimeoutId);
         if (roundAbortControllerRef.current === controller) {
@@ -948,29 +963,46 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           giveUp: giveUpDirectly,
         }),
       });
-      const json = await res.json();
+      const json = await res.json().catch(() => null);
+      if (!res.ok || json?.code !== 0 || !json?.data) {
+        if (config.mode === 'guesser') {
+          const detail = typeof json?.message === 'string' ? ` ${json.message}` : '';
+          setGuesserFeedback(`Skip could not be recorded. Please retry.${detail}`);
+        }
+        console.warn('[Game] Skip request was rejected', { mode: config.mode, status: res.status, code: json?.code });
+        return;
+      }
       if (json.code === 0 && json.data) {
         const data: RoundActionResponse = json.data;
-        if (data.outcome === 'failed' && data.reveal) {
+        if ((data.outcome === 'failed' || data.outcome === 'correct') && data.reveal) {
+          const resultStatus = data.roundResult === 'correct'
+            ? 'correct'
+            : data.roundResult === 'skipped' ? 'skipped' : 'wrong';
           setHistory((prev) => [
             ...prev,
             {
-              trackId: 'skipped',
-              title: giveUpDirectly ? 'ยอมแพ้ (Give Up)' : 'ข้าม (Skipped)',
-              artistName: '—',
+              trackId: data.reveal!.id,
+              title: data.reveal!.title,
+              artistName: data.reveal!.artistName,
               stageIndex: currentStage,
               clipSeconds: activeClipSeconds,
-              status: 'skipped',
+              status: resultStatus,
             },
           ]);
-          setOutcome('failed');
+          setOutcome(data.outcome === 'correct' ? 'correct' : 'failed');
           setRevealSong(data.reveal);
           if (data.reveal.previewUrl) prefetchAudio(data.reveal.previewUrl);
           recordPlayedTrack(data.reveal.id);
-          setStreak(0);
-          try {
-            localStorage.setItem(STORAGE_STREAK_KEY, '0');
-          } catch {}
+          if (config.mode === 'guesser' && resultStatus === 'skipped') {
+            setGuesserSkipCount((count) => count + 1);
+            setGuesserFeedback('Skipped · no points awarded');
+          }
+          if (resultStatus !== 'correct') {
+            setStreak(0);
+            try {
+              localStorage.setItem(STORAGE_STREAK_KEY, '0');
+            } catch {}
+          }
           if (config.mode === 'daily') applyDailyResult(data);
         } else if (data.outcome === 'active' && data.roundToken) {
           setHistory((prev) => [
@@ -1005,66 +1037,8 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   const handleGuesserSkip = async () => {
-    if (config.mode !== 'guesser' || !round || outcome || submittingGuess || roundActionLockRef.current) return;
-    roundActionLockRef.current = true;
-    stop();
-    setSubmittingGuess(true);
-    try {
-      const res = await fetch('/api/round/skip', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ roundToken: round.roundToken, giveUp: true }),
-      });
-      const json = await res.json().catch(() => null);
-      if (
-        !res.ok ||
-        json.code !== 0 ||
-        !['correct', 'failed'].includes(json.data?.outcome) ||
-        !['correct', 'wrong', 'skipped'].includes(json.data?.roundResult) ||
-        !json.data?.reveal
-      ) {
-        const serverMessage = typeof json.message === 'string' ? ` ${json.message}` : '';
-        setGuesserFeedback(`Skip could not be recorded. Please retry.${serverMessage}`);
-        console.warn('[Game] Song Guesser skip was rejected', { status: res.status, code: json.code });
-        return;
-      }
-      const data = json.data as RoundActionResponse;
-      if (data.roundResult !== 'skipped') {
-        const reveal = data.reveal;
-        if (!reveal) return;
-        setHistory((prev) => [...prev, {
-          trackId: reveal.id,
-          title: reveal.title,
-          artistName: reveal.artistName,
-          stageIndex: currentStage,
-          clipSeconds: activeClipSeconds,
-          status: data.roundResult === 'correct' ? 'correct' : 'wrong',
-        }]);
-        setOutcome(data.outcome === 'correct' ? 'correct' : 'failed');
-        setRevealSong(reveal);
-        if (reveal.previewUrl) prefetchAudio(reveal.previewUrl);
-        recordPlayedTrack(reveal.id);
-        if (data.roundResult === 'correct') setStreak((value) => value + 1);
-        else setStreak(0);
-        return;
-      }
-      setGuesserSkipCount((count) => count + 1);
-      setGuesserFeedback('Skipped · no points awarded');
-      if (data.reveal?.id) recordPlayedTrack(data.reveal.id);
-      setStreak(0);
-      try {
-        localStorage.setItem(STORAGE_STREAK_KEY, '0');
-      } catch {}
-      await startNewRound(config, true);
-    } catch (err) {
-      setGuesserFeedback('Skip could not be recorded. Please retry.');
-      console.warn('[Game] Song Guesser skip request failed', {
-        errorType: err instanceof Error ? err.name : 'unknown',
-      });
-    } finally {
-      roundActionLockRef.current = false;
-      setSubmittingGuess(false);
-    }
+    if (config.mode !== 'guesser') return;
+    await handleSkip(true);
   };
 
   const handleDailyTimeout = async () => {

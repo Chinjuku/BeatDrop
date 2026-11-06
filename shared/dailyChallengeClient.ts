@@ -2,9 +2,16 @@ import type { DailyChallengeInfo, RoundStartResponse } from './types';
 import { DAILY_ROUND_COUNT } from './types';
 
 export class DailyChallengeLoadError extends Error {
-  constructor() {
+  readonly status?: number;
+  readonly apiCode?: unknown;
+  readonly apiMessage?: string;
+
+  constructor(details: { status?: number; apiCode?: unknown; apiMessage?: string } = {}) {
     super('Daily Challenge could not be loaded. Check your connection and retry.');
     this.name = 'DailyChallengeLoadError';
+    this.status = details.status;
+    this.apiCode = details.apiCode;
+    this.apiMessage = details.apiMessage;
   }
 }
 
@@ -39,18 +46,25 @@ export function isDailyChallengeInfo(value: unknown): value is DailyChallengeInf
 
 export async function readDailyChallengeResponse(response: {
   ok: boolean;
+  status?: number;
   json: () => Promise<unknown>;
 }): Promise<DailyChallengeInfo> {
-  if (!response.ok) throw new DailyChallengeLoadError();
+  let payload: unknown;
   try {
-    const payload = await response.json();
-    if (!payload || typeof payload !== 'object') throw new DailyChallengeLoadError();
-    const envelope = payload as { code?: unknown; data?: unknown };
-    if (envelope.code !== 0 || !isDailyChallengeInfo(envelope.data)) {
-      throw new DailyChallengeLoadError();
-    }
-    return envelope.data;
+    payload = await response.json();
   } catch {
-    throw new DailyChallengeLoadError();
+    throw new DailyChallengeLoadError({ status: response.status });
   }
+  const envelope = payload && typeof payload === 'object'
+    ? payload as { code?: unknown; message?: unknown; data?: unknown }
+    : null;
+  const details = {
+    status: response.status,
+    apiCode: envelope?.code,
+    apiMessage: typeof envelope?.message === 'string' ? envelope.message : undefined,
+  };
+  if (!response.ok || !envelope || envelope.code !== 0 || !isDailyChallengeInfo(envelope.data)) {
+    throw new DailyChallengeLoadError(details);
+  }
+  return envelope.data;
 }

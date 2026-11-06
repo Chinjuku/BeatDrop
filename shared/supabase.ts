@@ -191,7 +191,14 @@ export const supabaseAdmin = {
       }),
     });
     if (!post.ok) {
-      console.error('[Daily] Could not create or load round progress row', { status: post.status });
+      const error = await post.json().catch(() => null);
+      console.error('[Daily] Could not create or load round progress row', {
+        status: post.status,
+        code: error?.code,
+        message: error?.message,
+        details: error?.details,
+        hint: error?.hint,
+      });
       return null;
     }
     const rows = await this.getDailyRoundProgress(
@@ -213,7 +220,14 @@ export const supabaseAdmin = {
         `daily_round_progress?player_id=eq.${encodeURIComponent(playerId)}&date_key=eq.${encodeURIComponent(dateKey)}&category=eq.${encodeURIComponent(category)}${indexFilter}&select=*&order=round_index.asc`
       ));
       if (!res.ok) {
-        console.error('[Daily] Could not read round progress rows', { status: res.status });
+        const error = await res.json().catch(() => null);
+        console.error('[Daily] Could not read round progress rows', {
+          status: res.status,
+          code: error?.code,
+          message: error?.message,
+          details: error?.details,
+          hint: error?.hint,
+        });
         return [];
       }
       const rows = await res.json() as Array<Record<string, unknown>>;

@@ -75,7 +75,16 @@ async function getOrStartRound(
     speedBonus: 0,
     answerTimeMs: 0,
   });
-  if (!progress || progress.status !== 'pending' || progress.trackId !== track.id) return null;
+  if (!progress || progress.status !== 'pending' || progress.trackId !== track.id) {
+    console.warn('[Daily] Current progress row cannot start a challenge round', {
+      dateKey,
+      category,
+      roundIndex,
+      status: progress?.status || 'missing',
+      trackMatches: progress ? progress.trackId === track.id : false,
+    });
+    return null;
+  }
 
   const difficulty = 'medium' as const;
   const roundState = {
