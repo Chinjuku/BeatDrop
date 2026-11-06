@@ -1,6 +1,7 @@
 'use client';
 import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import {
   ArrowRight,
@@ -102,11 +103,22 @@ export const Navbar: React.FC<NavbarProps> = ({
   }, [activeMenu]);
 
   const headerRef = useRef<HTMLElement>(null);
+  const mobileDrawerRef = useRef<HTMLDivElement>(null);
+
+  // Close menus automatically whenever route changes (including browser Back/Forward)
+  useEffect(() => {
+    setActiveMenu(null);
+  }, [pathname]);
 
   // Close menus on outside click or Escape key
   useEffect(() => {
     const handleOutside = (e: MouseEvent) => {
-      if (headerRef.current && !headerRef.current.contains(e.target as Node)) {
+      const target = e.target as Node;
+      const insideHeader = Boolean(headerRef.current && headerRef.current.contains(target));
+      const insideMobileDrawer = Boolean(
+        mobileDrawerRef.current && mobileDrawerRef.current.contains(target)
+      );
+      if (!insideHeader && !insideMobileDrawer) {
         setActiveMenu(null);
       }
     };
@@ -188,12 +200,9 @@ export const Navbar: React.FC<NavbarProps> = ({
     <header className="songspot-site-header" ref={headerRef}>
       <div className="songspot-site-header-inner">
         {/* Left: Brand / Home Link */}
-        <button
-          type="button"
-          onClick={() => {
-            setActiveMenu(null);
-            navigate('/play');
-          }}
+        <Link
+          href="/play"
+          onClick={() => setActiveMenu(null)}
           className="songspot-site-brand group"
           title="BeatDrop — Play (Home)"
         >
@@ -211,23 +220,20 @@ export const Navbar: React.FC<NavbarProps> = ({
               BeatDrop
             </span>
           </div>
-        </button>
+        </Link>
 
         {/* Center: Desktop Navigation Tabs & Mega Menus (Exact Songspot Style) */}
         <nav className="songspot-site-desktop-nav" aria-label="Songspot navigation">
           {/* 1. Play (Default Clip Mode) */}
-          <button
-            type="button"
+          <Link
+            href="/play"
             className="songspot-site-nav-link"
             aria-current={isPlayActive ? 'page' : undefined}
             data-section={isPlayActive ? 'active' : undefined}
-            onClick={() => {
-              setActiveMenu(null);
-              navigate('/play');
-            }}
+            onClick={() => setActiveMenu(null)}
           >
             Play
-          </button>
+          </Link>
 
           {/* 2. Music Categories (Unified Pill with Dropdown) */}
           <div className="songspot-site-quiz-menu">
@@ -347,34 +353,28 @@ export const Navbar: React.FC<NavbarProps> = ({
                   </div>
                 </div>
 
-                <button
-                  type="button"
-                  onClick={() => {
-                    setActiveMenu(null);
-                    navigate('/categories');
-                  }}
+                <Link
+                  href="/categories"
+                  onClick={() => setActiveMenu(null)}
                   className="songspot-site-browse-all"
                 >
                   <span>Browse all categories (เลือกหมวดหมู่เพลง)</span>
                   <ArrowRight className="w-4 h-4" />
-                </button>
+                </Link>
               </div>
             </div>
           </div>
 
           {/* 3. Daily Challenge */}
-          <button
-            type="button"
+          <Link
+            href="/daily"
             className="songspot-site-nav-link"
             aria-current={isDailyActive ? 'page' : undefined}
             data-section={isDailyActive ? 'active' : undefined}
-            onClick={() => {
-              setActiveMenu(null);
-              navigate('/daily');
-            }}
+            onClick={() => setActiveMenu(null)}
           >
             Daily Challenge
-          </button>
+          </Link>
 
           {/* 4. Song Guesser (Unified Pill with Dropdown) */}
           <div className="songspot-site-quiz-menu">
@@ -484,17 +484,14 @@ export const Navbar: React.FC<NavbarProps> = ({
                   </div>
                 </div>
 
-                <button
-                  type="button"
-                  onClick={() => {
-                    setActiveMenu(null);
-                    navigate('/guesser');
-                  }}
+                <Link
+                  href="/guesser"
+                  onClick={() => setActiveMenu(null)}
                   className="songspot-site-browse-all"
                 >
                   <span>Browse all multiple-choice quizzes</span>
                   <ArrowRight className="w-4 h-4" />
-                </button>
+                </Link>
               </div>
             </div>
           </div>
@@ -715,12 +712,9 @@ export const Navbar: React.FC<NavbarProps> = ({
 
                 {/* 3. Admin Console */}
                 <div className="border-t mt-2 pt-2" style={{ borderColor: 'var(--song-border)' }}>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setActiveMenu(null);
-                      navigate('/admin');
-                    }}
+                  <Link
+                    href="/admin"
+                    onClick={() => setActiveMenu(null)}
                     className="w-full px-3 py-2 rounded-xl text-left flex items-center justify-between text-xs font-bold transition hover:brightness-110"
                     style={{
                       backgroundColor: 'var(--song-surface-soft)',
@@ -732,7 +726,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                       <span>Admin Console</span>
                     </div>
                     <span className="text-[10px] text-emerald-400 font-mono font-bold">Key Locked</span>
-                  </button>
+                  </Link>
                 </div>
               </div>
             )}
@@ -760,7 +754,10 @@ export const Navbar: React.FC<NavbarProps> = ({
       {mounted &&
         activeMenu === 'mobile' &&
         createPortal(
-          <div className="fixed inset-0 z-[100] max-[1140px]:block min-[1141px]:hidden animate-in fade-in duration-200">
+          <div
+            ref={mobileDrawerRef}
+            className="fixed inset-0 z-[100] max-[1140px]:block min-[1141px]:hidden animate-in fade-in duration-200"
+          >
             {/* Full-screen Dark Blurred Backdrop */}
             <div
               className="fixed inset-0 bg-black/80 backdrop-blur-md"
@@ -794,12 +791,9 @@ export const Navbar: React.FC<NavbarProps> = ({
 
               {/* Primary Links */}
               <div className="space-y-1.5">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setActiveMenu(null);
-                    navigate('/play');
-                  }}
+                <Link
+                  href="/play"
+                  onClick={() => setActiveMenu(null)}
                   className="w-full px-3 py-2.5 rounded-xl text-left text-sm font-bold flex items-center justify-between transition hover:brightness-110"
                   style={
                     isPlayActive
@@ -818,14 +812,11 @@ export const Navbar: React.FC<NavbarProps> = ({
                     <span>Play (Clip Challenge)</span>
                   </span>
                   <ArrowRight className="w-4 h-4 opacity-70" />
-                </button>
+                </Link>
 
-                <button
-                  type="button"
-                  onClick={() => {
-                    setActiveMenu(null);
-                    navigate('/daily');
-                  }}
+                <Link
+                  href="/daily"
+                  onClick={() => setActiveMenu(null)}
                   className="w-full px-3 py-2.5 rounded-xl text-left text-sm font-bold flex items-center justify-between transition hover:brightness-110"
                   style={
                     isDailyActive
@@ -844,14 +835,11 @@ export const Navbar: React.FC<NavbarProps> = ({
                     <span>Daily Challenge (5 เพลง)</span>
                   </span>
                   <ArrowRight className="w-4 h-4 opacity-70" />
-                </button>
+                </Link>
 
-                <button
-                  type="button"
-                  onClick={() => {
-                    setActiveMenu(null);
-                    navigate('/guesser');
-                  }}
+                <Link
+                  href="/guesser"
+                  onClick={() => setActiveMenu(null)}
                   className="w-full px-3 py-2.5 rounded-xl text-left text-sm font-bold flex items-center justify-between transition hover:brightness-110"
                   style={
                     isGuesserActive
@@ -870,14 +858,11 @@ export const Navbar: React.FC<NavbarProps> = ({
                     <span>Song Guesser (4 ตัวเลือก)</span>
                   </span>
                   <ArrowRight className="w-4 h-4 opacity-70" />
-                </button>
+                </Link>
 
-                <button
-                  type="button"
-                  onClick={() => {
-                    setActiveMenu(null);
-                    navigate('/categories');
-                  }}
+                <Link
+                  href="/categories"
+                  onClick={() => setActiveMenu(null)}
                   className="w-full px-3 py-2.5 rounded-xl text-left text-sm font-bold flex items-center justify-between transition hover:brightness-110"
                   style={
                     isCategoriesActive
@@ -896,7 +881,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                     <span>Music Categories (เลือกหมวดหมู่เพลง)</span>
                   </span>
                   <ArrowRight className="w-4 h-4 opacity-70" />
-                </button>
+                </Link>
               </div>
 
               {/* Accordion Topics for Clip Quizzes */}
@@ -1014,6 +999,23 @@ export const Navbar: React.FC<NavbarProps> = ({
                     {artistCount} ศิลปิน
                   </span>
                 </button>
+
+                <Link
+                  href="/admin"
+                  onClick={() => setActiveMenu(null)}
+                  className="w-full px-3 py-2 rounded-xl text-xs font-bold flex items-center justify-between border transition hover:brightness-110"
+                  style={{
+                    backgroundColor: 'var(--song-surface-soft)',
+                    borderColor: 'var(--song-border)',
+                    color: 'var(--song-text)',
+                  }}
+                >
+                  <span className="flex items-center gap-2">
+                    <Shield className="w-4 h-4 text-emerald-400" />
+                    <span>Admin Console</span>
+                  </span>
+                  <span className="text-[10px] text-emerald-400 font-mono font-bold">Key Locked</span>
+                </Link>
               </div>
 
               {/* Stats Pill in Mobile */}
