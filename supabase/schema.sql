@@ -49,6 +49,7 @@ CREATE TABLE IF NOT EXISTS public.songs (
 
 -- B-Tree indexes for ModeSelector filtering (Category, Artist, Release Year, Genre)
 CREATE INDEX IF NOT EXISTS idx_songs_category_pop ON public.songs (category, popularity_score DESC);
+CREATE INDEX IF NOT EXISTS idx_songs_cat_genre_year_pop ON public.songs (category, genre, release_year, popularity_score DESC);
 CREATE INDEX IF NOT EXISTS idx_songs_artist_id ON public.songs (artist_id);
 CREATE INDEX IF NOT EXISTS idx_songs_artist_name ON public.songs (artist_name);
 CREATE INDEX IF NOT EXISTS idx_songs_release_year ON public.songs (release_year);
@@ -89,6 +90,57 @@ CREATE TABLE IF NOT EXISTS public.leaderboard (
 
 CREATE INDEX IF NOT EXISTS idx_leaderboard_ranking
   ON public.leaderboard (category, is_daily, score DESC, fastest_seconds ASC);
+CREATE INDEX IF NOT EXISTS idx_leaderboard_cat_diff_score
+  ON public.leaderboard (category, difficulty, score DESC, fastest_seconds ASC);
+
+-- ============================================================================
+-- 5b. Table: artist_sync_jobs (Persistent Background Job State & Recovery)
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS public.artist_sync_jobs (
+  id TEXT PRIMARY KEY,
+  artist_id TEXT NOT NULL,
+  artist_name CITEXT NOT NULL,
+  category TEXT NOT NULL DEFAULT 'thai' CHECK (category IN ('thai', 'international')),
+  status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'processing', 'completed', 'failed')),
+  max_limit INTEGER NOT NULL DEFAULT 50,
+  fetched_count INTEGER NOT NULL DEFAULT 0,
+  added_count INTEGER NOT NULL DEFAULT 0,
+  attempts INTEGER NOT NULL DEFAULT 0,
+  last_error TEXT,
+  locked_until TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_artist_sync_jobs_status
+  ON public.artist_sync_jobs (status, locked_until);
+CREATE INDEX IF NOT EXISTS idx_artist_sync_jobs_artist_name
+  ON public.artist_sync_jobs (artist_name);
+
+-- ============================================================================
+-- 5c. Row Level Security (RLS) Policies
+-- ============================================================================
+ALTER TABLE public.artists ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.songs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.daily_challenges ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.leaderboard ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.artist_sync_jobs ENABLE ROW LEVEL SECURITY;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'artists' AND policyname = 'Allow public read artists') THEN
+    CREATE POLICY "Allow public read artists" ON public.artists FOR SELECT USING (true);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'songs' AND policyname = 'Allow public read songs') THEN
+    CREATE POLICY "Allow public read songs" ON public.songs FOR SELECT USING (true);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'daily_challenges' AND policyname = 'Allow public read daily_challenges') THEN
+    CREATE POLICY "Allow public read daily_challenges" ON public.daily_challenges FOR SELECT USING (true);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'leaderboard' AND policyname = 'Allow public read leaderboard') THEN
+    CREATE POLICY "Allow public read leaderboard" ON public.leaderboard FOR SELECT USING (true);
+  END IF;
+END $$;
 
 -- ============================================================================
 -- 6. Daily Challenge Generator Function & pg_cron Schedule (00:00 UTC+7)

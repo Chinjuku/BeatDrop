@@ -353,3 +353,21 @@ export interface DailyChallengeInfo {
   rounds: RoundStartResponse[];
 }
 
+export type SyncJobStatus = 'pending' | 'processing' | 'completed' | 'failed';
+
+export interface ArtistSyncJob {
+  id: string;
+  artistId: string;
+  artistName: string;
+  category: 'thai' | 'international';
+  status: SyncJobStatus;
+  maxLimit: number;
+  fetchedCount: number;
+  addedCount: number;
+  attempts: number;
+  lastError?: string | null;
+  lockedUntil?: number | null; // epoch ms
+  updatedAt: string;
+}
+
+

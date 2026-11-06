@@ -2,7 +2,7 @@ import { DatabaseSync, type SQLInputValue } from 'node:sqlite';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { Artist, CategoryType, LeaderboardEntry, Song } from '../shared/types';
+import { Artist, ArtistSyncJob, CategoryType, LeaderboardEntry, Song } from '../shared/types';
 import { isDbLocal, isSupabaseConfigured, supabaseAdmin } from './supabase';
 import { getArtistCandidateTokens } from './itunes';
 
@@ -92,6 +92,25 @@ function ensureDb(): DatabaseSync {
     );
 
     CREATE INDEX IF NOT EXISTS idx_leaderboard_cat ON leaderboard (category, is_daily, score DESC);
+    CREATE INDEX IF NOT EXISTS idx_leaderboard_cat_diff ON leaderboard (category, difficulty, score DESC, fastest_seconds ASC);
+    CREATE INDEX IF NOT EXISTS idx_songs_cat_genre_year_pop ON songs (category, genre, release_year, popularity_score DESC);
+
+    CREATE TABLE IF NOT EXISTS artist_sync_jobs (
+      id TEXT PRIMARY KEY,
+      artist_id TEXT NOT NULL,
+      artist_name TEXT NOT NULL COLLATE NOCASE,
+      category TEXT NOT NULL DEFAULT 'thai',
+      status TEXT NOT NULL DEFAULT 'pending',
+      max_limit INTEGER NOT NULL DEFAULT 50,
+      fetched_count INTEGER NOT NULL DEFAULT 0,
+      added_count INTEGER NOT NULL DEFAULT 0,
+      attempts INTEGER NOT NULL DEFAULT 0,
+      last_error TEXT,
+      locked_until INTEGER,
+      updated_at TEXT NOT NULL
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_sync_jobs_status ON artist_sync_jobs (status, locked_until);
   `);
 
   _insertSongStmt = instance.prepare(`
@@ -274,10 +293,10 @@ export const dbService = {
   /**
    * Batch save multiple songs inside a single fast transaction
    */
-  saveSongs(songs: Song[]): void {
+  saveSongs(songs: Song[], syncToCloud = false): void {
     if (!songs || songs.length === 0) return;
     if (isServerlessSupabase()) {
-      supabaseAdmin.upsertSongs(songs).catch(() => {});
+      if (syncToCloud) supabaseAdmin.upsertSongs(songs).catch(() => {});
       return;
     }
     try {
@@ -301,7 +320,7 @@ export const dbService = {
         );
       }
       db.exec('COMMIT');
-      if (isSupabaseConfigured()) {
+      if (syncToCloud && isSupabaseConfigured()) {
         supabaseAdmin.upsertSongs(songs).catch(() => {});
       }
     } catch (err) {
@@ -401,9 +420,9 @@ export const dbService = {
     }
   },
 
-  saveCustomArtist(artist: Artist): void {
+  saveCustomArtist(artist: Artist, syncToCloud = false): void {
     if (isServerlessSupabase()) {
-      supabaseAdmin.upsertArtist(artist).catch(() => {});
+      if (syncToCloud) supabaseAdmin.upsertArtist(artist).catch(() => {});
       return;
     }
     try {
@@ -417,7 +436,7 @@ export const dbService = {
         artist.trackCount || 0,
         Date.now()
       );
-      if (isSupabaseConfigured()) {
+      if (syncToCloud && isSupabaseConfigured()) {
         supabaseAdmin.upsertArtist(artist).catch(() => {});
       }
     } catch (err) {
@@ -425,21 +444,165 @@ export const dbService = {
     }
   },
 
-  updateArtistTrackCount(artistName: string, count: number): void {
+  updateArtistTrackCount(artistName: string, count: number, syncToCloud = false): void {
     if (isServerlessSupabase()) {
-      supabaseAdmin.refreshArtistTrackCount(artistName).catch(() => {});
+      if (syncToCloud) supabaseAdmin.refreshArtistTrackCount(artistName).catch(() => {});
       return;
     }
     try {
       db.prepare(
         'UPDATE custom_artists SET track_count = ? WHERE name = ? COLLATE NOCASE'
       ).run(count, artistName);
-      if (isSupabaseConfigured()) {
+      if (syncToCloud && isSupabaseConfigured()) {
         supabaseAdmin.refreshArtistTrackCount(artistName).catch(() => {});
       }
     } catch (err) {
       console.error('Failed to update artist track count:', err);
     }
+  },
+
+  upsertSyncJob(job: ArtistSyncJob): ArtistSyncJob {
+    if (!isServerlessSupabase()) {
+      try {
+        db.prepare(`
+          INSERT INTO artist_sync_jobs (
+            id, artist_id, artist_name, category, status, max_limit,
+            fetched_count, added_count, attempts, last_error, locked_until, updated_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          ON CONFLICT(id) DO UPDATE SET
+            artist_id = excluded.artist_id,
+            artist_name = excluded.artist_name,
+            category = excluded.category,
+            status = excluded.status,
+            max_limit = excluded.max_limit,
+            fetched_count = excluded.fetched_count,
+            added_count = excluded.added_count,
+            attempts = excluded.attempts,
+            last_error = excluded.last_error,
+            locked_until = excluded.locked_until,
+            updated_at = excluded.updated_at
+        `).run(
+          job.id,
+          job.artistId,
+          job.artistName,
+          job.category,
+          job.status,
+          job.maxLimit,
+          job.fetchedCount,
+          job.addedCount,
+          job.attempts,
+          job.lastError ?? null,
+          job.lockedUntil ?? null,
+          job.updatedAt
+        );
+      } catch (err) {
+        console.error('Failed to upsert sync job in SQLite:', err);
+      }
+    }
+    if (isSupabaseConfigured()) {
+      supabaseAdmin.upsertSyncJob(job).catch(() => {});
+    }
+    return job;
+  },
+
+  getSyncJob(jobId: string): ArtistSyncJob | null {
+    if (isServerlessSupabase()) return null;
+    try {
+      const row = db
+        .prepare('SELECT * FROM artist_sync_jobs WHERE id = ? LIMIT 1')
+        .get(jobId) as
+        | {
+            id: string;
+            artist_id: string;
+            artist_name: string;
+            category: 'thai' | 'international';
+            status: ArtistSyncJob['status'];
+            max_limit: number;
+            fetched_count: number;
+            added_count: number;
+            attempts: number;
+            last_error: string | null;
+            locked_until: number | null;
+            updated_at: string;
+          }
+        | undefined;
+      if (!row) return null;
+      return {
+        id: row.id,
+        artistId: row.artist_id,
+        artistName: row.artist_name,
+        category: row.category,
+        status: row.status,
+        maxLimit: row.max_limit,
+        fetchedCount: row.fetched_count,
+        addedCount: row.added_count,
+        attempts: row.attempts,
+        lastError: row.last_error,
+        lockedUntil: row.locked_until,
+        updatedAt: row.updated_at,
+      };
+    } catch {
+      return null;
+    }
+  },
+
+  getRecoverableSyncJobs(limit = 5): ArtistSyncJob[] {
+    if (isServerlessSupabase()) return [];
+    try {
+      const now = Date.now();
+      const rows = db
+        .prepare(`
+          SELECT * FROM artist_sync_jobs
+          WHERE status IN ('pending', 'failed')
+             OR (status = 'processing' AND (locked_until IS NULL OR locked_until < ?))
+          ORDER BY updated_at ASC
+          LIMIT ?
+        `)
+        .all(now, limit) as Array<{
+        id: string;
+        artist_id: string;
+        artist_name: string;
+        category: 'thai' | 'international';
+        status: ArtistSyncJob['status'];
+        max_limit: number;
+        fetched_count: number;
+        added_count: number;
+        attempts: number;
+        last_error: string | null;
+        locked_until: number | null;
+        updated_at: string;
+      }>;
+      return rows.map((row) => ({
+        id: row.id,
+        artistId: row.artist_id,
+        artistName: row.artist_name,
+        category: row.category,
+        status: row.status,
+        maxLimit: row.max_limit,
+        fetchedCount: row.fetched_count,
+        addedCount: row.added_count,
+        attempts: row.attempts,
+        lastError: row.last_error,
+        lockedUntil: row.locked_until,
+        updatedAt: row.updated_at,
+      }));
+    } catch {
+      return [];
+    }
+  },
+
+  deleteSyncJob(jobId: string): void {
+    if (isServerlessSupabase()) return;
+    try {
+      db.prepare('DELETE FROM artist_sync_jobs WHERE id = ?').run(jobId);
+    } catch {}
+  },
+
+  deleteSongsByArtist(artistName: string): void {
+    if (isServerlessSupabase()) return;
+    try {
+      db.prepare('DELETE FROM songs WHERE artist_name = ?').run(artistName);
+    } catch {}
   },
 
   deleteCustomArtist(id: string): boolean {
