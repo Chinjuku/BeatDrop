@@ -39,6 +39,38 @@
   --song-text: #f4f8f5;
   --song-muted: #9db2a4;
   --song-border: #29372f;
+  --modal-backdrop: rgb(0 0 0 / 78%);
+  --modal-surface: var(--song-surface);
+  --modal-elevated: var(--song-surface-soft);
+  --modal-hover: color-mix(in srgb, var(--song-surface-soft) 82%, var(--song-text));
+  --modal-text: var(--song-text);
+  --modal-muted: var(--song-muted);
+  --modal-accent: var(--song-accent);
+  --modal-border: var(--song-border);
+}
+
+:where([data-modal-root="true"]) button,
+:where([data-modal-root="true"]) a,
+:where([data-modal-root="true"]) input,
+:where([data-modal-root="true"]) select,
+:where([data-modal-root="true"]) textarea {
+  -webkit-tap-highlight-color: transparent;
+}
+
+:where([data-modal-root="true"]) :focus-visible {
+  outline: 2px solid var(--modal-accent);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :where([data-modal-root="true"]) *,
+  :where([data-modal-root="true"]) *::before,
+  :where([data-modal-root="true"]) *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
 }
 
 html, body {

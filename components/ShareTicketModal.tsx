@@ -1,5 +1,6 @@
 'use client';
 import React, { useRef, useState } from 'react';
+import { Modal } from './Modal';
 import {
   Check,
   Copy,
@@ -280,16 +281,13 @@ export const ShareTicketModal: React.FC<ShareTicketModalProps> = ({
   };
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-6 bg-black/85 backdrop-blur-md overflow-y-auto"
-      onClick={onClose}
-    >
+    <Modal open={isOpen} onClose={onClose} title="Your music ticket" panelClassName="!bg-transparent !border-0 !shadow-none !overflow-visible !max-h-none">
       <div
-        className="w-[calc(100vw-16px)] sm:w-full max-w-[460px] md:max-w-[480px] rounded-2xl sm:rounded-3xl p-3 sm:p-6 shadow-2xl flex flex-col items-center relative my-auto sst-dialog"
+        className="w-[calc(100vw-16px)] sm:w-full max-w-[460px] md:max-w-[480px] self-center rounded-2xl sm:rounded-3xl p-3 sm:p-6 shadow-2xl flex flex-col items-center relative my-auto sst-dialog"
         style={{
-          backgroundColor: '#0d140f',
-          color: '#f3f7f4',
-          border: '1px solid #ffffff16',
+          backgroundColor: 'var(--modal-surface)',
+          color: 'var(--modal-text)',
+          border: '1px solid var(--modal-border)',
         }}
         onClick={(e) => e.stopPropagation()}
       >
@@ -438,7 +436,7 @@ export const ShareTicketModal: React.FC<ShareTicketModalProps> = ({
           Friends start a fresh round.
         </p>
       </div>
-    </div>
+    </Modal>
   );
 };
 

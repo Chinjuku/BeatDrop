@@ -1,5 +1,6 @@
 'use client';
 import React, { useCallback, useEffect, useState } from 'react';
+import { Modal } from './Modal';
 import {
   Award,
   Check,
@@ -116,8 +117,6 @@ export const LeaderboardModal: React.FC<LeaderboardModalProps> = ({
     else await invalidateLeaderboard();
   }, [isDailyMode, refetch]);
 
-  if (!isOpen) return null;
-
   const handleSubmitScore = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!playerName.trim() || submitting || hasSubmitted) return;
@@ -164,9 +163,9 @@ export const LeaderboardModal: React.FC<LeaderboardModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-6 bg-black/80 backdrop-blur-md overflow-y-auto overflow-x-hidden animate-in fade-in duration-200">
+    <Modal open={isOpen} onClose={onClose} title="Leaderboard" dismissOnBackdrop={false} panelClassName="!bg-transparent !border-0 !shadow-none !overflow-visible !max-h-none">
       <div
-        className="w-[calc(100vw-16px)] sm:w-full max-w-xl md:max-w-2xl rounded-2xl sm:rounded-3xl border shadow-2xl overflow-hidden flex flex-col max-h-[92dvh] my-auto relative animate-in zoom-in-95 duration-200"
+        className="w-[calc(100vw-16px)] sm:w-full max-w-xl md:max-w-2xl self-center rounded-2xl sm:rounded-3xl border shadow-2xl overflow-hidden flex flex-col max-h-[92dvh] my-auto relative animate-in zoom-in-95 duration-200"
         style={{
           backgroundColor: 'var(--song-surface)',
           borderColor: 'var(--song-border)',
@@ -488,7 +487,7 @@ export const LeaderboardModal: React.FC<LeaderboardModalProps> = ({
           )}
         </div>
       </div>
-    </div>
+    </Modal>
   );
 };
 

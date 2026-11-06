@@ -1,8 +1,8 @@
 'use client';
 import React, { useEffect, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
 import { Loader2, Search, SkipForward, Check, Flag, ChevronLeft } from 'lucide-react';
 import { CategoryType, GameMode, Song } from '../types';
+import { Modal } from './Modal';
 
 interface GuessAutocompleteProps {
   category: CategoryType;
@@ -158,12 +158,16 @@ export const GuessAutocomplete: React.FC<GuessAutocompleteProps> = ({
   return (
     <div ref={containerRef} className="w-full relative mt-5">
       {/* Mobile fullscreen search sheet (Songspot style) */}
-      {mobileOpen &&
-        createPortal(
-          <div
-            className="fixed inset-0 z-[200] flex flex-col p-3 gap-2 overscroll-contain touch-pan-y"
-            style={{ backgroundColor: 'var(--song-bg, #050806)' }}
-          >
+      <Modal
+        open={mobileOpen}
+        onClose={() => setMobileOpen(false)}
+        title="Search songs"
+        placement="fullscreen"
+        dismissOnBackdrop={false}
+        className="!z-[200]"
+        panelClassName="!flex-col !gap-2 !p-3 !overflow-y-auto !overscroll-contain !touch-pan-y"
+      >
+          <div className="flex min-h-0 flex-1 flex-col gap-2">
             <div className="flex items-center gap-2">
               <button
                 type="button"
@@ -235,9 +239,8 @@ export const GuessAutocomplete: React.FC<GuessAutocompleteProps> = ({
                 ))}
               </div>
             )}
-          </div>,
-          document.body
-        )}
+          </div>
+      </Modal>
       {/* Suggestions Dropdown (Positioned above or below smoothly) */}
       {isOpen && suggestions.length > 0 && (
         <div
