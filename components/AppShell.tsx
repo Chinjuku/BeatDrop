@@ -187,6 +187,7 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
         currentDifficulty={config.difficulty}
         dailyScore={pathname === '/daily' || config.mode === 'daily' ? dailyScore : null}
         isDailyMode={pathname === '/daily' || config.mode === 'daily'}
+        dateKey={dailyInfo?.dateKey}
       />
 
       <ShareTicketModal

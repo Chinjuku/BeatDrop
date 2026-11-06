@@ -12,6 +12,10 @@ export interface StatelessRoundPayload {
   mode: GameMode;
   exp: number;
   startedAt?: number;
+  dailyDateKey?: string;
+  dailyRoundIndex?: number;
+  dailyPlayerId?: string;
+  roundId?: string;
 }
 
 const getKey = (): Buffer => {

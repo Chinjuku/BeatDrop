@@ -10,6 +10,8 @@
     "start": "next start",
     "typecheck": "tsc --noEmit",
     "test:pwa": "tsx scripts/verify-pwa.ts",
+    "test:daily": "node --import tsx/esm scripts/verify-daily-challenge.ts",
+    "test:guesser": "node --import tsx/esm scripts/verify-guesser.ts",
     "migrate:supabase": "tsx scripts/migrate-to-supabase.ts"
   },
   "dependencies": {

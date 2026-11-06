@@ -133,8 +133,14 @@ export interface GameContextType {
 
   dailyInfo: DailyChallengeInfo | null;
   dailyIndex: number;
-  dailyResults: Array<'correct' | 'failed' | 'pending'>;
+  dailyResults: Array<'correct' | 'wrong' | 'skipped' | 'expired' | 'pending'>;
   dailyScore: number;
+  dailyCorrectCount: number;
+  dailySkipCount: number;
+  dailyTotalAnswerTimeMs: number;
+  dailyFeedback: Pick<RoundActionResponse, 'dailyResult' | 'scoreDelta' | 'speedBonus' | 'elapsedTimeMs'> | null;
+  guesserSkipCount: number;
+  guesserFeedback: string | null;
 
   volume: number;
   setVolume: (val: number) => void;
@@ -148,7 +154,9 @@ export interface GameContextType {
 
   handleSelectGuess: (selectedSong: Pick<Song, 'id' | 'title' | 'artistName'>) => Promise<void>;
   handleSkip: (giveUpDirectly?: boolean) => Promise<void>;
-  handleNextRoundOrDaily: () => void;
+  handleGuesserSkip: () => Promise<void>;
+  handleDailyTimeout: () => Promise<void>;
+  handleNextRoundOrDaily: () => Promise<void>;
 
   addArtistOpen: boolean;
   setAddArtistOpen: (val: boolean) => void;
@@ -202,8 +210,14 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   // Daily Challenge State (5 deterministic songs per day)
   const [dailyInfo, setDailyInfo] = useState<DailyChallengeInfo | null>(null);
   const [dailyIndex, setDailyIndex] = useState<number>(0);
-  const [dailyResults, setDailyResults] = useState<Array<'correct' | 'failed' | 'pending'>>([]);
+  const [dailyResults, setDailyResults] = useState<Array<'correct' | 'wrong' | 'skipped' | 'expired' | 'pending'>>([]);
   const [dailyScore, setDailyScore] = useState<number>(0);
+  const [dailyCorrectCount, setDailyCorrectCount] = useState(0);
+  const [dailySkipCount, setDailySkipCount] = useState(0);
+  const [dailyTotalAnswerTimeMs, setDailyTotalAnswerTimeMs] = useState(0);
+  const [dailyFeedback, setDailyFeedback] = useState<GameContextType['dailyFeedback']>(null);
+  const [guesserSkipCount, setGuesserSkipCount] = useState(0);
+  const [guesserFeedback, setGuesserFeedback] = useState<string | null>(null);
 
   const [round, setRound] = useState<RoundStartResponse | null>(null);
   const [loadingRound, setLoadingRound] = useState(false);
@@ -218,6 +232,7 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const roundAbortControllerRef = useRef<AbortController | null>(null);
   const inFlightRoundSigRef = useRef<string | null>(null);
   const lastRoundStartRef = useRef<number>(0);
+  const roundActionLockRef = useRef(false);
 
   const recordPlayedTrack = useCallback((trackId: string) => {
     if (!trackId) return;
@@ -491,7 +506,7 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   // Start a new round
   const startNewRound = useCallback(
-    async (activeCfg: GameConfig = config) => {
+    async (activeCfg: GameConfig = config, force = false) => {
       const roundSig = JSON.stringify({
         mode: activeCfg.mode,
         category: activeCfg.category,
@@ -503,14 +518,14 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       });
 
       // Deduplicate identical in-flight round starts (prevents mount double-fetch)
-      if (roundAbortControllerRef.current && inFlightRoundSigRef.current === roundSig) {
+      if (!force && roundAbortControllerRef.current && inFlightRoundSigRef.current === roundSig) {
         return;
       }
 
       // Cooldown throttle: prevent double-clicks within 600ms (bypass when config signature changes)
       const now = Date.now();
       const isConfigChange = inFlightRoundSigRef.current !== roundSig;
-      if (!isConfigChange && now - lastRoundStartRef.current < 600) {
+      if (!force && !isConfigChange && now - lastRoundStartRef.current < 600) {
         return;
       }
       lastRoundStartRef.current = now;
@@ -537,11 +552,8 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             : undefined;
 
         if (activeCfg.mode === 'daily') {
-          // Daily Challenge uses uniform standard default stages for all players
-          const dailyParams = new URLSearchParams({
-            category: activeCfg.category,
-            difficulty: activeCfg.difficulty,
-          });
+          // Daily Challenge always uses the shared Songspot timing configuration.
+          const dailyParams = new URLSearchParams({ category: activeCfg.category });
           const res = await fetch(`/api/daily?${dailyParams.toString()}`, {
             signal: controller.signal,
           });
@@ -549,56 +561,18 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           if (json.code === 0 && json.data) {
             const info: DailyChallengeInfo = json.data;
             setDailyInfo(info);
-
-            // Restore daily progress and lock state from localStorage
-            const storageKey = `beatdrop_daily_${info.dateKey}_${activeCfg.category}`;
-            let restored = false;
-            try {
-              const savedRaw = localStorage.getItem(storageKey);
-              if (savedRaw) {
-                const saved = JSON.parse(savedRaw);
-                if (saved && Array.isArray(saved.results) && typeof saved.score === 'number') {
-                  const isCompleted =
-                    Boolean(saved.isCompleted) ||
-                    (saved.results.length === 5 && saved.results.every((r: any) => r !== 'pending'));
-                  setDailyResults(saved.results);
-                  setDailyScore(saved.score);
-
-                  if (isCompleted) {
-                    // Already finished today: lock to completion view
-                    setDailyIndex(info.rounds.length);
-                    setRound(null);
-                    setOutcome(null);
-                    setRevealSong(null);
-                    restored = true;
-                  } else {
-                    // In-progress: jump straight to the next pending song (cannot replay completed ones)
-                    const pendingIdx = saved.results.findIndex((r: any) => r === 'pending');
-                    const resumeIdx =
-                      pendingIdx >= 0
-                        ? pendingIdx
-                        : Math.min(Number(saved.currentIndex) || 0, info.rounds.length - 1);
-                    setDailyIndex(resumeIdx);
-                    setRound(info.rounds[resumeIdx] || null);
-                    if (info.rounds[resumeIdx + 1]?.audioUrl) {
-                      prefetchAudio(info.rounds[resumeIdx + 1].audioUrl);
-                    }
-                    restored = true;
-                  }
-                }
-              }
-            } catch (err) {
-              console.warn('Failed to restore daily progress:', err);
-            }
-
-            if (!restored) {
-              setDailyIndex(0);
-              setDailyResults(Array(info.rounds.length).fill('pending'));
-              setDailyScore(0);
-              setRound(info.rounds[0] || null);
-              if (info.rounds[1]?.audioUrl) {
-                prefetchAudio(info.rounds[1].audioUrl);
-              }
+            setDailyIndex(info.currentIndex);
+            setDailyResults(info.results);
+            setDailyScore(info.score);
+            setDailyCorrectCount(info.correctCount);
+            setDailySkipCount(info.skipCount);
+            setDailyTotalAnswerTimeMs(info.totalAnswerTimeMs);
+            setDailyFeedback(null);
+            setRound(info.currentIndex < info.rounds.length ? info.rounds[info.currentIndex] : null);
+            setOutcome(null);
+            setRevealSong(null);
+            if (info.currentIndex + 1 < info.rounds.length && info.rounds[info.currentIndex + 1]?.audioUrl) {
+              prefetchAudio(info.rounds[info.currentIndex + 1].audioUrl);
             }
           }
           return;
@@ -663,7 +637,15 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         : path.startsWith('/guesser')
         ? 'guesser'
         : config.mode;
-      const initialCfg = initialMode !== config.mode ? { ...config, mode: initialMode } : config;
+      const initialCfg = initialMode !== config.mode
+        ? {
+            ...config,
+            mode: initialMode,
+            ...(initialMode === 'daily'
+              ? { timeRangePreset: 'songspot' as const, customStages: TIME_RANGE_PRESETS.songspot.stages }
+              : {}),
+          }
+        : config;
       if (initialMode !== config.mode) {
         setConfig(initialCfg);
       }
@@ -759,37 +741,32 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
-  // Helper to persist daily challenge progress & completion state to localStorage
-  const saveDailyProgress = useCallback(
-    (
-      results: Array<'correct' | 'failed' | 'pending'>,
-      currentIndex: number,
-      score: number,
-      isCompleted: boolean
-    ) => {
-      if (!dailyInfo) return;
-      try {
-        const key = `beatdrop_daily_${dailyInfo.dateKey}_${config.category}`;
-        localStorage.setItem(
-          key,
-          JSON.stringify({
-            dateKey: dailyInfo.dateKey,
-            category: config.category,
-            results,
-            currentIndex,
-            score,
-            isCompleted,
-          })
-        );
-      } catch {}
-    },
-    [dailyInfo, config.category]
-  );
+  const applyDailyResult = (data: RoundActionResponse) => {
+    if (!data.dailyResult) return;
+    setDailyFeedback({
+      dailyResult: data.dailyResult,
+      scoreDelta: data.scoreDelta,
+      speedBonus: data.speedBonus,
+      elapsedTimeMs: data.elapsedTimeMs,
+    });
+    setDailyResults((prev) => {
+      const next = [...prev];
+      next[dailyIndex] = data.dailyResult!;
+      return next;
+    });
+    setDailyScore((prev) => Math.max(0, prev + (data.scoreDelta || 0)));
+    setDailyCorrectCount((prev) => prev + (data.dailyResult === 'correct' ? 1 : 0));
+    setDailySkipCount((prev) => prev + (data.dailyResult === 'skipped' ? 1 : 0));
+    setDailyTotalAnswerTimeMs((prev) => prev + (data.elapsedTimeMs || 0));
+  };
 
   // Submit a song guess
   const handleSelectGuess = async (selectedSong: Pick<Song, 'id' | 'title' | 'artistName'>) => {
-    if (!round || outcome || submittingGuess) return;
+    if (!round || outcome || submittingGuess || roundActionLockRef.current) return;
+    roundActionLockRef.current = true;
     stop();
+    if (config.mode === 'daily') setDailyFeedback(null);
+    if (config.mode === 'guesser') setGuesserFeedback(null);
     setSubmittingGuess(true);
 
     try {
@@ -841,18 +818,7 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             } catch {}
           }
 
-          if (config.mode === 'daily' && dailyInfo) {
-            const roundPoints = Math.max(40, 200 - currentStage * 35);
-            const nextScore = dailyScore + roundPoints;
-            setDailyScore(nextScore);
-            setDailyResults((prev) => {
-              const next = [...prev];
-              next[dailyIndex] = 'correct';
-              const isCompleted = next.length === 5 && next.every((r) => r !== 'pending');
-              saveDailyProgress(next, dailyIndex, nextScore, isCompleted);
-              return next;
-            });
-          }
+          if (config.mode === 'daily') applyDailyResult(data);
         } else if (data.outcome === 'failed' && data.reveal) {
           setHistory((prev) => [
             ...prev,
@@ -873,16 +839,11 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           try {
             localStorage.setItem(STORAGE_STREAK_KEY, '0');
           } catch {}
-          if (config.mode === 'daily' && dailyInfo) {
-            setDailyResults((prev) => {
-              const next = [...prev];
-              next[dailyIndex] = 'failed';
-              const isCompleted = next.length === 5 && next.every((r) => r !== 'pending');
-              saveDailyProgress(next, dailyIndex, dailyScore, isCompleted);
-              return next;
-            });
-          }
+          if (config.mode === 'daily') applyDailyResult(data);
         } else if (data.outcome === 'active' && data.roundToken) {
+          if (config.mode === 'daily') {
+            setDailyFeedback({ dailyResult: 'wrong', scoreDelta: 0, speedBonus: 0 });
+          }
           setHistory((prev) => [
             ...prev,
             {
@@ -909,13 +870,15 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     } catch (err) {
       console.error('Error submitting guess:', err);
     } finally {
+      roundActionLockRef.current = false;
       setSubmittingGuess(false);
     }
   };
 
   // Skip current clue or give up
   const handleSkip = async (giveUpDirectly = false) => {
-    if (!round || outcome || submittingGuess) return;
+    if (!round || outcome || submittingGuess || roundActionLockRef.current) return;
+    roundActionLockRef.current = true;
     stop();
     setSubmittingGuess(true);
 
@@ -951,15 +914,7 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           try {
             localStorage.setItem(STORAGE_STREAK_KEY, '0');
           } catch {}
-          if (config.mode === 'daily' && dailyInfo) {
-            setDailyResults((prev) => {
-              const next = [...prev];
-              next[dailyIndex] = 'failed';
-              const isCompleted = next.length === 5 && next.every((r) => r !== 'pending');
-              saveDailyProgress(next, dailyIndex, dailyScore, isCompleted);
-              return next;
-            });
-          }
+          if (config.mode === 'daily') applyDailyResult(data);
         } else if (data.outcome === 'active' && data.roundToken) {
           setHistory((prev) => [
             ...prev,
@@ -987,25 +942,93 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     } catch (err) {
       console.error('Error skipping clue:', err);
     } finally {
+      roundActionLockRef.current = false;
+      setSubmittingGuess(false);
+    }
+  };
+
+  const handleGuesserSkip = async () => {
+    if (config.mode !== 'guesser' || !round || outcome || submittingGuess || roundActionLockRef.current) return;
+    roundActionLockRef.current = true;
+    stop();
+    setSubmittingGuess(true);
+    try {
+      const res = await fetch('/api/round/skip', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ roundToken: round.roundToken, giveUp: true }),
+      });
+      const json = await res.json();
+      if (json.code !== 0 || json.data?.roundResult !== 'skipped') return;
+      const data = json.data as RoundActionResponse;
+      setGuesserSkipCount((count) => count + 1);
+      setGuesserFeedback('Skipped · no points awarded');
+      if (data.reveal?.id) recordPlayedTrack(data.reveal.id);
+      setStreak(0);
+      try {
+        localStorage.setItem(STORAGE_STREAK_KEY, '0');
+      } catch {}
+      await startNewRound(config, true);
+    } catch (err) {
+      console.error('Error skipping Song Guesser round:', err);
+    } finally {
+      roundActionLockRef.current = false;
+      setSubmittingGuess(false);
+    }
+  };
+
+  const handleDailyTimeout = async () => {
+    if (config.mode !== 'daily' || !round || outcome || submittingGuess || roundActionLockRef.current) return;
+    roundActionLockRef.current = true;
+    stop();
+    setSubmittingGuess(true);
+    try {
+      const res = await fetch('/api/daily/expire', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ roundToken: round.roundToken }),
+      });
+      const json = await res.json();
+      if (json.code === 0 && json.data) {
+        const data: RoundActionResponse = json.data;
+        setOutcome('failed');
+        setRevealSong(data.reveal || null);
+        setHistory([]);
+        applyDailyResult(data);
+      }
+    } catch (err) {
+      console.error('Error expiring Daily Challenge round:', err);
+    } finally {
+      roundActionLockRef.current = false;
       setSubmittingGuess(false);
     }
   };
 
   // Handle next round or next daily song
-  const handleNextRoundOrDaily = () => {
+  const handleNextRoundOrDaily = async () => {
     if (config.mode === 'daily' && dailyInfo) {
       const nextIdx = dailyIndex + 1;
-      if (nextIdx < dailyInfo.rounds.length) {
+      if (nextIdx < dailyInfo.totalRounds) {
         stop();
         hasAutoPlayedRevealRef.current = false;
         setOutcome(null);
         setRevealSong(null);
         setHistory([]);
-        setDailyIndex(nextIdx);
-        setRound(dailyInfo.rounds[nextIdx]);
-        saveDailyProgress(dailyResults, nextIdx, dailyScore, false);
-        if (nextIdx + 1 < dailyInfo.rounds.length && dailyInfo.rounds[nextIdx + 1].audioUrl) {
-          prefetchAudio(dailyInfo.rounds[nextIdx + 1].audioUrl);
+        setLoadingRound(true);
+        try {
+          const res = await fetch('/api/daily/round', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ roundIndex: nextIdx, category: dailyInfo.category, dateKey: dailyInfo.dateKey }),
+          });
+          const json = await res.json();
+          if (json.code === 0 && json.data) {
+            setDailyIndex(nextIdx);
+            setRound(json.data as RoundStartResponse);
+            setDailyFeedback(null);
+          }
+        } finally {
+          setLoadingRound(false);
         }
       } else {
         stop();
@@ -1014,7 +1037,6 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         setRevealSong(null);
         setHistory([]);
         setDailyIndex(dailyInfo.rounds.length);
-        saveDailyProgress(dailyResults, dailyInfo.rounds.length, dailyScore, true);
         setLeaderboardOpen(true);
       }
     } else {
@@ -1022,21 +1044,12 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
+  // Shared by the Song Guesser's difficulty tabs; Daily Challenge has no difficulty control.
   const handleDailyDifficultySelect = (difficulty: DifficultyLevel) => {
-    if (config.difficulty === difficulty) return;
-    if (config.mode === 'daily' && dailyInfo) {
-      const storageKey = `beatdrop_daily_${dailyInfo.dateKey}_${config.category}`;
-      try {
-        const saved = JSON.parse(localStorage.getItem(storageKey) || '{}');
-        if (saved.isCompleted) return; // Locked: do not allow restarting completed daily challenge
-      } catch {}
-    }
-    const nextCfg: GameConfig = {
-      ...config,
-      difficulty,
-    };
+    if (config.mode === 'daily' || config.difficulty === difficulty) return;
+    const nextCfg = { ...config, difficulty };
     setConfig(nextCfg);
-    startNewRound(nextCfg);
+    void startNewRound(nextCfg);
   };
 
   const nextStageSeconds =
@@ -1086,6 +1099,12 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       dailyIndex,
       dailyResults,
       dailyScore,
+      dailyCorrectCount,
+      dailySkipCount,
+      dailyTotalAnswerTimeMs,
+      dailyFeedback,
+      guesserSkipCount,
+      guesserFeedback,
 
       volume,
       setVolume,
@@ -1099,6 +1118,8 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
       handleSelectGuess,
       handleSkip,
+      handleGuesserSkip,
+      handleDailyTimeout,
       handleNextRoundOrDaily,
 
       addArtistOpen,
@@ -1131,12 +1152,21 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       dailyIndex,
       dailyResults,
       dailyScore,
+      dailyCorrectCount,
+      dailySkipCount,
+      dailyTotalAnswerTimeMs,
+      dailyFeedback,
+      guesserSkipCount,
+      guesserFeedback,
       volume,
       audioState,
       totalDuration,
       handleToggleSnippetPlay,
       handleToggleFullPreview,
       seekFullPreview,
+      handleDailyTimeout,
+      handleGuesserSkip,
+      handleNextRoundOrDaily,
       addArtistOpen,
       leaderboardOpen,
       ticketModalOpen,

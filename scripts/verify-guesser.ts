@@ -1,0 +1,143 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+
+const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'beatdrop-guesser-test-'));
+const testDatabasePath = path.join(tempDir, 'guesser-test.db');
+fs.copyFileSync(path.resolve('data/beatdrop.db'), testDatabasePath);
+process.env.BEATDROP_SQLITE_PATH = testDatabasePath;
+process.env.BEATDROP_CUSTOM_ARTISTS_PATH = path.join(tempDir, 'custom-artists.json');
+process.env.NODE_ENV = 'test';
+
+const { selectGuesserChoices, getStableSongArtistId, getSongArtistGender } = await import('../lib/engine/guesserChoices');
+const { dbService } = await import('../lib/db');
+const { signRoundToken } = await import('../lib/token');
+const { activeRounds, handleSkip, handleStartRound } = await import('../lib/engine/roundEngine');
+const { ensureCatalogLoaded, songPool } = await import('../lib/engine/songPool');
+
+function song(id: string, artistId: string, artistName: string, genre: string) {
+  return {
+    id,
+    title: `Track ${id}`,
+    artistId,
+    artistName,
+    albumName: 'Album',
+    releaseYear: 2024,
+    genre,
+    category: 'international' as const,
+    previewUrl: `https://audio.test/${id}.m4a`,
+    artworkUrl: '',
+    popularityScore: 50,
+  };
+}
+
+const malePool = [
+  song('m0', '111051', 'Eminem', 'Hip-Hop/Rap'),
+  song('m1', '966309175', 'Post Malone', 'Hip-Hop/Rap'),
+  song('m2', '1662974223', 'GUNNER', 'Hip-Hop/Rap'),
+  song('m3', '1697337266', 'ILLSLICK', 'Hip-Hop/Rap'),
+  song('f0', '159260351', 'Taylor Swift', 'Pop'),
+];
+const selectedMale = selectGuesserChoices(malePool);
+assert.ok(selectedMale);
+assert.equal(selectedMale.choices.length, 4);
+assert.equal(new Set(selectedMale.choices.map((choice) => getStableSongArtistId(malePool.find((item) => item.id === choice.id)!))).size, 4);
+assert.ok(selectedMale.choices.every((choice) => getSongArtistGender(malePool.find((item) => item.id === choice.id)!) === 'male'));
+assert.ok(selectedMale.choices.slice(1).every((choice) => malePool.find((item) => item.id === choice.id)?.genre === selectedMale.answer.genre));
+
+const femalePool = [
+  song('w0', '159260351', 'Taylor Swift', 'Pop'),
+  song('w1', '64387566', 'Katy Perry', 'Pop'),
+  song('w2', '390647681', 'Sabrina Carpenter', 'Pop'),
+  song('w3', '979458609', 'Olivia Rodrigo', 'Pop'),
+  song('m1', '111051', 'Eminem', 'Hip-Hop/Rap'),
+];
+const selectedFemale = selectGuesserChoices(femalePool);
+assert.ok(selectedFemale);
+assert.equal(selectedFemale.choices.length, 4);
+assert.ok(selectedFemale.choices.every((choice) => getSongArtistGender(femalePool.find((item) => item.id === choice.id)!) === 'female'));
+
+const unknownPool = [
+  song('u0', 'unknown-1', 'Unknown One', 'Rock'),
+  song('u1', 'unknown-2', 'Unknown Two', 'Rock'),
+  song('u2', 'unknown-3', 'Unknown Three', 'Pop'),
+  song('u3', 'unknown-4', 'Unknown Four', 'Pop'),
+];
+const selectedUnknown = selectGuesserChoices(unknownPool);
+assert.ok(selectedUnknown, 'unknown metadata must gracefully retain a four-choice game');
+assert.equal(selectedUnknown.choices.length, 4);
+assert.equal(selectGuesserChoices(malePool.filter((item) => item.artistId !== '966309175' && item.artistId !== '1662974223' && item.artistId !== '1697337266')), null, 'known male answers need three other known male artists');
+
+ensureCatalogLoaded();
+const gameStartResponse = {
+  statusCode: 200,
+  body: null as unknown,
+  status(code: number) { this.statusCode = code; return this; },
+  json(body: unknown) { this.body = body; return this; },
+};
+await handleStartRound({ query: { category: 'thai', difficulty: 'easy', mode: 'guesser' } } as never, gameStartResponse as never);
+assert.equal(gameStartResponse.statusCode, 200);
+const startedGame = (gameStartResponse.body as { data: { roundToken: string; choices: Array<{ id: string }> } }).data;
+assert.equal(startedGame.choices.length, 4);
+const choiceSongs = startedGame.choices.map((choice) => songPool.get(choice.id)!);
+assert.equal(new Set(choiceSongs.map(getStableSongArtistId)).size, 4, 'real Song Guesser round must use four artist IDs');
+const correctArtistGender = getSongArtistGender(activeRounds.get(startedGame.roundToken)!.track);
+if (correctArtistGender) {
+  assert.ok(choiceSongs.every((choice) => getSongArtistGender(choice) === correctArtistGender));
+}
+
+const skippedTrack = malePool[0];
+const roundId = 'test-guesser-skip-round';
+const roundState = {
+  track: skippedTrack,
+  difficulty: 'medium' as const,
+  stages: [0.5, 2, 6, 8, 15],
+  stage: 0,
+  clipSeconds: 0.5,
+  mistakes: 0,
+  category: 'international' as const,
+  mode: 'guesser' as const,
+  startedAt: Date.now(),
+  roundId,
+};
+const roundToken = signRoundToken(roundState);
+activeRounds.set(roundToken, roundState);
+const response = {
+  statusCode: 200,
+  body: null as unknown,
+  status(code: number) { this.statusCode = code; return this; },
+  json(body: unknown) { this.body = body; return this; },
+};
+await handleSkip({ body: { roundToken, giveUp: true }, headers: {} } as never, response as never);
+assert.equal(response.statusCode, 200);
+assert.equal((response.body as { data: { roundResult: string } }).data.roundResult, 'skipped');
+assert.equal(await dbService.claimGuesserRoundResult(roundId, 'correct'), false, 'a skipped round cannot later win or add score');
+const duplicateSkip = { ...response, body: null as unknown, statusCode: 200 };
+await handleSkip({ body: { roundToken, giveUp: true }, headers: {} } as never, duplicateSkip as never);
+assert.notEqual(duplicateSkip.statusCode, 200, 'duplicate skip submissions must be rejected');
+
+const concurrentRoundId = 'test-guesser-concurrent-skip';
+const concurrentState = { ...roundState, roundId: concurrentRoundId };
+const concurrentToken = signRoundToken(concurrentState);
+activeRounds.set(concurrentToken, concurrentState);
+const makeResponse = () => ({
+  statusCode: 200,
+  body: null as unknown,
+  status(code: number) { this.statusCode = code; return this; },
+  json(body: unknown) { this.body = body; return this; },
+});
+const concurrentResponses = [makeResponse(), makeResponse()];
+await Promise.all(concurrentResponses.map((res) => handleSkip(
+  { body: { roundToken: concurrentToken, giveUp: true }, headers: {} } as never,
+  res as never
+)));
+assert.equal(concurrentResponses.filter((res) => res.statusCode === 200).length, 1, 'concurrent duplicate skips must only finalize once');
+assert.equal(await dbService.claimGuesserRoundResult(concurrentRoundId, 'correct'), false);
+
+const wrongRoundClaim = await dbService.claimGuesserRoundResult('test-guesser-wrong-round', 'wrong');
+assert.equal(wrongRoundClaim, true);
+assert.equal(await dbService.claimGuesserRoundResult('test-guesser-wrong-round', 'correct'), false, 'wrong answers cannot be replayed as correct answers');
+
+console.log('Song Guesser checks passed: helper and real-route four-choice behavior, distinct artist IDs, male/female gender consistency, genre preference, unknown metadata fallback, insufficient-data handling, terminal skip, duplicate/concurrent skip rejection, and no skipped/wrong round score claim.');
+fs.rmSync(tempDir, { recursive: true, force: true });

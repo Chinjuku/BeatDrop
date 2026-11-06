@@ -32,6 +32,7 @@ interface LeaderboardModalProps {
   currentDifficulty: DifficultyLevel;
   dailyScore?: number | null;
   isDailyMode?: boolean;
+  dateKey?: string;
 }
 
 const STORAGE_PLAYER_NAME = 'songspot:player-name';
@@ -54,16 +55,20 @@ export const LeaderboardModal: React.FC<LeaderboardModalProps> = ({
   currentDifficulty,
   dailyScore,
   isDailyMode = false,
+  dateKey,
 }) => {
   const [diffFilter, setDiffFilter] = useState<DifficultyLevel | 'all'>(currentDifficulty);
   const [hasSubmitted, setHasSubmitted] = useState(false);
 
   // TanStack Query: Real-time leaderboard filtered by category and difficulty
-  const { data: entries = [], isLoading: loading } = useQuery<LeaderboardEntry[]>({
-    queryKey: QUERY_KEYS.leaderboard(category, diffFilter),
+  const { data: entries = [], isLoading: loading, refetch } = useQuery<LeaderboardEntry[]>({
+    queryKey: isDailyMode ? ['daily-leaderboard', category, dateKey] : QUERY_KEYS.leaderboard(category, diffFilter),
     queryFn: async () => {
       const diffParam = diffFilter !== 'all' ? `&difficulty=${diffFilter}` : '';
-      const res = await fetch(`/api/leaderboard?category=${category}${diffParam}`);
+      const url = isDailyMode
+        ? `/api/daily/leaderboard?category=${category}&dateKey=${dateKey || ''}`
+        : `/api/leaderboard?category=${category}${diffParam}`;
+      const res = await fetch(url);
       const json = await res.json();
       if (json.code === 0 && Array.isArray(json.data)) {
         return json.data;
@@ -90,7 +95,7 @@ export const LeaderboardModal: React.FC<LeaderboardModalProps> = ({
       : Math.max(100, bestStreak * 85 + (fastestTime ? Math.round((15 - fastestTime) * 15) : 0));
 
   // Unique session key for current score to prevent duplicate submissions
-  const scoreSessionKey = `beatdrop_lb_sub_${category}_${currentDifficulty}_${calculatedScore}`;
+  const scoreSessionKey = `beatdrop_lb_sub_${category}_${isDailyMode ? dateKey : currentDifficulty}_${calculatedScore}`;
 
   // Sync state when modal opens
   useEffect(() => {
@@ -107,8 +112,9 @@ export const LeaderboardModal: React.FC<LeaderboardModalProps> = ({
   }, [isOpen, currentDifficulty, scoreSessionKey]);
 
   const fetchLeaderboard = useCallback(async () => {
-    await invalidateLeaderboard();
-  }, []);
+    if (isDailyMode) await refetch();
+    else await invalidateLeaderboard();
+  }, [isDailyMode, refetch]);
 
   if (!isOpen) return null;
 
@@ -121,17 +127,21 @@ export const LeaderboardModal: React.FC<LeaderboardModalProps> = ({
     } catch {}
 
     try {
-      const res = await fetch('/api/leaderboard', {
+      const res = await fetch(isDailyMode ? '/api/daily/submit' : '/api/leaderboard', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           playerName: playerName.trim(),
-          score: calculatedScore,
-          streak: Math.max(currentStreak, bestStreak, 1),
-          fastestSeconds: fastestTime ?? 3,
-          difficulty: currentDifficulty, // Strictly locked to current game difficulty (cannot create cross-difficulty)
-          category,
-          isDaily: Boolean(isDailyMode),
+          ...(isDailyMode
+            ? { dateKey, category }
+            : {
+                score: calculatedScore,
+                streak: Math.max(currentStreak, bestStreak, 1),
+                fastestSeconds: fastestTime ?? 3,
+                difficulty: currentDifficulty,
+                category,
+                isDaily: false,
+              }),
         }),
       });
       const json = await res.json();
@@ -141,7 +151,8 @@ export const LeaderboardModal: React.FC<LeaderboardModalProps> = ({
         try {
           sessionStorage.setItem(scoreSessionKey, 'true');
         } catch {}
-        await invalidateLeaderboard();
+        if (isDailyMode) await refetch();
+        else await invalidateLeaderboard();
       } else {
         setSubmittedMsg(json.message || 'เกิดข้อผิดพลาดในการส่งคะแนน');
       }
@@ -179,7 +190,7 @@ export const LeaderboardModal: React.FC<LeaderboardModalProps> = ({
             </div>
             <div className="min-w-0">
               <h2 className="text-sm sm:text-base font-extrabold tracking-tight truncate">
-                Songspot Leaderboard (ตารางอันดับ)
+                {isDailyMode ? 'Daily Challenge Rankings' : 'Songspot Leaderboard (ตารางอันดับ)'}
               </h2>
               <p className="text-[10px] sm:text-xs truncate" style={{ color: 'var(--song-muted)' }}>
                 ผู้เล่นสายทายเพลงที่แม่นและไวที่สุด
@@ -207,7 +218,7 @@ export const LeaderboardModal: React.FC<LeaderboardModalProps> = ({
         >
           {/* Difficulty Filter Tabs */}
           <div className="flex items-center gap-1 sm:gap-1.5 overflow-x-auto py-0.5 max-w-full">
-            {DIFFICULTY_FILTER_OPTIONS.map((d) => (
+            {!isDailyMode && DIFFICULTY_FILTER_OPTIONS.map((d) => (
               <button
                 key={d}
                 type="button"
@@ -277,7 +288,7 @@ export const LeaderboardModal: React.FC<LeaderboardModalProps> = ({
             <span
               className="text-[11px] font-bold px-2 py-0.5 rounded-lg border border-emerald-500/30 bg-emerald-500/20"
             >
-              ระดับ: {DIFFICULTY_PRESETS[currentDifficulty]?.label || currentDifficulty}
+              {isDailyMode ? `Daily Challenge · ${dateKey || ''}` : `ระดับ: ${DIFFICULTY_PRESETS[currentDifficulty]?.label || currentDifficulty}`}
             </span>
           </div>
         ) : (
@@ -301,7 +312,7 @@ export const LeaderboardModal: React.FC<LeaderboardModalProps> = ({
                   color: 'var(--song-text)',
                 }}
               />
-              <div
+              {!isDailyMode && <div
                 className="px-2.5 py-1 rounded-lg border text-[11px] font-bold shrink-0 flex items-center gap-1"
                 style={{
                   backgroundColor: 'var(--song-surface-soft)',
@@ -312,7 +323,7 @@ export const LeaderboardModal: React.FC<LeaderboardModalProps> = ({
               >
                 <span className="opacity-60 text-[10px]">ระดับ:</span>
                 <span>{DIFFICULTY_PRESETS[currentDifficulty]?.label || currentDifficulty}</span>
-              </div>
+              </div>}
             </div>
             <button
               type="submit"
@@ -420,7 +431,7 @@ export const LeaderboardModal: React.FC<LeaderboardModalProps> = ({
                             ['--badge-rgb' as any]: diffPreset.accent,
                           }}
                         >
-                          {diffPreset.label}
+                          {isDailyMode ? 'Daily' : diffPreset.label}
                         </span>
                         {entry.category === 'thai' ? (
                           <span className="text-[10px]" title="เพลงไทย">
@@ -438,12 +449,20 @@ export const LeaderboardModal: React.FC<LeaderboardModalProps> = ({
                         className="text-[10px] sm:text-[11px] flex items-center gap-2 mt-0.5"
                         style={{ color: 'var(--song-muted)' }}
                       >
-                        <span className="flex items-center gap-0.5">
-                          <Zap className="w-2.5 h-2.5" />
-                          <span>Streak: {entry.streak}</span>
-                        </span>
-                        <span>•</span>
-                        <span>ไวสุด: {entry.fastestSeconds}s</span>
+                        {isDailyMode ? (
+                          <span>
+                            Correct: {entry.correctCount || 0} · Skipped: {entry.skipCount || 0} · Time: {((entry.totalAnswerTimeMs || 0) / 1000).toFixed(1)}s
+                          </span>
+                        ) : (
+                          <>
+                            <span className="flex items-center gap-0.5">
+                              <Zap className="w-2.5 h-2.5" />
+                              <span>Streak: {entry.streak}</span>
+                            </span>
+                            <span>•</span>
+                            <span>ไวสุด: {entry.fastestSeconds}s</span>
+                          </>
+                        )}
                       </div>
                     </div>
                   </div>

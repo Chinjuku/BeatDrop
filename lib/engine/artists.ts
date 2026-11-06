@@ -5,7 +5,7 @@ import { dbService } from '../db';
 import { checkArtistStrictMatch, isJunkTrack } from '../itunes';
 
 const DATA_DIR = path.resolve(process.cwd(), 'data');
-const CUSTOM_ARTISTS_FILE = path.join(DATA_DIR, 'custom-artists.json');
+const CUSTOM_ARTISTS_FILE = process.env.BEATDROP_CUSTOM_ARTISTS_PATH || path.join(DATA_DIR, 'custom-artists.json');
 
 if (!process.env.VERCEL && !fs.existsSync(DATA_DIR)) {
   try {

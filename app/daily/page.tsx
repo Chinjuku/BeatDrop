@@ -1,5 +1,5 @@
 'use client';
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useGame } from '../../context/GameContext';
 import { AudioPlayer } from '../../components/AudioPlayer';
@@ -11,14 +11,13 @@ import {
   Loader2,
   Play,
 } from 'lucide-react';
-import { DIFFICULTY_PRESETS, DifficultyLevel, GameConfig } from '../../types';
+import { DAILY_SKIP_PENALTY, GameConfig, SONGSPOT_STAGES } from '../../types';
 
 const DailyChallengePage: React.FC = () => {
   const router = useRouter(); const navigate = (p: string) => router.push(p);
   const {
     config,
     handleConfigChange,
-    handleDailyDifficultySelect,
     round,
     loadingRound,
     submittingGuess,
@@ -34,6 +33,10 @@ const DailyChallengePage: React.FC = () => {
     dailyIndex,
     dailyResults,
     dailyScore,
+    dailyCorrectCount,
+    dailySkipCount,
+    dailyTotalAnswerTimeMs,
+    dailyFeedback,
     volume,
     setVolume,
     audioState,
@@ -45,12 +48,17 @@ const DailyChallengePage: React.FC = () => {
     onSeek,
     handleSelectGuess,
     handleSkip,
+    handleDailyTimeout,
     handleNextRoundOrDaily,
     setTicketModalOpen,
     setLeaderboardOpen,
   } = useGame();
+  const [remainingMs, setRemainingMs] = useState(0);
+  const timeoutTriggeredFor = useRef<string | null>(null);
+  const timeoutHandlerRef = useRef(handleDailyTimeout);
+  timeoutHandlerRef.current = handleDailyTimeout;
 
-  // Ensure config mode is daily, stages are default, and daily challenge is loaded
+  // Daily Challenge inherits Songspot's canonical timing preset.
   useEffect(() => {
     if (
       config.mode !== 'daily' ||
@@ -60,8 +68,8 @@ const DailyChallengePage: React.FC = () => {
         {
           ...config,
           mode: 'daily',
-          customStages: undefined,
-          timeRangePreset: 'standard',
+          customStages: SONGSPOT_STAGES,
+          timeRangePreset: 'songspot',
           artistName: undefined,
           yearFilter: 'any',
           genreFilter: 'any',
@@ -70,6 +78,24 @@ const DailyChallengePage: React.FC = () => {
       );
     }
   }, [config.mode, config.category, dailyInfo, loadingRound]);
+
+  useEffect(() => {
+    if (config.mode !== 'daily' || !round?.expiresAt || outcome) {
+      setRemainingMs(0);
+      return;
+    }
+    const update = () => {
+      const remaining = Math.max(0, round.expiresAt! - Date.now());
+      setRemainingMs(remaining);
+      if (remaining === 0 && timeoutTriggeredFor.current !== round.roundToken) {
+        timeoutTriggeredFor.current = round.roundToken;
+        void timeoutHandlerRef.current();
+      }
+    };
+    update();
+    const timer = window.setInterval(update, 100);
+    return () => window.clearInterval(timer);
+  }, [config.mode, round?.roundToken, round?.expiresAt, outcome]);
 
   // Check if all 5 daily songs have been finished
   const isDailyFinished =
@@ -179,12 +205,14 @@ const DailyChallengePage: React.FC = () => {
                   style={
                     res === 'correct'
                       ? { backgroundColor: '#22c55e', borderColor: '#22c55e', color: '#ffffff' }
-                      : res === 'failed'
+                      : res === 'wrong' || res === 'expired'
                         ? { backgroundColor: '#ef4444', borderColor: '#ef4444', color: '#ffffff' }
+                        : res === 'skipped'
+                          ? { backgroundColor: '#f59e0b', borderColor: '#f59e0b', color: '#111827' }
                         : { backgroundColor: 'var(--song-surface-soft)', borderColor: 'var(--song-border)', color: 'var(--song-muted)' }
                   }
                 >
-                  {res === 'correct' ? '✓' : res === 'failed' ? '✕' : i + 1}
+                  {res === 'correct' ? '✓' : res === 'wrong' || res === 'expired' ? '✕' : res === 'skipped' ? '−' : i + 1}
                 </div>
               ))}
             </div>
@@ -193,32 +221,11 @@ const DailyChallengePage: React.FC = () => {
 
         <div className="w-full h-px opacity-30 my-0.5" style={{ backgroundColor: 'var(--song-border)' }} />
 
-        {/* Row 2: Difficulty Tabs (Centered and uniform) */}
-        <div className="songspot-difficulty-tabs w-full justify-center">
-          {(['easy', 'medium', 'hard', 'expert', 'impossible'] as DifficultyLevel[]).map((lvl) => {
-            const preset = DIFFICULTY_PRESETS[lvl];
-            const isSelected = config.difficulty === lvl;
-            return (
-              <button
-                key={lvl}
-                type="button"
-                disabled={isDailyFinished}
-                className={`songspot-difficulty-tab ${isDailyFinished ? 'opacity-40 cursor-not-allowed pointer-events-none' : ''}`}
-                aria-pressed={isSelected}
-                style={
-                  {
-                    '--tab-color': preset.accent,
-                    '--tab-text': preset.accentText,
-                    '--tab-on': preset.accentOn,
-                  } as React.CSSProperties
-                }
-                onClick={() => handleDailyDifficultySelect(lvl)}
-                title={isDailyFinished ? 'คุณทำภารกิจครบ 5 เพลงของวันนี้แล้ว' : preset.description}
-              >
-                {preset.label}
-              </button>
-            );
-          })}
+        <div className="w-full flex items-center justify-center gap-4 text-[11px] font-bold" style={{ color: 'var(--song-muted)' }}>
+          <span>Round {Math.min(dailyIndex + 1, dailyInfo?.totalRounds || 5)} / {dailyInfo?.totalRounds || 5}</span>
+          <span>Correct {dailyCorrectCount}</span>
+          <span>Skips {dailySkipCount}</span>
+          <span className="font-mono text-amber-300">{(remainingMs / 1000).toFixed(1)}s</span>
         </div>
       </div>
 
@@ -253,6 +260,9 @@ const DailyChallengePage: React.FC = () => {
             </p>
             <div className="text-4xl font-black font-mono my-3" style={{ color: 'var(--song-accent-text)' }}>
               {dailyScore} pts
+            </div>
+            <div className="text-xs mb-4" style={{ color: 'var(--song-muted)' }}>
+              {dailyCorrectCount} correct · {dailyResults.filter((result) => result === 'wrong').length} wrong · {dailySkipCount} skipped · {dailyResults.filter((result) => result === 'expired').length} expired · {Math.round(dailyTotalAnswerTimeMs / 1000)}s answer time
             </div>
 
             <div className="flex items-center gap-2 mb-6">
@@ -310,6 +320,13 @@ const DailyChallengePage: React.FC = () => {
             </p>
           </div>
         ) : outcome && revealSong ? (
+          <>
+          <div className="text-center text-sm font-bold mb-2" role="status" aria-live="polite">
+            {dailyFeedback?.dailyResult === 'correct' && `Correct · +${dailyFeedback.scoreDelta} pts (500 base + ${dailyFeedback.speedBonus} speed)`}
+            {dailyFeedback?.dailyResult === 'wrong' && 'Wrong answer · 0 pts'}
+            {dailyFeedback?.dailyResult === 'skipped' && `Skipped · −${DAILY_SKIP_PENALTY} penalty (score floors at 0)`}
+            {dailyFeedback?.dailyResult === 'expired' && 'Time expired · 0 pts'}
+          </div>
           <SpinningAlbumArt
             song={revealSong}
             outcome={outcome}
@@ -328,8 +345,14 @@ const DailyChallengePage: React.FC = () => {
             onNextSong={handleNextRoundOrDaily}
             onOpenTicket={() => setTicketModalOpen(true)}
           />
+          </>
         ) : (
           <div className="flex flex-col items-center">
+            {dailyFeedback?.dailyResult === 'wrong' && (
+              <div className="w-full text-center text-sm font-bold text-red-400 mb-2" role="status" aria-live="polite">
+                Wrong answer · 0 pts. Keep listening.
+              </div>
+            )}
             {/* Audio Snippet Controller */}
             <AudioPlayer
               stages={stages}
