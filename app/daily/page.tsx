@@ -1,23 +1,25 @@
 'use client';
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useGame } from '../../context/GameContext';
 import { AudioPlayer } from '../../components/AudioPlayer';
 import { GuessAutocomplete } from '../../components/GuessAutocomplete';
 import { SpinningAlbumArt } from '../../components/SpinningAlbumArt';
+import { TimeRangeSelector } from '../../components/TimeRangeSelector';
 import {
   CalendarDays,
   Trophy,
   Loader2,
   Play,
 } from 'lucide-react';
-import { DAILY_SKIP_PENALTY, GameConfig, SONGSPOT_STAGES } from '../../types';
+import { DEFAULT_TIME_STAGES, DIFFICULTY_PRESETS, DifficultyLevel, GameConfig } from '../../types';
 
 const DailyChallengePage: React.FC = () => {
   const router = useRouter(); const navigate = (p: string) => router.push(p);
   const {
     config,
     handleConfigChange,
+    handleDailyDifficultySelect,
     round,
     loadingRound,
     submittingGuess,
@@ -50,39 +52,33 @@ const DailyChallengePage: React.FC = () => {
     onSeek,
     handleSelectGuess,
     handleSkip,
-    handleDailyTimeout,
     handleNextRoundOrDaily,
     setTicketModalOpen,
     setLeaderboardOpen,
   } = useGame();
   const handleConfigChangeRef = useRef(handleConfigChange);
   handleConfigChangeRef.current = handleConfigChange;
-  const [remainingMs, setRemainingMs] = useState(0);
-  const timeoutTriggeredFor = useRef<string | null>(null);
-  const timeoutHandlerRef = useRef(handleDailyTimeout);
-  timeoutHandlerRef.current = handleDailyTimeout;
 
   // Normalize only configuration. Missing challenge data is handled as a load error below,
   // so a failed request cannot trigger an automatic request loop.
   useEffect(() => {
-    const matchesSongspotStages =
-      config.customStages?.length === SONGSPOT_STAGES.length &&
-      config.customStages.every((seconds, index) => seconds === SONGSPOT_STAGES[index]);
     if (
       config.mode !== 'daily' ||
-      config.timeRangePreset !== 'songspot' ||
-      !matchesSongspotStages ||
       Boolean(config.artistName) ||
       (config.yearFilter || 'any') !== 'any' ||
       (config.genreFilter || 'any') !== 'any' ||
-      (dailyInfo && dailyInfo.category !== config.category)
+      (dailyInfo && dailyInfo.category !== config.category) ||
+      (dailyInfo?.difficulty && dailyInfo.difficulty !== config.difficulty)
     ) {
       handleConfigChangeRef.current(
         {
           ...config,
           mode: 'daily',
-          customStages: SONGSPOT_STAGES,
-          timeRangePreset: 'songspot',
+          timeRangePreset: config.timeRangePreset || 'standard',
+          customStages:
+            config.customStages && config.customStages.length >= 2
+              ? config.customStages
+              : DEFAULT_TIME_STAGES,
           artistName: undefined,
           yearFilter: 'any',
           genreFilter: 'any',
@@ -93,31 +89,15 @@ const DailyChallengePage: React.FC = () => {
   }, [
     config.mode,
     config.category,
+    config.difficulty,
     config.timeRangePreset,
     config.customStages,
     config.artistName,
     config.yearFilter,
     config.genreFilter,
     dailyInfo?.category,
+    dailyInfo?.difficulty,
   ]);
-
-  useEffect(() => {
-    if (config.mode !== 'daily' || !round?.expiresAt || outcome) {
-      setRemainingMs(0);
-      return;
-    }
-    const update = () => {
-      const remaining = Math.max(0, round.expiresAt! - Date.now());
-      setRemainingMs(remaining);
-      if (remaining === 0 && timeoutTriggeredFor.current !== round.roundToken) {
-        timeoutTriggeredFor.current = round.roundToken;
-        void timeoutHandlerRef.current();
-      }
-    };
-    update();
-    const timer = window.setInterval(update, 100);
-    return () => window.clearInterval(timer);
-  }, [config.mode, round?.roundToken, round?.expiresAt, outcome]);
 
   // Check if all 5 daily songs have been finished
   const isDailyFinished =
@@ -243,11 +223,56 @@ const DailyChallengePage: React.FC = () => {
 
         <div className="w-full h-px opacity-30 my-0.5" style={{ backgroundColor: 'var(--song-border)' }} />
 
-        <div className="w-full flex items-center justify-center gap-4 text-[11px] font-bold" style={{ color: 'var(--song-muted)' }}>
-          <span>Round {Math.min(dailyIndex + 1, dailyInfo?.totalRounds || 5)} / {dailyInfo?.totalRounds || 5}</span>
-          <span>Correct {dailyCorrectCount}</span>
-          <span>Skips {dailySkipCount}</span>
-          <span className="font-mono text-amber-300">{(remainingMs / 1000).toFixed(1)}s</span>
+        {/* Row 2: Difficulty Tabs */}
+        <div className="songspot-difficulty-tabs w-full justify-center">
+          {(['easy', 'medium', 'hard', 'expert', 'impossible'] as DifficultyLevel[]).map(
+            (lvl) => {
+              const preset = DIFFICULTY_PRESETS[lvl];
+              const isSelected = config.difficulty === lvl;
+              return (
+                <button
+                  key={lvl}
+                  type="button"
+                  className="songspot-difficulty-tab"
+                  aria-pressed={isSelected}
+                  style={
+                    {
+                      '--tab-color': preset.accent,
+                      '--tab-text': preset.accentText,
+                      '--tab-on': preset.accentOn,
+                    } as React.CSSProperties
+                  }
+                  onClick={() => handleDailyDifficultySelect(lvl)}
+                  title={preset.description}
+                >
+                  {preset.label}
+                </button>
+              );
+            }
+          )}
+        </div>
+
+        <div className="w-full h-px opacity-30 my-0.5" style={{ backgroundColor: 'var(--song-border)' }} />
+
+        {/* Row 3: Time Range & Round Summary */}
+        <div className="w-full flex flex-col sm:flex-row items-center justify-between gap-2 px-1">
+          <TimeRangeSelector
+            currentPreset={config.timeRangePreset}
+            stages={config.customStages}
+            onChangePreset={(presetId, nextStages) => {
+              const nextCfg: GameConfig = {
+                ...config,
+                timeRangePreset: presetId,
+                customStages: nextStages,
+              };
+              handleConfigChange(nextCfg, true);
+            }}
+          />
+          <div className="flex items-center justify-center gap-3 text-[11px] font-bold" style={{ color: 'var(--song-muted)' }}>
+            <span>Round {Math.min(dailyIndex + 1, dailyInfo?.totalRounds || 5)} / {dailyInfo?.totalRounds || 5}</span>
+            <span>Correct {dailyCorrectCount}</span>
+            <span>Give ups {dailySkipCount}</span>
+          </div>
         </div>
       </div>
 
@@ -357,10 +382,10 @@ const DailyChallengePage: React.FC = () => {
         ) : outcome && revealSong ? (
           <>
           <div className="text-center text-sm font-bold mb-2" role="status" aria-live="polite">
-            {dailyFeedback?.dailyResult === 'correct' && `Correct · +${dailyFeedback.scoreDelta} pts (500 base + ${dailyFeedback.speedBonus} speed)`}
+            {dailyFeedback?.dailyResult === 'correct' && `Correct · +${dailyFeedback.scoreDelta} pts`}
             {dailyFeedback?.dailyResult === 'wrong' && 'Wrong answer · 0 pts'}
-            {dailyFeedback?.dailyResult === 'skipped' && `Skipped · −${DAILY_SKIP_PENALTY} penalty (score floors at 0)`}
-            {dailyFeedback?.dailyResult === 'expired' && 'Time expired · 0 pts'}
+            {dailyFeedback?.dailyResult === 'skipped' && 'Gave up / Skipped song · 0 pts'}
+            {dailyFeedback?.dailyResult === 'expired' && 'Round ended · 0 pts'}
           </div>
           <SpinningAlbumArt
             song={revealSong}

@@ -186,5 +186,35 @@ assert.deepEqual(await dbService.claimGuesserRoundResult('test-guesser-wrong-rou
   kind: 'already-finalized', result: 'wrong',
 }, 'wrong answers cannot be replayed as correct answers');
 
+// Simulate remote Supabase where guesser_round_results table returns 404 (not migrated yet)
+const prevSupabaseUrl = process.env.SUPABASE_URL;
+const prevSupabaseKey = process.env.SUPABASE_ANON_KEY;
+const prevFetch = globalThis.fetch;
+process.env.SUPABASE_URL = 'https://mock-project.supabase.co';
+process.env.SUPABASE_ANON_KEY = 'mock-anon-key';
+globalThis.fetch = async () => new Response(JSON.stringify({ code: 'PGRST205', message: 'table not found' }), { status: 404 });
+try {
+  const unmigratedSkipState = { ...roundState, roundId: 'test-guesser-unmigrated-skip', startedAt: Date.now() - 200 };
+  const unmigratedSkipToken = signRoundToken(unmigratedSkipState);
+  activeRounds.set(unmigratedSkipToken, unmigratedSkipState);
+  const unmigratedSkipRes = makeResponse();
+  await handleSkip({ body: { roundToken: unmigratedSkipToken, giveUp: true }, headers: {} } as never, unmigratedSkipRes as never);
+  assert.equal(unmigratedSkipRes.statusCode, 200, 'Song Guesser skip must succeed via fallback when remote table is missing');
+  assert.equal((unmigratedSkipRes.body as { data: { reveal: { id: string } } }).data.reveal.id, skippedTrack.id);
+
+  const unmigratedGuessState = { ...roundState, roundId: 'test-guesser-unmigrated-guess', startedAt: Date.now() - 200 };
+  const unmigratedGuessToken = signRoundToken(unmigratedGuessState);
+  activeRounds.set(unmigratedGuessToken, unmigratedGuessState);
+  const unmigratedGuessRes = makeResponse();
+  await handleGuess({ body: { roundToken: unmigratedGuessToken, candidateTrackId: skippedTrack.id }, headers: {} } as never, unmigratedGuessRes as never);
+  assert.equal(unmigratedGuessRes.statusCode, 200, 'Song Guesser guess must succeed via fallback when remote table is missing');
+  assert.equal((unmigratedGuessRes.body as { data: { outcome: string; reveal: { id: string } } }).data.outcome, 'correct');
+  assert.equal((unmigratedGuessRes.body as { data: { outcome: string; reveal: { id: string } } }).data.reveal.id, skippedTrack.id);
+} finally {
+  globalThis.fetch = prevFetch;
+  if (prevSupabaseUrl === undefined) delete process.env.SUPABASE_URL; else process.env.SUPABASE_URL = prevSupabaseUrl;
+  if (prevSupabaseKey === undefined) delete process.env.SUPABASE_ANON_KEY; else process.env.SUPABASE_ANON_KEY = prevSupabaseKey;
+}
+
 console.log('Song Guesser checks passed: helper and real-route four-choice behavior, distinct artist IDs, male/female gender consistency, genre preference, unknown metadata fallback, insufficient-data handling, skip-to-next-round transition, duplicate/concurrent skip rejection, and no skipped/wrong round score claim.');
 fs.rmSync(tempDir, { recursive: true, force: true });

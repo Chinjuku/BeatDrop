@@ -3,9 +3,10 @@ import {
   DAILY_BASE_SCORE,
   DAILY_MAX_SPEED_BONUS,
   DAILY_SKIP_PENALTY,
+  DAILY_STAGE_SCORES,
   type DailyRoundProgress,
 } from '../../shared/types';
-import type { CategoryType } from '../../shared/types';
+import type { CategoryType, DifficultyLevel } from '../../shared/types';
 import { dbService } from '../db';
 
 export function getDailySpeedBonus(elapsedTimeMs: number): number {
@@ -16,6 +17,13 @@ export function getDailySpeedBonus(elapsedTimeMs: number): number {
 export function getDailyCorrectScore(elapsedTimeMs: number): { score: number; speedBonus: number } {
   const speedBonus = getDailySpeedBonus(elapsedTimeMs);
   return { score: DAILY_BASE_SCORE + speedBonus, speedBonus };
+}
+
+export function getDailyStageScore(stageIndex: number): { score: number; speedBonus: number } {
+  const clampedStage = Math.max(0, Math.min(DAILY_STAGE_SCORES.length - 1, Math.floor(stageIndex)));
+  const score = DAILY_STAGE_SCORES[clampedStage];
+  const speedBonus = Math.max(0, score - DAILY_BASE_SCORE);
+  return { score, speedBonus };
 }
 
 export function applyDailySkipPenalty(totalScore: number): number {
@@ -51,30 +59,24 @@ export async function finalizeDailyRound(input: {
   playerId: string;
   dateKey: string;
   category: CategoryType;
+  difficulty?: DifficultyLevel;
   roundIndex: number;
   trackId: string;
   startedAt: number;
+  stage?: number;
   outcome: 'correct' | 'wrong' | 'skipped' | 'expired';
   now?: number;
 }) {
   const now = input.now ?? Date.now();
-  const elapsedRaw = Math.max(0, now - input.startedAt);
-  const expired = isDailyRoundExpired(input.startedAt, now);
-  const status = expired ? 'expired' : input.outcome;
-  const elapsedTimeMs = Math.min(DAILY_ALLOWED_TIME_MS, elapsedRaw);
-  const previous = await dbService.getDailyRoundProgress(
-    input.playerId, input.dateKey, input.category
-  );
-  const before = summarizeDailyProgress(previous);
+  const elapsedTimeMs = Math.max(0, now - input.startedAt);
+  const status = input.outcome;
 
   let score = 0;
   let speedBonus = 0;
   if (status === 'correct') {
-    const points = getDailyCorrectScore(elapsedTimeMs);
+    const points = getDailyStageScore(input.stage ?? 0);
     score = points.score;
     speedBonus = points.speedBonus;
-  } else if (status === 'skipped') {
-    score = applyDailySkipPenalty(before.score) - before.score;
   }
 
   const finalized = await dbService.finalizeDailyRoundProgress({
@@ -94,6 +96,6 @@ export async function finalizeDailyRound(input: {
     elapsedTimeMs,
     scoreDelta: score,
     speedBonus,
-    expired,
+    expired: status === 'expired',
   };
 }

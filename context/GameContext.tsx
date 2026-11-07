@@ -565,7 +565,6 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             : undefined;
 
         if (activeCfg.mode === 'daily') {
-          // Daily Challenge always uses the shared Songspot timing configuration.
           setDailyLoadError(null);
           setDailyInfo(null);
           setDailyResults([]);
@@ -573,7 +572,13 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           setDailyCorrectCount(0);
           setDailySkipCount(0);
           setDailyTotalAnswerTimeMs(0);
-          const dailyParams = new URLSearchParams({ category: activeCfg.category });
+          const dailyParams = new URLSearchParams({
+            category: activeCfg.category,
+            difficulty: activeCfg.difficulty,
+          });
+          if (stagesParam) {
+            dailyParams.set('customStages', stagesParam);
+          }
           dailyRequestTimeoutId = window.setTimeout(() => {
             dailyRequestTimedOut = true;
             controller.abort();
@@ -691,9 +696,6 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         ? {
             ...config,
             mode: initialMode,
-            ...(initialMode === 'daily'
-              ? { timeRangePreset: 'songspot' as const, customStages: TIME_RANGE_PRESETS.songspot.stages }
-              : {}),
           }
         : config;
       if (initialMode !== config.mode) {
@@ -1038,7 +1040,7 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const handleGuesserSkip = async () => {
     if (config.mode !== 'guesser') return;
-    await handleSkip(true);
+    await handleSkip(false);
   };
 
   const handleDailyTimeout = async () => {
@@ -1085,7 +1087,13 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           const res = await fetch('/api/daily/round', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ roundIndex: nextIdx, category: dailyInfo.category, dateKey: dailyInfo.dateKey }),
+            body: JSON.stringify({
+              roundIndex: nextIdx,
+              category: dailyInfo.category,
+              difficulty: config.difficulty,
+              customStages: config.customStages,
+              dateKey: dailyInfo.dateKey,
+            }),
           });
           const json = await res.json();
           if (!res.ok || json.code !== 0 || !json.data) {
@@ -1116,9 +1124,9 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
-  // Shared by the Song Guesser's difficulty tabs; Daily Challenge has no difficulty control.
+  // Shared by Daily Challenge and Song Guesser difficulty tabs
   const handleDailyDifficultySelect = (difficulty: DifficultyLevel) => {
-    if (config.mode === 'daily' || config.difficulty === difficulty) return;
+    if (config.difficulty === difficulty) return;
     const nextCfg = { ...config, difficulty };
     setConfig(nextCfg);
     void startNewRound(nextCfg);

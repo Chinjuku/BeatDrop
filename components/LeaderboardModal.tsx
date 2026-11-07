@@ -59,16 +59,19 @@ export const LeaderboardModal: React.FC<LeaderboardModalProps> = ({
   dateKey,
 }) => {
   const [diffFilter, setDiffFilter] = useState<DifficultyLevel | 'all'>(currentDifficulty);
+  const [catFilter, setCatFilter] = useState<CategoryType>(category);
   const [hasSubmitted, setHasSubmitted] = useState(false);
 
   // TanStack Query: Real-time leaderboard filtered by category and difficulty
   const { data: entries = [], isLoading: loading, refetch } = useQuery<LeaderboardEntry[]>({
-    queryKey: isDailyMode ? ['daily-leaderboard', category, dateKey] : QUERY_KEYS.leaderboard(category, diffFilter),
+    queryKey: isDailyMode
+      ? ['daily-leaderboard', catFilter, diffFilter, dateKey]
+      : QUERY_KEYS.leaderboard(catFilter, diffFilter),
     queryFn: async () => {
       const diffParam = diffFilter !== 'all' ? `&difficulty=${diffFilter}` : '';
       const url = isDailyMode
-        ? `/api/daily/leaderboard?category=${category}&dateKey=${dateKey || ''}`
-        : `/api/leaderboard?category=${category}${diffParam}`;
+        ? `/api/daily/leaderboard?category=${catFilter}${diffParam}&dateKey=${dateKey || ''}`
+        : `/api/leaderboard?category=${catFilter}${diffParam}`;
       const res = await fetch(url);
       const json = await res.json();
       if (json.code === 0 && Array.isArray(json.data)) {
@@ -96,12 +99,13 @@ export const LeaderboardModal: React.FC<LeaderboardModalProps> = ({
       : Math.max(100, bestStreak * 85 + (fastestTime ? Math.round((15 - fastestTime) * 15) : 0));
 
   // Unique session key for current score to prevent duplicate submissions
-  const scoreSessionKey = `beatdrop_lb_sub_${category}_${isDailyMode ? dateKey : currentDifficulty}_${calculatedScore}`;
+  const scoreSessionKey = `beatdrop_lb_sub_${category}_${isDailyMode ? `${dateKey}_${currentDifficulty}` : currentDifficulty}_${calculatedScore}`;
 
   // Sync state when modal opens
   useEffect(() => {
     if (isOpen) {
       setDiffFilter(currentDifficulty);
+      setCatFilter(category);
       setSubmittedMsg('');
       try {
         const alreadySubmitted = sessionStorage.getItem(scoreSessionKey) === 'true';
@@ -110,7 +114,7 @@ export const LeaderboardModal: React.FC<LeaderboardModalProps> = ({
         setHasSubmitted(false);
       }
     }
-  }, [isOpen, currentDifficulty, scoreSessionKey]);
+  }, [isOpen, currentDifficulty, category, scoreSessionKey]);
 
   const fetchLeaderboard = useCallback(async () => {
     if (isDailyMode) await refetch();
@@ -132,7 +136,7 @@ export const LeaderboardModal: React.FC<LeaderboardModalProps> = ({
         body: JSON.stringify({
           playerName: playerName.trim(),
           ...(isDailyMode
-            ? { dateKey, category }
+            ? { dateKey, category, difficulty: currentDifficulty }
             : {
                 score: calculatedScore,
                 streak: Math.max(currentStreak, bestStreak, 1),
@@ -207,7 +211,7 @@ export const LeaderboardModal: React.FC<LeaderboardModalProps> = ({
           </button>
         </div>
 
-        {/* Filter Bar: Difficulty Tabs & Locked Category Badge */}
+        {/* Filter Bar: Difficulty Tabs & Category Tabs */}
         <div
           className="px-3.5 py-2.5 sm:px-6 sm:py-3 border-b flex flex-wrap items-center justify-between gap-2"
           style={{
@@ -217,7 +221,7 @@ export const LeaderboardModal: React.FC<LeaderboardModalProps> = ({
         >
           {/* Difficulty Filter Tabs */}
           <div className="flex items-center gap-1 sm:gap-1.5 overflow-x-auto py-0.5 max-w-full">
-            {!isDailyMode && DIFFICULTY_FILTER_OPTIONS.map((d) => (
+            {DIFFICULTY_FILTER_OPTIONS.map((d) => (
               <button
                 key={d}
                 type="button"
@@ -240,25 +244,30 @@ export const LeaderboardModal: React.FC<LeaderboardModalProps> = ({
             ))}
           </div>
 
-          <div className="flex items-center gap-2">
-            <div
-              className="flex items-center gap-1.5 px-3 py-1 rounded-full border text-[11px] font-bold shadow-sm"
-              style={{
-                backgroundColor: 'var(--song-surface)',
-                borderColor: 'var(--song-border)',
-                color: 'var(--song-accent-text)',
-              }}
-              title="ตารางอันดับถูกล็อกตามหมวดหมู่เพลงที่เลือกเล่น"
-            >
-              <span style={{ color: 'var(--song-muted)' }}>หมวดหมู่:</span>
-              <span>
-                {category === 'thai'
-                  ? '🇹🇭 เพลงไทย'
-                  : category === 'international'
-                    ? '🌍 เพลงสากล'
-                    : '🎵 ทั้งหมด'}
-              </span>
-            </div>
+          <div className="flex items-center gap-1.5">
+            {(['thai', 'international', 'all'] as CategoryType[]).map((cat) => (
+              <button
+                key={cat}
+                type="button"
+                onClick={() => setCatFilter(cat)}
+                className="px-2.5 py-1 rounded-full border text-[10px] sm:text-[11px] font-bold transition shrink-0"
+                style={
+                  catFilter === cat
+                    ? {
+                        backgroundColor: 'var(--song-accent)',
+                        borderColor: 'var(--song-accent)',
+                        color: 'var(--song-accent-on)',
+                      }
+                    : {
+                        backgroundColor: 'var(--song-surface)',
+                        borderColor: 'var(--song-border)',
+                        color: 'var(--song-muted)',
+                      }
+                }
+              >
+                {cat === 'thai' ? '🇹🇭 ไทย' : cat === 'international' ? '🌍 สากล' : '🔥 รวม Mix'}
+              </button>
+            ))}
             <button
               type="button"
               onClick={fetchLeaderboard}
@@ -311,7 +320,7 @@ export const LeaderboardModal: React.FC<LeaderboardModalProps> = ({
                   color: 'var(--song-text)',
                 }}
               />
-              {!isDailyMode && <div
+              <div
                 className="px-2.5 py-1 rounded-lg border text-[11px] font-bold shrink-0 flex items-center gap-1"
                 style={{
                   backgroundColor: 'var(--song-surface-soft)',
@@ -322,7 +331,7 @@ export const LeaderboardModal: React.FC<LeaderboardModalProps> = ({
               >
                 <span className="opacity-60 text-[10px]">ระดับ:</span>
                 <span>{DIFFICULTY_PRESETS[currentDifficulty]?.label || currentDifficulty}</span>
-              </div>}
+              </div>
             </div>
             <button
               type="submit"
@@ -430,7 +439,7 @@ export const LeaderboardModal: React.FC<LeaderboardModalProps> = ({
                             ['--badge-rgb' as any]: diffPreset.accent,
                           }}
                         >
-                          {isDailyMode ? 'Daily' : diffPreset.label}
+                          {diffPreset.label}
                         </span>
                         {entry.category === 'thai' ? (
                           <span className="text-[10px]" title="เพลงไทย">

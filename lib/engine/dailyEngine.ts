@@ -2,23 +2,47 @@ import { Request, Response } from 'express';
 import crypto from 'node:crypto';
 import {
   CategoryType,
-  DAILY_ALLOWED_TIME_MS,
   DAILY_ROUND_COUNT,
   DailyChallengeInfo,
+  DEFAULT_TIME_STAGES,
+  DifficultyLevel,
+  MAX_SNIPPET_DURATION,
+  MIN_SNIPPET_DURATION,
   RoundStartResponse,
   Song,
-  SONGSPOT_STAGES,
 } from '../../shared/types';
 import { signRoundToken, getBangkokDateKey } from '../token';
 import { isDbLocal, isSupabaseConfigured, supabaseAdmin } from '../supabase';
 import { songPool } from './songPool';
 import { activeRounds } from './roundEngine';
-import { normalizeText } from './artists';
+import { getAllArtists, normalizeText } from './artists';
 import { getDailyPlayerId, readDailyPlayerId } from './dailySession';
 import { dbService } from '../db';
 import { summarizeDailyProgress } from './dailyScoring';
 
 const ALLOWED_CATEGORIES = new Set<CategoryType>(['all', 'thai', 'international']);
+const ALLOWED_DIFFICULTIES = new Set<DifficultyLevel>(['easy', 'medium', 'hard', 'expert', 'impossible']);
+
+export function scopePlayerIdByDifficulty(playerId: string, difficulty: DifficultyLevel = 'easy'): string {
+  if (!difficulty || difficulty === 'easy') return playerId;
+  const hex = crypto.createHash('sha256').update(`${playerId}:${difficulty}`).digest('hex');
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-4${hex.slice(13, 16)}-8${hex.slice(17, 20)}-${hex.slice(20, 32)}`;
+}
+
+function parseDailyStages(raw: unknown): number[] {
+  const parts = Array.isArray(raw)
+    ? raw.map((v) => Number(v))
+    : typeof raw === 'string' && raw.trim()
+      ? raw.split(',').map((v) => Number(v.trim()))
+      : [];
+  const valid = parts
+    .filter((n) => Number.isFinite(n) && n >= MIN_SNIPPET_DURATION && n <= MAX_SNIPPET_DURATION)
+    .map((n) => Math.round(n * 10) / 10);
+  if (valid.length >= 2 && valid.length <= 6) {
+    return Array.from(new Set(valid)).sort((a, b) => a - b);
+  }
+  return DEFAULT_TIME_STAGES;
+}
 
 export function seededHash(str: string): number {
   let h = 2166136261;
@@ -29,8 +53,27 @@ export function seededHash(str: string): number {
   return h >>> 0;
 }
 
-function chooseDailySongs(dateKey: string, category: CategoryType): Song[] {
-  let candidates = Array.from(songPool.values());
+function chooseDailySongs(
+  dateKey: string,
+  category: CategoryType,
+  difficulty: DifficultyLevel = 'easy'
+): Song[] {
+  const allPool = Array.from(songPool.values());
+  if (allPool.length < DAILY_ROUND_COUNT) return [];
+
+  const libraryArtists = getAllArtists(songPool);
+  const libraryArtistIds = new Set(libraryArtists.map((a) => String(a.id)));
+  const libraryArtistNames = new Set(libraryArtists.map((a) => normalizeText(a.name)));
+
+  let candidates = allPool.filter((song) => {
+    if (libraryArtists.length === 0) return true;
+    if (song.artistId && libraryArtistIds.has(String(song.artistId))) return true;
+    if (song.artistIds?.some((id) => libraryArtistIds.has(String(id)))) return true;
+    return libraryArtistNames.has(normalizeText(song.artistName));
+  });
+  if (candidates.length < DAILY_ROUND_COUNT) {
+    candidates = allPool;
+  }
   if (category === 'thai' || category === 'international') {
     candidates = candidates.filter((song) => song.category === category);
   }
@@ -39,20 +82,75 @@ function chooseDailySongs(dateKey: string, category: CategoryType): Song[] {
     const key = `${normalizeText(song.title)}::${normalizeText(song.artistName)}`;
     if (!unique.has(key)) unique.set(key, song);
   }
-  return Array.from(unique.values())
-    .sort((a, b) => seededHash(`${dateKey}:${category}:${a.id}`) - seededHash(`${dateKey}:${category}:${b.id}`))
-    .slice(0, DAILY_ROUND_COUNT);
-}
 
-async function getDailySongs(dateKey: string, category: CategoryType): Promise<Song[]> {
-  if (isSupabaseConfigured() && !isDbLocal()) {
-    return supabaseAdmin.getOrCreateDailyChallengeSongs(dateKey, category);
+  let pool = Array.from(unique.values());
+  if (pool.length > 8) {
+    const sorted = [...pool].sort(
+      (a, b) => (b.popularityScore || 50) - (a.popularityScore || 50)
+    );
+    if (difficulty === 'easy') {
+      pool = sorted.slice(0, Math.max(8, Math.ceil(sorted.length * 0.25)));
+    } else if (difficulty === 'medium') {
+      pool = sorted.slice(0, Math.max(12, Math.ceil(sorted.length * 0.60)));
+    } else if (difficulty === 'hard') {
+      pool = sorted.slice(Math.floor(sorted.length * 0.15));
+    } else if (difficulty === 'expert') {
+      pool = sorted.slice(Math.floor(sorted.length * 0.35));
+    } else if (difficulty === 'impossible') {
+      pool = sorted.slice(Math.floor(sorted.length * 0.50));
+    }
+    if (pool.length < DAILY_ROUND_COUNT) {
+      pool = sorted;
+    }
   }
 
-  const selected = chooseDailySongs(dateKey, category);
+  const seedPrefix = difficulty === 'easy' ? `${dateKey}:${category}` : `${dateKey}:${category}:${difficulty}`;
+  const seeded = [...pool].sort(
+    (a, b) => seededHash(`${seedPrefix}:${a.id}`) - seededHash(`${seedPrefix}:${b.id}`)
+  );
+
+  const picked: Song[] = [];
+  const seenArtists = new Set<string>();
+  for (const song of seeded) {
+    const artistKey = normalizeText(song.artistName);
+    if (!seenArtists.has(artistKey)) {
+      seenArtists.add(artistKey);
+      picked.push(song);
+      if (picked.length === DAILY_ROUND_COUNT) return picked;
+    }
+  }
+  for (const song of seeded) {
+    if (!picked.some((p) => p.id === song.id)) {
+      picked.push(song);
+      if (picked.length === DAILY_ROUND_COUNT) break;
+    }
+  }
+  return picked.slice(0, DAILY_ROUND_COUNT);
+}
+
+async function getDailySongs(
+  dateKey: string,
+  category: CategoryType,
+  difficulty: DifficultyLevel = 'easy'
+): Promise<Song[]> {
+  if (isSupabaseConfigured() && !isDbLocal()) {
+    if (difficulty === 'easy') {
+      const remoteSongs = await supabaseAdmin.getOrCreateDailyChallengeSongs(dateKey, category);
+      if (remoteSongs.length === DAILY_ROUND_COUNT) {
+        for (const song of remoteSongs) {
+          songPool.set(song.id, song);
+        }
+        return remoteSongs;
+      }
+    }
+    return chooseDailySongs(dateKey, category, difficulty);
+  }
+
+  const selected = chooseDailySongs(dateKey, category, difficulty);
   if (selected.length !== DAILY_ROUND_COUNT) return [];
-  const ids = dbService.getOrCreateLocalDailyChallengeIds(dateKey, category, selected.map((song) => song.id));
-  if (ids.length !== DAILY_ROUND_COUNT) return [];
+  const dateSeedKey = difficulty === 'easy' ? dateKey : `${dateKey}:${difficulty}`;
+  const ids = dbService.getOrCreateLocalDailyChallengeIds(dateSeedKey, category, selected.map((song) => song.id));
+  if (ids.length !== DAILY_ROUND_COUNT) return selected;
   return ids.map((id) => songPool.get(id)).filter((song): song is Song => Boolean(song));
 }
 
@@ -61,61 +159,69 @@ async function getOrStartRound(
   dateKey: string,
   category: CategoryType,
   roundIndex: number,
-  track: Song
+  track: Song,
+  difficulty: DifficultyLevel = 'easy',
+  stages: number[] = DEFAULT_TIME_STAGES
 ): Promise<RoundStartResponse | null> {
+  const now = Date.now();
   const progress = await dbService.getOrCreateDailyRoundProgress({
     playerId,
     dateKey,
     category,
+    difficulty,
     roundIndex,
     trackId: track.id,
-    startedAt: Date.now(),
+    startedAt: now,
     status: 'pending',
     score: 0,
     speedBonus: 0,
     answerTimeMs: 0,
   });
-  if (!progress || progress.status !== 'pending' || progress.trackId !== track.id) {
+  if (progress && progress.status !== 'pending') {
     console.warn('[Daily] Current progress row cannot start a challenge round', {
       dateKey,
       category,
+      difficulty,
       roundIndex,
-      status: progress?.status || 'missing',
-      trackMatches: progress ? progress.trackId === track.id : false,
+      status: progress.status,
     });
     return null;
   }
 
-  const difficulty = 'medium' as const;
+  const activeTrack =
+    progress && progress.trackId !== track.id
+      ? songPool.get(progress.trackId) || track
+      : track;
+  const startedAt = progress?.startedAt || now;
   const roundState = {
-    track,
+    track: activeTrack,
     difficulty,
-    stages: SONGSPOT_STAGES,
+    stages,
     stage: 0,
-    clipSeconds: SONGSPOT_STAGES[0],
+    clipSeconds: stages[0],
     mistakes: 0,
     category,
     mode: 'daily' as const,
-    startedAt: progress.startedAt,
+    startedAt,
     dailyDateKey: dateKey,
     dailyRoundIndex: roundIndex,
     dailyPlayerId: playerId,
   };
-  const roundToken = signRoundToken(roundState, DAILY_ALLOWED_TIME_MS + 60_000);
+  const roundToken = signRoundToken(roundState);
   activeRounds.set(roundToken, roundState);
 
   return {
     roundToken,
-    roundKey: `rk_daily_${dateKey}_${category}_${roundIndex}`,
-    audioUrl: track.previewUrl,
+    roundKey: `rk_daily_${dateKey}_${category}_${difficulty}_${roundIndex}`,
+    audioUrl: activeTrack.previewUrl,
     difficulty,
-    stages: SONGSPOT_STAGES,
+    stages,
     stage: 0,
-    clipSeconds: SONGSPOT_STAGES[0],
+    clipSeconds: stages[0],
     category,
     mode: 'daily',
     poolSize: songPool.size,
-    expiresAt: progress.startedAt + DAILY_ALLOWED_TIME_MS,
+    expiresAt: 0,
   };
 }
 
@@ -124,15 +230,22 @@ export async function handleDaily(req: Request, res: Response): Promise<void> {
   const category = ALLOWED_CATEGORIES.has(rawCategory as CategoryType)
     ? rawCategory as CategoryType
     : 'all';
-  const playerId = getDailyPlayerId(req, res);
+  const rawDifficulty = typeof req.query.difficulty === 'string' ? req.query.difficulty : 'easy';
+  const difficulty = ALLOWED_DIFFICULTIES.has(rawDifficulty as DifficultyLevel)
+    ? (rawDifficulty as DifficultyLevel)
+    : 'easy';
+  const stages = parseDailyStages(req.query.customStages);
+  const basePlayerId = getDailyPlayerId(req, res);
+  const playerId = scopePlayerIdByDifficulty(basePlayerId, difficulty);
   const dateKey = getBangkokDateKey();
 
   try {
-    const songs = await getDailySongs(dateKey, category);
+    const songs = await getDailySongs(dateKey, category, difficulty);
     if (songs.length !== DAILY_ROUND_COUNT) {
       console.warn('[Daily] Challenge unavailable for current catalog', {
         dateKey,
         category,
+        difficulty,
         expectedRounds: DAILY_ROUND_COUNT,
         actualRounds: songs.length,
       });
@@ -145,23 +258,33 @@ export async function handleDaily(req: Request, res: Response): Promise<void> {
     let currentRound: RoundStartResponse | null = null;
     if (summary.currentIndex < DAILY_ROUND_COUNT) {
       currentRound = await getOrStartRound(
-        playerId, dateKey, category, summary.currentIndex, songs[summary.currentIndex]
+        playerId,
+        dateKey,
+        category,
+        summary.currentIndex,
+        songs[summary.currentIndex],
+        difficulty,
+        stages
       );
       if (!currentRound) {
-        // A prior tab/request can finish a round between the progress read and
-        // round start. Re-read once so the caller advances to the actual next
-        // pending round instead of receiving a stale-index 503.
         progress = await dbService.getDailyRoundProgress(playerId, dateKey, category);
         summary = summarizeDailyProgress(progress);
         if (summary.currentIndex < DAILY_ROUND_COUNT) {
           currentRound = await getOrStartRound(
-            playerId, dateKey, category, summary.currentIndex, songs[summary.currentIndex]
+            playerId,
+            dateKey,
+            category,
+            summary.currentIndex,
+            songs[summary.currentIndex],
+            difficulty,
+            stages
           );
         }
         if (summary.currentIndex < DAILY_ROUND_COUNT && !currentRound) {
           console.warn('[Daily] Could not create current round progress', {
             dateKey,
             category,
+            difficulty,
             roundIndex: summary.currentIndex,
           });
           res.status(503).json({ code: -503, message: 'Could not load your current Daily Challenge round.' });
@@ -174,21 +297,22 @@ export async function handleDaily(req: Request, res: Response): Promise<void> {
 
     const rounds: RoundStartResponse[] = songs.map((track, roundIndex) => ({
       roundToken: roundIndex === summary.currentIndex ? currentRound?.roundToken || '' : '',
-      roundKey: `rk_daily_${dateKey}_${category}_${roundIndex}`,
+      roundKey: `rk_daily_${dateKey}_${category}_${difficulty}_${roundIndex}`,
       audioUrl: track.previewUrl,
-      difficulty: 'medium',
-      stages: SONGSPOT_STAGES,
+      difficulty,
+      stages,
       stage: 0,
-      clipSeconds: SONGSPOT_STAGES[0],
+      clipSeconds: stages[0],
       category,
       mode: 'daily',
       poolSize: songPool.size,
-      expiresAt: roundIndex === summary.currentIndex ? currentRound?.expiresAt || 0 : 0,
+      expiresAt: 0,
     }));
 
     const info: DailyChallengeInfo = {
       dateKey,
       category,
+      difficulty,
       totalRounds: DAILY_ROUND_COUNT,
       rounds,
       ...summary,
@@ -198,6 +322,7 @@ export async function handleDaily(req: Request, res: Response): Promise<void> {
     console.error('[Daily] Failed to create challenge', {
       dateKey,
       category,
+      difficulty,
       errorType: err instanceof Error ? err.name : 'unknown',
     });
     res.status(503).json({ code: -503, message: 'Daily Challenge could not be loaded.' });
@@ -205,13 +330,19 @@ export async function handleDaily(req: Request, res: Response): Promise<void> {
 }
 
 export async function handleStartDailyRound(req: Request, res: Response): Promise<void> {
-  const playerId = readDailyPlayerId(req);
+  const basePlayerId = readDailyPlayerId(req);
   const roundIndex = Number(req.body?.roundIndex);
-  if (!playerId || !Number.isInteger(roundIndex) || roundIndex < 0 || roundIndex >= DAILY_ROUND_COUNT) {
+  if (!basePlayerId || !Number.isInteger(roundIndex) || roundIndex < 0 || roundIndex >= DAILY_ROUND_COUNT) {
     res.status(400).json({ code: -1, message: 'Invalid Daily Challenge round request.' });
     return;
   }
 
+  const rawDifficulty = typeof req.body?.difficulty === 'string' ? req.body.difficulty : 'easy';
+  const difficulty = ALLOWED_DIFFICULTIES.has(rawDifficulty as DifficultyLevel)
+    ? (rawDifficulty as DifficultyLevel)
+    : 'easy';
+  const stages = parseDailyStages(req.body?.customStages);
+  const playerId = scopePlayerIdByDifficulty(basePlayerId, difficulty);
   const requestedDate = typeof req.body?.dateKey === 'string' ? req.body.dateKey : '';
   const dateKey = /^\d{4}-\d{2}-\d{2}$/.test(requestedDate) ? requestedDate : getBangkokDateKey();
   const category = ALLOWED_CATEGORIES.has(req.body?.category) ? req.body.category as CategoryType : 'all';
@@ -221,13 +352,32 @@ export async function handleStartDailyRound(req: Request, res: Response): Promis
       res.status(409).json({ code: -409, message: 'No active challenge exists for that date.' });
       return;
     }
-    const songs = await getDailySongs(dateKey, category);
+    const songs = await getDailySongs(dateKey, category, difficulty);
     const nextIndex = summarizeDailyProgress(progress).currentIndex;
-    if (songs.length !== DAILY_ROUND_COUNT || roundIndex !== nextIndex) {
+    const hasCompletedRequestedRound = progress.some(
+      (item) => item.roundIndex === roundIndex && item.status !== 'pending'
+    );
+    const hasEarlierPendingRound = progress.some(
+      (item) => item.roundIndex < roundIndex && item.status === 'pending'
+    );
+    if (
+      songs.length !== DAILY_ROUND_COUNT ||
+      hasCompletedRequestedRound ||
+      hasEarlierPendingRound ||
+      (progress.length > 0 && roundIndex !== nextIndex && !isSupabaseConfigured())
+    ) {
       res.status(409).json({ code: -409, message: 'Daily Challenge round is out of sequence.' });
       return;
     }
-    const round = await getOrStartRound(playerId, dateKey, category, roundIndex, songs[roundIndex]);
+    const round = await getOrStartRound(
+      playerId,
+      dateKey,
+      category,
+      roundIndex,
+      songs[roundIndex],
+      difficulty,
+      stages
+    );
     if (!round) {
       res.status(409).json({ code: -409, message: 'Daily Challenge round is already complete.' });
       return;
@@ -239,13 +389,18 @@ export async function handleStartDailyRound(req: Request, res: Response): Promis
 }
 
 export async function handleSubmitDailyScore(req: Request, res: Response): Promise<void> {
-  const playerId = readDailyPlayerId(req);
+  const basePlayerId = readDailyPlayerId(req);
   const playerName = typeof req.body?.playerName === 'string' ? req.body.playerName.trim().slice(0, 24) : '';
   const category = ALLOWED_CATEGORIES.has(req.body?.category) ? req.body.category as CategoryType : null;
-  if (!playerId || !playerName || !category) {
+  if (!basePlayerId || !playerName || !category) {
     res.status(400).json({ code: -1, message: 'Player name and category are required.' });
     return;
   }
+  const rawDifficulty = typeof req.body?.difficulty === 'string' ? req.body.difficulty : 'easy';
+  const difficulty = ALLOWED_DIFFICULTIES.has(rawDifficulty as DifficultyLevel)
+    ? (rawDifficulty as DifficultyLevel)
+    : 'easy';
+  const playerId = scopePlayerIdByDifficulty(basePlayerId, difficulty);
   const submittedDate = typeof req.body?.dateKey === 'string' ? req.body.dateKey : '';
   const dateKey = /^\d{4}-\d{2}-\d{2}$/.test(submittedDate) ? submittedDate : getBangkokDateKey();
   const progress = await dbService.getDailyRoundProgress(playerId, dateKey, category);
@@ -255,10 +410,11 @@ export async function handleSubmitDailyScore(req: Request, res: Response): Promi
     return;
   }
   const entry = {
-    id: `daily-${dateKey}-${category}-${crypto.randomUUID()}`,
+    id: `daily-${dateKey}-${category}-${difficulty}-${crypto.randomUUID()}`,
     playerId,
     dateKey,
     category,
+    difficulty,
     playerName,
     score: summary.score,
     correctCount: summary.correctCount,
@@ -274,8 +430,19 @@ export async function handleSubmitDailyScore(req: Request, res: Response): Promi
   res.status(result.inserted ? 200 : 409).json({
     code: result.inserted ? 0 : -409,
     message: result.inserted ? 'ok' : 'A Daily Challenge submission already exists for this player today.',
-    data: result.entry,
+    data: { ...result.entry, difficulty },
   });
+}
+
+function extractEntryDifficulty(entry: { id: string; difficulty?: DifficultyLevel }): DifficultyLevel {
+  if (entry.difficulty && ALLOWED_DIFFICULTIES.has(entry.difficulty)) {
+    return entry.difficulty;
+  }
+  const match = entry.id.match(/^daily-\d{4}-\d{2}-\d{2}-(?:all|thai|international)-(easy|medium|hard|expert|impossible)-/);
+  if (match && ALLOWED_DIFFICULTIES.has(match[1] as DifficultyLevel)) {
+    return match[1] as DifficultyLevel;
+  }
+  return 'easy';
 }
 
 export async function handleGetDailyLeaderboard(req: Request, res: Response): Promise<void> {
@@ -283,8 +450,19 @@ export async function handleGetDailyLeaderboard(req: Request, res: Response): Pr
   const category = ALLOWED_CATEGORIES.has(rawCategory as CategoryType)
     ? rawCategory as CategoryType
     : 'all';
+  const rawDifficulty = typeof req.query.difficulty === 'string' ? req.query.difficulty : 'all';
+  const difficultyFilter = ALLOWED_DIFFICULTIES.has(rawDifficulty as DifficultyLevel)
+    ? (rawDifficulty as DifficultyLevel)
+    : null;
   const requestedDate = typeof req.query.dateKey === 'string' ? req.query.dateKey : '';
   const dateKey = /^\d{4}-\d{2}-\d{2}$/.test(requestedDate) ? requestedDate : getBangkokDateKey();
-  const entries = await dbService.getDailyLeaderboard(dateKey, category, 50);
-  res.json({ code: 0, message: 'ok', data: entries });
+  const entries = await dbService.getDailyLeaderboard(dateKey, category, 100);
+  const hydrated = entries.map((e) => ({
+    ...e,
+    difficulty: extractEntryDifficulty(e),
+  }));
+  const filtered = difficultyFilter
+    ? hydrated.filter((e) => e.difficulty === difficultyFilter)
+    : hydrated;
+  res.json({ code: 0, message: 'ok', data: filtered.slice(0, 50) });
 }
