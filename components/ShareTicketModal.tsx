@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { CategoryType, DifficultyLevel, GameMode, GuessHistoryItem, Song } from '../types';
 import { BeatDropLogo } from './BeatDropLogo';
+import { copyToClipboard, shareOrCopy } from '../lib/shareUtils';
 
 export interface ShareTicketModalProps {
   isOpen: boolean;
@@ -82,29 +83,23 @@ export const ShareTicketModal: React.FC<ShareTicketModalProps> = ({
   ].join('\n');
 
   const handleCopyResult = async () => {
-    try {
-      await navigator.clipboard.writeText(shareText);
+    const success = await copyToClipboard(shareText);
+    if (success) {
       setCopied(true);
       setTimeout(() => setCopied(false), 2200);
-    } catch {
-      // Fallback
     }
   };
 
   const handleShare = async () => {
-    if (navigator.share) {
-      try {
-        await navigator.share({
-          title: 'BeatDrop Music Ticket',
-          text: shareText,
-          url: window.location.origin,
-        });
-        return;
-      } catch {
-        // User cancelled or unsupported
-      }
+    const result = await shareOrCopy({
+      title: 'BeatDrop Music Ticket',
+      text: shareText,
+      url: typeof window !== 'undefined' ? window.location.origin : undefined,
+    });
+    if (result === 'copied') {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2200);
     }
-    handleCopyResult();
   };
 
   const handleSaveImage = () => {

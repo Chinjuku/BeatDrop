@@ -13,6 +13,7 @@
     "test:daily": "node --import tsx/esm scripts/verify-daily-challenge.ts",
     "test:daily-client": "node --import tsx/esm scripts/verify-daily-client.ts",
     "test:guesser": "node --import tsx/esm scripts/verify-guesser.ts",
+    "test:share": "node --import tsx/esm scripts/verify-share-utils.ts",
     "migrate:supabase": "tsx scripts/migrate-to-supabase.ts"
   },
   "dependencies": {

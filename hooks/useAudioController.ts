@@ -65,6 +65,7 @@ export function useAudioController({ audioUrl, volume }: UseAudioControllerOptio
 
   const audioCtxRef = useRef<AudioContext | null>(null);
   const bufferRef = useRef<AudioBuffer | null>(null);
+  const htmlAudioRef = useRef<HTMLAudioElement | null>(null);
   const sourceRef = useRef<AudioBufferSourceNode | null>(null);
   const gainRef = useRef<AudioNode & { gain: AudioParam } | null>(null);
   const rafRef = useRef<number | null>(null);
@@ -108,6 +109,11 @@ export function useAudioController({ audioUrl, volume }: UseAudioControllerOptio
     if (rafRef.current !== null) {
       cancelAnimationFrame(rafRef.current);
       rafRef.current = null;
+    }
+    if (htmlAudioRef.current) {
+      try {
+        htmlAudioRef.current.pause();
+      } catch {}
     }
     if (sourceRef.current) {
       sourceRef.current.onended = null;
@@ -178,8 +184,28 @@ export function useAudioController({ audioUrl, volume }: UseAudioControllerOptio
       })
       .catch((err) => {
         if (cancelled) return;
-        console.error('Audio decode error:', err);
-        setState('error');
+        // Graceful HTML5 Audio fallback for slow 3G / decode issue
+        try {
+          const audio = new Audio(audioUrl);
+          audio.preload = 'auto';
+          audio.volume = Math.min(1, Math.max(0, volume / 100));
+          htmlAudioRef.current = audio;
+          audio.oncanplay = () => {
+            if (!cancelled) {
+              setTotalDuration(audio.duration || 30);
+              setState('ready');
+            }
+          };
+          audio.onerror = () => {
+            if (!cancelled) {
+              console.error('Audio decode & HTML5 fallback error:', err);
+              setState('error');
+            }
+          };
+        } catch {
+          console.error('Audio decode error:', err);
+          setState('error');
+        }
       });
 
     return () => {
@@ -190,16 +216,61 @@ export function useAudioController({ audioUrl, volume }: UseAudioControllerOptio
 
   // Live volume update
   useEffect(() => {
+    const normalized = Math.min(1, Math.max(0, volume / 100));
     if (gainRef.current && audioCtxRef.current) {
-      const normalized = Math.min(1, Math.max(0, volume / 100));
       gainRef.current.gain.setValueAtTime(normalized, audioCtxRef.current.currentTime);
+    }
+    if (htmlAudioRef.current) {
+      htmlAudioRef.current.volume = normalized;
     }
   }, [volume]);
 
   const startPlaybackFrom = useCallback(
     (startOffset: number, maxDurationSeconds: number) => {
       const buffer = bufferRef.current;
-      if (!buffer) return;
+      if (!buffer) {
+        if (htmlAudioRef.current) {
+          const audio = htmlAudioRef.current;
+          stopInternal(false);
+          const cappedMax = Math.min(maxDurationSeconds, audio.duration || 30);
+          const safeOffset = Math.min(Math.max(0, startOffset), Math.max(0, cappedMax - 0.05));
+          const remainingPlayTime = Math.max(0.05, cappedMax - safeOffset);
+
+          activeClipLimitRef.current = cappedMax;
+          offsetSecondsRef.current = safeOffset;
+          audio.volume = Math.min(1, Math.max(0, volume / 100));
+          audio.currentTime = safeOffset;
+
+          const startPerf = performance.now();
+          setState('playing');
+
+          const tick = () => {
+            if (htmlAudioRef.current !== audio || audio.paused) return;
+            const elapsedInRun = (performance.now() - startPerf) / 1000;
+            const absolutePos = Math.min(cappedMax, safeOffset + elapsedInRun);
+            const isSnippet = cappedMax < 25;
+            const progressVal = isSnippet
+              ? (remainingPlayTime > 0 ? Math.min(1, elapsedInRun / remainingPlayTime) : 0)
+              : (cappedMax > 0 ? Math.min(1, absolutePos / cappedMax) : 0);
+
+            setCurrentTime(isSnippet ? elapsedInRun : absolutePos);
+            setProgress(progressVal);
+
+            if (elapsedInRun >= remainingPlayTime || absolutePos >= cappedMax) {
+              stopInternal(true, 'ended');
+            } else {
+              rafRef.current = requestAnimationFrame(tick);
+            }
+          };
+
+          audio.play().then(() => {
+            rafRef.current = requestAnimationFrame(tick);
+          }).catch(() => {
+            setState('error');
+          });
+        }
+        return;
+      }
 
       const ctx = getContext();
       if (ctx.state === 'suspended') {

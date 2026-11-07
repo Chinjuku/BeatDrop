@@ -19,6 +19,7 @@ import {
 } from '../types';
 import { AudioPlaybackState } from '../hooks/useAudioController';
 import { useAudioProgress } from '../context/GameContext';
+import { copyToClipboard } from '../lib/shareUtils';
 
 interface SpinningAlbumArtProps {
   song: Song;
@@ -93,11 +94,11 @@ export const SpinningAlbumArt: React.FC<SpinningAlbumArtProps> = ({
       `https://beatdrop-self.vercel.app #beatdrop`,
     ].join('\n');
 
-    try {
-      await navigator.clipboard.writeText(shareText);
+    const success = await copyToClipboard(shareText);
+    if (success) {
       setCopied(true);
       setTimeout(() => setCopied(false), 2500);
-    } catch {}
+    }
   };
 
   const progressPct =
