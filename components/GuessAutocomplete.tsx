@@ -32,6 +32,7 @@ export const GuessAutocomplete: React.FC<GuessAutocompleteProps> = ({
   const [loading, setLoading] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState<number>(0);
+  const [networkError, setNetworkError] = useState<string | null>(null);
   // Songspot-style fullscreen search sheet on phones
   const [mobileOpen, setMobileOpen] = useState(false);
 
@@ -56,11 +57,17 @@ export const GuessAutocomplete: React.FC<GuessAutocompleteProps> = ({
     // In standard mode, require at least 1 character; in Artist Mode, allow empty query to list artist's songs
     if (!isArtistScoped && query.trim().length < 1) {
       setSuggestions([]);
+      setNetworkError(null);
       setIsOpen(false);
       return;
     }
 
+    setNetworkError(null);
     const abortController = new AbortController();
+    // 10-second timeout to handle high latency / stalled 2G/Edge connections
+    const timeoutId = setTimeout(() => {
+      abortController.abort('timeout');
+    }, 10000);
 
     const timer = setTimeout(async () => {
       setLoading(true);
@@ -86,10 +93,18 @@ export const GuessAutocomplete: React.FC<GuessAutocompleteProps> = ({
           }
         }
       } catch (err: unknown) {
-        if ((err as Error)?.name === 'AbortError') return;
-        console.error('Autocomplete error:', err);
+        if (abortController.signal.aborted && abortController.signal.reason !== 'timeout') {
+          return;
+        }
+        if (abortController.signal.reason === 'timeout') {
+          setNetworkError('สัญญาณอินเทอร์เน็ตล่าช้า กรุณาลองใหม่อีกครั้ง');
+        } else {
+          setNetworkError('ไม่สามารถค้นหาเพลงได้ กรุณาตรวจสอบการเชื่อมต่อ');
+          console.error('Autocomplete error:', err);
+        }
       } finally {
-        if (!abortController.signal.aborted) {
+        clearTimeout(timeoutId);
+        if (!abortController.signal.aborted || abortController.signal.reason === 'timeout') {
           setLoading(false);
         }
       }
@@ -97,6 +112,7 @@ export const GuessAutocomplete: React.FC<GuessAutocompleteProps> = ({
 
     return () => {
       clearTimeout(timer);
+      clearTimeout(timeoutId);
       abortController.abort();
     };
   }, [query, category, isArtistScoped, artistFilter]);
@@ -246,7 +262,16 @@ export const GuessAutocomplete: React.FC<GuessAutocompleteProps> = ({
               </div>
             )}
 
-            {query.trim().length > 0 && !loading && suggestions.length === 0 && (
+            {networkError && !loading && (
+              <div
+                className="rounded-2xl border p-4 text-center text-xs sm:text-sm font-semibold text-rose-400"
+                style={{ backgroundColor: 'rgba(239, 68, 68, 0.1)', borderColor: 'rgba(239, 68, 68, 0.35)' }}
+              >
+                {networkError}
+              </div>
+            )}
+
+            {!networkError && query.trim().length > 0 && !loading && suggestions.length === 0 && (
               <div
                 className="rounded-2xl border p-4 text-center text-xs sm:text-sm font-semibold"
                 style={{ backgroundColor: 'var(--song-surface)', borderColor: 'var(--song-border)', color: 'var(--song-muted)' }}
@@ -257,7 +282,7 @@ export const GuessAutocomplete: React.FC<GuessAutocompleteProps> = ({
           </div>
       </Modal>
       {/* Suggestions Dropdown (Positioned above or below smoothly) */}
-      {isOpen && (suggestions.length > 0 || (query.trim().length > 0 && !loading)) && (
+      {isOpen && (suggestions.length > 0 || networkError || (query.trim().length > 0 && !loading)) && (
         <div
           id="songspot-suggestions"
           className="absolute bottom-full mb-2 left-0 right-0 rounded-2xl border p-1.5 shadow-2xl max-h-48 sm:max-h-60 overflow-y-auto z-50"
@@ -267,7 +292,11 @@ export const GuessAutocomplete: React.FC<GuessAutocompleteProps> = ({
           }}
           role="listbox"
         >
-          {suggestions.length === 0 ? (
+          {networkError ? (
+            <div className="py-3 px-4 text-center text-xs font-semibold text-rose-400">
+              {networkError}
+            </div>
+          ) : suggestions.length === 0 ? (
             <div className="py-3 px-4 text-center text-xs font-semibold" style={{ color: 'var(--song-muted)' }}>
               ไม่พบเพลงที่ตรงกับ &ldquo;{query}&rdquo;
             </div>

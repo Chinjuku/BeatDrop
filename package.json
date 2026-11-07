@@ -14,6 +14,7 @@
     "test:daily-client": "node --import tsx/esm scripts/verify-daily-client.ts",
     "test:guesser": "node --import tsx/esm scripts/verify-guesser.ts",
     "test:share": "node --import tsx/esm scripts/verify-share-utils.ts",
+    "test:autocomplete": "node --import tsx/esm scripts/verify-autocomplete-network.ts",
     "migrate:supabase": "tsx scripts/migrate-to-supabase.ts"
   },
   "dependencies": {
