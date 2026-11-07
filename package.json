@@ -17,6 +17,7 @@
     "test:autocomplete": "node --import tsx/esm scripts/verify-autocomplete-network.ts",
     "test:audio-network": "node --import tsx/esm scripts/verify-audio-network-recovery.ts",
     "test:data-saver": "node --import tsx/esm scripts/verify-data-saver.ts",
+    "test:low-power": "node --import tsx/esm scripts/verify-low-power-audio.ts",
     "migrate:supabase": "tsx scripts/migrate-to-supabase.ts"
   },
   "dependencies": {

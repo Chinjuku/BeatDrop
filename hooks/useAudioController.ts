@@ -136,6 +136,14 @@ export function useAudioController({ audioUrl, volume }: UseAudioControllerOptio
       sourceRef.current = null;
     }
     if (gainRef.current) {
+      if (audioCtxRef.current) {
+        try {
+          const ctx = audioCtxRef.current;
+          gainRef.current.gain.cancelScheduledValues(ctx.currentTime);
+          gainRef.current.gain.setValueAtTime(gainRef.current.gain.value, ctx.currentTime);
+          gainRef.current.gain.linearRampToValueAtTime(0.0001, ctx.currentTime + 0.015);
+        } catch {}
+      }
       gainRef.current.disconnect();
       gainRef.current = null;
     }
@@ -212,7 +220,17 @@ export function useAudioController({ audioUrl, volume }: UseAudioControllerOptio
 
       const source = ctx.createBufferSource();
       const gain = ctx.createGain();
-      gain.gain.setValueAtTime(Math.min(1, Math.max(0, volume / 100)), ctx.currentTime);
+      const targetVolume = Math.min(1, Math.max(0, volume / 100));
+      const now = ctx.currentTime;
+
+      // Anti-pop hardware micro-ramps (Fade-in 5ms, Fade-out 20ms) - sample-accurate under battery saver / low power mode
+      gain.gain.setValueAtTime(0.001, now);
+      gain.gain.linearRampToValueAtTime(targetVolume, now + 0.005);
+      const fadeOutSec = 0.02;
+      if (remainingPlayTime > fadeOutSec) {
+        gain.gain.setValueAtTime(targetVolume, now + remainingPlayTime - fadeOutSec);
+        gain.gain.linearRampToValueAtTime(0.0001, now + remainingPlayTime);
+      }
 
       source.buffer = buffer;
       source.connect(gain);
@@ -221,7 +239,6 @@ export function useAudioController({ audioUrl, volume }: UseAudioControllerOptio
       sourceRef.current = source;
       gainRef.current = gain;
 
-      const now = ctx.currentTime;
       const startPerf = performance.now();
       startCtxTimeRef.current = now;
       setState('playing');
