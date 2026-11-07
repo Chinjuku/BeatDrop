@@ -25,6 +25,8 @@ const FOCUSABLE = [
   '[tabindex]:not([tabindex="-1"])',
 ].join(',');
 
+let activeModalsCount = 0;
+
 /** Shared accessible overlay behavior. Content remains owned by each feature. */
 export function Modal({
   open,
@@ -52,8 +54,10 @@ export function Modal({
   useEffect(() => {
     if (!open || !mounted) return;
     previousFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
+    activeModalsCount++;
+    if (activeModalsCount === 1) {
+      document.body.style.overflow = 'hidden';
+    }
 
     const focusables = () => Array.from(panelRef.current?.querySelectorAll<HTMLElement>(FOCUSABLE) ?? [])
       .filter((el) => el.getAttribute('aria-hidden') !== 'true');
@@ -94,7 +98,13 @@ export function Modal({
     return () => {
       window.cancelAnimationFrame(frame);
       document.removeEventListener('keydown', handleKeyDown);
-      document.body.style.overflow = previousOverflow;
+      activeModalsCount = Math.max(0, activeModalsCount - 1);
+      if (activeModalsCount === 0) {
+        document.body.style.overflow = '';
+        document.body.style.position = '';
+        document.body.style.top = '';
+        document.body.style.width = '';
+      }
       previousFocusRef.current?.focus();
     };
   }, [open, mounted]);
@@ -109,9 +119,9 @@ export function Modal({
   }[placement];
   const panelPosition = {
     center: 'w-[calc(100vw-16px)] sm:w-full max-h-[92dvh] rounded-2xl sm:rounded-3xl',
-    bottom: 'w-full max-h-[92dvh] rounded-t-3xl sm:w-full sm:max-w-2xl sm:rounded-3xl pb-[env(safe-area-inset-bottom)]',
-    right: 'w-[min(88vw,380px)] h-full max-h-[100dvh] rounded-l-3xl',
-    fullscreen: 'w-full h-full max-h-[100dvh] rounded-none',
+    bottom: 'w-full max-h-[92dvh] rounded-t-3xl sm:w-full sm:max-w-2xl sm:rounded-3xl pb-[env(safe-area-inset-bottom,0px)]',
+    right: 'w-[min(88vw,380px)] h-full max-h-[100dvh] rounded-l-3xl pt-[env(safe-area-inset-top,0px)] pb-[env(safe-area-inset-bottom,0px)]',
+    fullscreen: 'w-full h-full max-h-[100dvh] rounded-none pt-[env(safe-area-inset-top,0px)] pb-[env(safe-area-inset-bottom,0px)]',
   }[placement];
 
   return createPortal(

@@ -746,7 +746,7 @@ export const Navbar: React.FC<NavbarProps> = ({
         title="Navigation menu"
         placement="right"
         className="max-[1140px]:flex min-[1141px]:hidden"
-        panelClassName="!p-4 sm:!p-5 !overflow-y-auto !border-l !rounded-l-3xl"
+        panelClassName="!p-4 sm:!p-5 !pt-[calc(1rem+env(safe-area-inset-top,0px))] !pb-[calc(1rem+env(safe-area-inset-bottom,0px))] !overflow-y-auto !border-l !rounded-l-3xl"
       >
             <div
               ref={mobileDrawerRef}

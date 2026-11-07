@@ -35,21 +35,14 @@ export const GuessAutocomplete: React.FC<GuessAutocompleteProps> = ({
   // Songspot-style fullscreen search sheet on phones
   const [mobileOpen, setMobileOpen] = useState(false);
 
-  // Lock background scroll while sheet is open; auto-close if rotated/resized to desktop width
+  // Auto-close mobile sheet if rotated/resized to desktop width
   useEffect(() => {
     if (!mobileOpen) return;
-    // iOS Safari ignores body overflow:hidden, so pin body with position:fixed and restore scroll on close
-    const scrollY = window.scrollY;
-    const s = document.body.style;
-    const prev = { position: s.position, top: s.top, width: s.width, overflow: s.overflow };
-    Object.assign(s, { position: 'fixed', top: `-${scrollY}px`, width: '100%', overflow: 'hidden' });
     const onResize = () => {
       if (window.innerWidth >= 640) setMobileOpen(false);
     };
     window.addEventListener('resize', onResize);
     return () => {
-      Object.assign(s, prev);
-      window.scrollTo(0, scrollY);
       window.removeEventListener('resize', onResize);
     };
   }, [mobileOpen]);
@@ -165,7 +158,7 @@ export const GuessAutocomplete: React.FC<GuessAutocompleteProps> = ({
         placement="fullscreen"
         dismissOnBackdrop={false}
         className="!z-[200]"
-        panelClassName="!flex-col !gap-2 !p-3 !overflow-y-auto !overscroll-contain !touch-pan-y"
+        panelClassName="!flex-col !gap-2 !px-3 !pb-3 !pt-[calc(0.75rem+env(safe-area-inset-top,0px))] !overflow-y-auto !overscroll-contain !touch-pan-y"
       >
           <div className="flex min-h-0 flex-1 flex-col gap-2">
             <div className="flex items-center gap-2">

@@ -757,7 +757,8 @@ body {
   background: color-mix(in srgb, var(--song-page, #030704) 90%, transparent);
   border-bottom: 1px solid var(--song-border, #ffffff13);
   width: 100%;
-  height: 64px;
+  padding-top: env(safe-area-inset-top, 0px);
+  height: calc(64px + env(safe-area-inset-top, 0px));
   position: sticky;
   top: 0;
   transition: background-color 0.2s, border-color 0.2s;
@@ -1216,7 +1217,7 @@ body {
 
 @media (max-width: 1140px) {
   .songspot-site-header {
-    height: 56px;
+    height: calc(56px + env(safe-area-inset-top, 0px));
   }
   .songspot-site-header-inner {
     justify-content: space-between;
@@ -1242,6 +1243,13 @@ body {
 @media (min-width: 1141px) {
   .songspot-site-mobile-trigger {
     display: none !important;
+  }
+}
+
+@media all and (display-mode: standalone), (display-mode: fullscreen) {
+  .songspot-site-header {
+    padding-top: max(env(safe-area-inset-top, 0px), 8px);
+    height: calc(56px + max(env(safe-area-inset-top, 0px), 8px));
   }
 }
 

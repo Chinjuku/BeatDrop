@@ -129,7 +129,7 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
 
       {/* Songspot-style Minimal Ambient Footer */}
       <footer
-        className={`w-full mx-auto py-5 px-4 mt-auto text-center border-t border-white/5 relative z-10 ${
+        className={`w-full mx-auto py-5 px-4 pb-[calc(1.25rem+env(safe-area-inset-bottom,0px))] mt-auto text-center border-t border-white/5 relative z-10 ${
           pathname.startsWith('/admin') ? 'max-w-[1600px]' : 'max-w-4xl'
         }`}
       >
