@@ -52,7 +52,7 @@ export async function prefetchAudio(url: string | null | undefined, ctx?: AudioC
     if (!res.ok) return;
     const arrBuf = await res.arrayBuffer();
     const Ctx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-    const context = ctx || new Ctx();
+    const context = ctx || new Ctx({ latencyHint: 'interactive' });
     const decoded = await context.decodeAudioData(arrBuf.slice(0));
     const soundOffset = findAudibleIntroOffset(decoded);
 
@@ -91,7 +91,7 @@ export function useAudioController({ audioUrl, volume }: UseAudioControllerOptio
   const getContext = useCallback((): AudioContext => {
     if (!audioCtxRef.current) {
       const Ctx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-      audioCtxRef.current = new Ctx();
+      audioCtxRef.current = new Ctx({ latencyHint: 'interactive' });
     }
     if (audioCtxRef.current.state === 'suspended') {
       audioCtxRef.current.resume().catch(() => {});
@@ -248,14 +248,18 @@ export function useAudioController({ audioUrl, volume }: UseAudioControllerOptio
         const audioElapsed = ctx.currentTime - now;
         const perfElapsed = (performance.now() - startPerf) / 1000;
         const elapsedInRun = Math.max(0, Math.max(audioElapsed, perfElapsed));
-        const absolutePos = Math.min(cappedMax, safeOffset + elapsedInRun);
+
+        // Output latency compensation for Bluetooth speakers / AirPods
+        const outputLatency = typeof ctx.outputLatency === 'number' ? ctx.outputLatency : 0;
+        const audibleElapsed = Math.max(0, elapsedInRun - outputLatency);
+        const absolutePos = Math.min(cappedMax, safeOffset + audibleElapsed);
 
         const isSnippet = cappedMax < 25;
         const progressVal = isSnippet
-          ? (remainingPlayTime > 0 ? Math.min(1, elapsedInRun / remainingPlayTime) : 0)
+          ? (remainingPlayTime > 0 ? Math.min(1, audibleElapsed / remainingPlayTime) : 0)
           : (cappedMax > 0 ? Math.min(1, absolutePos / cappedMax) : 0);
 
-        setCurrentTime(isSnippet ? elapsedInRun : absolutePos);
+        setCurrentTime(isSnippet ? audibleElapsed : absolutePos);
         setProgress(progressVal);
 
         if (absolutePos < cappedMax && elapsedInRun < remainingPlayTime) {
@@ -267,6 +271,7 @@ export function useAudioController({ audioUrl, volume }: UseAudioControllerOptio
 
       source.onended = () => {
         if (sourceRef.current === source) {
+          setProgress(1);
           stopInternal(true, 'ended');
         }
       };
