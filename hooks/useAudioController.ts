@@ -322,8 +322,9 @@ export function useAudioController({ audioUrl, volume }: UseAudioControllerOptio
       stopInternal(true);
       setState('loading');
 
-      // Handover-resilient fetch: retry up to 2 times with backoff on network handover/drop
+      // Handover-resilient fetch: retry direct fetch with backoff, then fallback to server proxy
       const fetchBufferWithRetry = async (url: string, retries = 2, delayMs = 600): Promise<ArrayBuffer> => {
+        // 1. Try direct fetch with backoff
         for (let attempt = 0; attempt <= retries; attempt++) {
           if (cancelled) throw new Error('Cancelled');
           try {
@@ -334,12 +335,22 @@ export function useAudioController({ audioUrl, volume }: UseAudioControllerOptio
             if (cancelled) throw err;
             if (attempt < retries) {
               await new Promise((r) => setTimeout(r, delayMs * Math.pow(1.5, attempt)));
-            } else {
-              throw err;
             }
           }
         }
-        throw new Error('Audio download failed after retries');
+
+        // 2. Fallback to server audio proxy if direct Apple CDN fetch failed (e.g. DNS / firewall blocks)
+        if (!cancelled && url.startsWith('http')) {
+          try {
+            const proxyUrl = `/api/proxy/audio?url=${encodeURIComponent(url)}`;
+            const proxyRes = await fetch(proxyUrl);
+            if (proxyRes.ok) {
+              return await proxyRes.arrayBuffer();
+            }
+          } catch {}
+        }
+
+        throw new Error('Audio download failed after retries and proxy fallback');
       };
 
       fetchBufferWithRetry(audioUrl)
@@ -372,9 +383,12 @@ export function useAudioController({ audioUrl, volume }: UseAudioControllerOptio
         })
         .catch((err) => {
           if (cancelled) return;
-          // Graceful HTML5 Audio fallback for slow 3G / decode issue
+          // Graceful HTML5 Audio fallback for slow 3G / decode issue / blocked CDN
           try {
-            const audio = new Audio(audioUrl);
+            const audioSrc = audioUrl.startsWith('http')
+              ? `/api/proxy/audio?url=${encodeURIComponent(audioUrl)}`
+              : audioUrl;
+            const audio = new Audio(audioSrc);
             audio.preload = isSaveDataEnabled() ? 'metadata' : 'auto';
             audio.volume = Math.min(1, Math.max(0, volume / 100));
             htmlAudioRef.current = audio;
