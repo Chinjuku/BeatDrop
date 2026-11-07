@@ -33,8 +33,20 @@ export function findAudibleIntroOffset(buffer: AudioBuffer, threshold = 0.012): 
   return 0;
 }
 
+/**
+ * Detects whether the user or mobile browser has enabled Data Saver (Save-Data)
+ * or is on an extremely restricted connection (slow-2g).
+ */
+export function isSaveDataEnabled(): boolean {
+  if (typeof navigator === 'undefined') return false;
+  const conn = (navigator as unknown as { connection?: { saveData?: boolean; effectiveType?: string } }).connection;
+  return Boolean(conn?.saveData || conn?.effectiveType === 'slow-2g');
+}
+
 export async function prefetchAudio(url: string | null | undefined, ctx?: AudioContext): Promise<void> {
   if (!url || typeof window === 'undefined' || audioBufferCache.has(url)) return;
+  // Respect user's mobile Data Saver mode: skip eager background audio buffering
+  if (isSaveDataEnabled()) return;
   try {
     const res = await fetch(url);
     if (!res.ok) return;
@@ -341,7 +353,7 @@ export function useAudioController({ audioUrl, volume }: UseAudioControllerOptio
           // Graceful HTML5 Audio fallback for slow 3G / decode issue
           try {
             const audio = new Audio(audioUrl);
-            audio.preload = 'auto';
+            audio.preload = isSaveDataEnabled() ? 'metadata' : 'auto';
             audio.volume = Math.min(1, Math.max(0, volume / 100));
             htmlAudioRef.current = audio;
             audio.oncanplay = () => {
