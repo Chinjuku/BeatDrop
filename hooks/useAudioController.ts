@@ -137,94 +137,6 @@ export function useAudioController({ audioUrl, volume }: UseAudioControllerOptio
     }
   }, []);
 
-  // Load and decode audio buffer when audioUrl changes
-  useEffect(() => {
-    if (!audioUrl) {
-      bufferRef.current = null;
-      setState('idle');
-      return;
-    }
-
-    // 1. Instant hit from audio pre-buffer cache (Zero audio delay)
-    const cached = audioBufferCache.get(audioUrl);
-    if (cached) {
-      stopInternal(true);
-      bufferRef.current = cached.buffer;
-      soundStartOffsetRef.current = cached.soundOffset;
-      setTotalDuration(Math.min(30, cached.buffer.duration));
-      setState('ready');
-      return;
-    }
-
-    let cancelled = false;
-    stopInternal(true);
-    setState('loading');
-
-    fetch(audioUrl)
-      .then((res) => {
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        return res.arrayBuffer();
-      })
-      .then((arrBuf) => {
-        const ctx = getContext();
-        return ctx.decodeAudioData(arrBuf.slice(0));
-      })
-      .then((decoded) => {
-        if (cancelled) return;
-        const soundOffset = findAudibleIntroOffset(decoded);
-        if (audioBufferCache.size >= MAX_AUDIO_CACHE) {
-          const oldest = audioBufferCache.keys().next().value;
-          if (oldest) audioBufferCache.delete(oldest);
-        }
-        audioBufferCache.set(audioUrl, { buffer: decoded, soundOffset });
-        bufferRef.current = decoded;
-        soundStartOffsetRef.current = soundOffset;
-        setTotalDuration(Math.min(30, decoded.duration));
-        setState('ready');
-      })
-      .catch((err) => {
-        if (cancelled) return;
-        // Graceful HTML5 Audio fallback for slow 3G / decode issue
-        try {
-          const audio = new Audio(audioUrl);
-          audio.preload = 'auto';
-          audio.volume = Math.min(1, Math.max(0, volume / 100));
-          htmlAudioRef.current = audio;
-          audio.oncanplay = () => {
-            if (!cancelled) {
-              setTotalDuration(audio.duration || 30);
-              setState('ready');
-            }
-          };
-          audio.onerror = () => {
-            if (!cancelled) {
-              console.error('Audio decode & HTML5 fallback error:', err);
-              setState('error');
-            }
-          };
-        } catch {
-          console.error('Audio decode error:', err);
-          setState('error');
-        }
-      });
-
-    return () => {
-      cancelled = true;
-      stopInternal(true);
-    };
-  }, [audioUrl, getContext, stopInternal]);
-
-  // Live volume update
-  useEffect(() => {
-    const normalized = Math.min(1, Math.max(0, volume / 100));
-    if (gainRef.current && audioCtxRef.current) {
-      gainRef.current.gain.setValueAtTime(normalized, audioCtxRef.current.currentTime);
-    }
-    if (htmlAudioRef.current) {
-      htmlAudioRef.current.volume = normalized;
-    }
-  }, [volume]);
-
   const startPlaybackFrom = useCallback(
     (startOffset: number, maxDurationSeconds: number) => {
       const buffer = bufferRef.current;
@@ -336,6 +248,169 @@ export function useAudioController({ audioUrl, volume }: UseAudioControllerOptio
     [getContext, stopInternal, volume]
   );
 
+  const pendingAutoPlayRef = useRef<{ clipSeconds?: number; isFull?: boolean } | null>(null);
+
+  // Load and decode audio buffer with Wi-Fi <-> Cellular handover retry and auto-heal
+  const loadAudio = useCallback(
+    (autoPlayOnReady = false, pendingClipSeconds?: number, pendingIsFull?: boolean) => {
+      if (!audioUrl) {
+        bufferRef.current = null;
+        setState('idle');
+        return () => {};
+      }
+
+      if (autoPlayOnReady) {
+        pendingAutoPlayRef.current = { clipSeconds: pendingClipSeconds, isFull: pendingIsFull };
+      }
+
+      // 1. Instant hit from audio pre-buffer cache (Zero audio delay)
+      const cached = audioBufferCache.get(audioUrl);
+      if (cached) {
+        stopInternal(true);
+        bufferRef.current = cached.buffer;
+        soundStartOffsetRef.current = cached.soundOffset;
+        setTotalDuration(Math.min(30, cached.buffer.duration));
+        setState('ready');
+        if (pendingAutoPlayRef.current) {
+          const { clipSeconds, isFull } = pendingAutoPlayRef.current;
+          pendingAutoPlayRef.current = null;
+          if (isFull) {
+            startPlaybackFrom(0, Math.min(30, cached.buffer.duration));
+          } else if (clipSeconds) {
+            const introOffset = cached.soundOffset;
+            startPlaybackFrom(introOffset, introOffset + clipSeconds);
+          }
+        }
+        return () => {};
+      }
+
+      let cancelled = false;
+      stopInternal(true);
+      setState('loading');
+
+      // Handover-resilient fetch: retry up to 2 times with backoff on network handover/drop
+      const fetchBufferWithRetry = async (url: string, retries = 2, delayMs = 600): Promise<ArrayBuffer> => {
+        for (let attempt = 0; attempt <= retries; attempt++) {
+          if (cancelled) throw new Error('Cancelled');
+          try {
+            const res = await fetch(url);
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            return await res.arrayBuffer();
+          } catch (err) {
+            if (cancelled) throw err;
+            if (attempt < retries) {
+              await new Promise((r) => setTimeout(r, delayMs * Math.pow(1.5, attempt)));
+            } else {
+              throw err;
+            }
+          }
+        }
+        throw new Error('Audio download failed after retries');
+      };
+
+      fetchBufferWithRetry(audioUrl)
+        .then((arrBuf) => {
+          const ctx = getContext();
+          return ctx.decodeAudioData(arrBuf.slice(0));
+        })
+        .then((decoded) => {
+          if (cancelled) return;
+          const soundOffset = findAudibleIntroOffset(decoded);
+          if (audioBufferCache.size >= MAX_AUDIO_CACHE) {
+            const oldest = audioBufferCache.keys().next().value;
+            if (oldest) audioBufferCache.delete(oldest);
+          }
+          audioBufferCache.set(audioUrl, { buffer: decoded, soundOffset });
+          bufferRef.current = decoded;
+          soundStartOffsetRef.current = soundOffset;
+          setTotalDuration(Math.min(30, decoded.duration));
+          setState('ready');
+
+          if (pendingAutoPlayRef.current) {
+            const { clipSeconds, isFull } = pendingAutoPlayRef.current;
+            pendingAutoPlayRef.current = null;
+            if (isFull) {
+              startPlaybackFrom(0, Math.min(30, decoded.duration));
+            } else if (clipSeconds) {
+              startPlaybackFrom(soundOffset, soundOffset + clipSeconds);
+            }
+          }
+        })
+        .catch((err) => {
+          if (cancelled) return;
+          // Graceful HTML5 Audio fallback for slow 3G / decode issue
+          try {
+            const audio = new Audio(audioUrl);
+            audio.preload = 'auto';
+            audio.volume = Math.min(1, Math.max(0, volume / 100));
+            htmlAudioRef.current = audio;
+            audio.oncanplay = () => {
+              if (!cancelled) {
+                setTotalDuration(audio.duration || 30);
+                setState('ready');
+                if (pendingAutoPlayRef.current) {
+                  const { clipSeconds, isFull } = pendingAutoPlayRef.current;
+                  pendingAutoPlayRef.current = null;
+                  const maxDur = Math.min(30, audio.duration || 30);
+                  if (isFull) {
+                    startPlaybackFrom(0, maxDur);
+                  } else if (clipSeconds) {
+                    startPlaybackFrom(0, clipSeconds);
+                  }
+                }
+              }
+            };
+            audio.onerror = () => {
+              if (!cancelled) {
+                console.error('Audio decode & HTML5 fallback error:', err);
+                setState('error');
+              }
+            };
+          } catch {
+            console.error('Audio decode error:', err);
+            setState('error');
+          }
+        });
+
+      return () => {
+        cancelled = true;
+        stopInternal(true);
+      };
+    },
+    [audioUrl, getContext, stopInternal, volume, startPlaybackFrom]
+  );
+
+  useEffect(() => {
+    const cleanup = loadAudio();
+    return () => {
+      cleanup();
+    };
+  }, [loadAudio]);
+
+  // Auto-heal when network reconnects (e.g. mobile Wi-Fi <-> Cellular handover)
+  useEffect(() => {
+    const handleOnline = () => {
+      if (!bufferRef.current && audioUrl && (state === 'error' || state === 'loading')) {
+        loadAudio();
+      }
+    };
+    window.addEventListener('online', handleOnline);
+    return () => {
+      window.removeEventListener('online', handleOnline);
+    };
+  }, [audioUrl, state, loadAudio]);
+
+  // Live volume update
+  useEffect(() => {
+    const normalized = Math.min(1, Math.max(0, volume / 100));
+    if (gainRef.current && audioCtxRef.current) {
+      gainRef.current.gain.setValueAtTime(normalized, audioCtxRef.current.currentTime);
+    }
+    if (htmlAudioRef.current) {
+      htmlAudioRef.current.volume = normalized;
+    }
+  }, [volume]);
+
   // Play a specific snippet length (Songspot B: skips dead air / silence at intro)
   const playSnippet = useCallback(
     (clipSeconds: number) => {
@@ -343,20 +418,28 @@ export function useAudioController({ audioUrl, volume }: UseAudioControllerOptio
         MAX_SNIPPET_DURATION,
         Math.max(MIN_SNIPPET_DURATION, Number(clipSeconds) || MIN_SNIPPET_DURATION)
       );
+      if (!bufferRef.current && !htmlAudioRef.current) {
+        // In error or unloaded state, trigger recovery reload with autoplay
+        loadAudio(true, clampedClip, false);
+        return;
+      }
       const introOffset = soundStartOffsetRef.current;
       startPlaybackFrom(introOffset, introOffset + clampedClip);
     },
-    [startPlaybackFrom]
+    [startPlaybackFrom, loadAudio]
   );
 
   // Play or resume the full 30s preview (post-game reveal)
   const playFullPreview = useCallback(() => {
     const buffer = bufferRef.current;
-    if (!buffer) return;
-    const maxDur = Math.min(30, buffer.duration);
+    if (!buffer && !htmlAudioRef.current) {
+      loadAudio(true, undefined, true);
+      return;
+    }
+    const maxDur = Math.min(30, buffer ? buffer.duration : (htmlAudioRef.current?.duration || 30));
     const resumeFrom = offsetSecondsRef.current >= maxDur - 0.2 ? 0 : offsetSecondsRef.current;
     startPlaybackFrom(resumeFrom, maxDur);
-  }, [startPlaybackFrom]);
+  }, [startPlaybackFrom, loadAudio]);
 
   // Pause the full 30s preview preserving current seek position
   const pauseFullPreview = useCallback(() => {
@@ -402,6 +485,7 @@ export function useAudioController({ audioUrl, volume }: UseAudioControllerOptio
     pauseFullPreview,
     seekFullPreview,
     stop,
+    retry: () => loadAudio(false),
   };
 }
 

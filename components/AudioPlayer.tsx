@@ -1,6 +1,6 @@
 'use client';
 import React from 'react';
-import { Play, Square, Volume2, VolumeX } from 'lucide-react';
+import { Play, Square, Volume2, VolumeX, RotateCcw } from 'lucide-react';
 import { AudioPlaybackState } from '../hooks/useAudioController';
 import { useAudioProgress } from '../context/GameContext';
 
@@ -154,6 +154,8 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
             />
           ) : audioState === 'playing' ? (
             <Square className="w-8 h-8 sm:w-11 sm:h-11 fill-current" />
+          ) : audioState === 'error' ? (
+            <RotateCcw className="w-8 h-8 sm:w-11 sm:h-11 text-amber-300" />
           ) : (
             <Play className="w-9 h-9 sm:w-12 sm:h-12 fill-current translate-x-0.5 sm:translate-x-1" />
           )}
@@ -168,7 +170,9 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
               ? 'กำลังโหลดเสียงเพลง...'
               : audioState === 'playing'
                 ? `กำลังเล่นตัวอย่าง ${activeSeconds} วินาที...`
-                : `กดปุ่ม หรือกด [Space] เพื่อฟัง ${activeSeconds} วินาที`}
+                : audioState === 'error'
+                  ? 'สัญญาณเน็ตสะดุด กดปุ่มเพื่อลองใหม่อีกครั้ง'
+                  : `กดปุ่ม หรือกด [Space] เพื่อฟัง ${activeSeconds} วินาที`}
           </span>
         </div>
       </div>
