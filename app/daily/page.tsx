@@ -370,10 +370,12 @@ const DailyChallengePage: React.FC = () => {
                   style={
                     res === 'correct'
                       ? { backgroundColor: '#22c55e', borderColor: '#22c55e', color: '#fff' }
-                      : { backgroundColor: '#ef4444', borderColor: '#ef4444', color: '#fff' }
+                      : res === 'skipped'
+                        ? { backgroundColor: '#f59e0b', borderColor: '#f59e0b', color: '#111827' }
+                        : { backgroundColor: '#ef4444', borderColor: '#ef4444', color: '#fff' }
                   }
                 >
-                  {res === 'correct' ? '✓' : '✕'}
+                  {res === 'correct' ? '✓' : res === 'skipped' ? '−' : '✕'}
                 </div>
               ))}
             </div>

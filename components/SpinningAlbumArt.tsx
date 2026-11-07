@@ -19,7 +19,7 @@ import {
 } from '../types';
 import { AudioPlaybackState } from '../hooks/useAudioController';
 import { useAudioProgress } from '../context/GameContext';
-import { copyToClipboard } from '../lib/shareUtils';
+import { copyToClipboard, shareOrCopy } from '../lib/shareUtils';
 
 interface SpinningAlbumArtProps {
   song: Song;
@@ -91,11 +91,15 @@ export const SpinningAlbumArt: React.FC<SpinningAlbumArtProps> = ({
       `${grid}`,
       `${resultLine} | 🔥 Streak: ${streak}`,
       `🎵 เพลง: ${song.title} — ${song.artistName} (${song.releaseYear})`,
-      `https://beatdrop-self.vercel.app #beatdrop`,
+      `https://beatdrop.app #beatdrop`,
     ].join('\n');
 
-    const success = await copyToClipboard(shareText);
-    if (success) {
+    const result = await shareOrCopy({
+      title: 'BeatDrop Guess Result',
+      text: shareText,
+      url: typeof window !== 'undefined' ? window.location.href : undefined,
+    });
+    if (result === 'copied') {
       setCopied(true);
       setTimeout(() => setCopied(false), 2500);
     }
