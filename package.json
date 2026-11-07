@@ -20,6 +20,7 @@
     "test:low-power": "node --import tsx/esm scripts/verify-low-power-audio.ts",
     "test:bluetooth": "node --import tsx/esm scripts/verify-bluetooth-latency.ts",
     "test:proxy": "node --import tsx/esm scripts/verify-audio-proxy.ts",
+    "test:edge-proxy": "node --import tsx/esm scripts/verify-edge-proxy.ts",
     "migrate:supabase": "tsx scripts/migrate-to-supabase.ts"
   },
   "dependencies": {

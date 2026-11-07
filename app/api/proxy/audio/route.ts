@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { isAllowedAppleAudioUrl } from '../../../../lib/audioProxyUtils';
 
+export const runtime = 'edge';
+
 export async function GET(req: NextRequest) {
   const urlParam = req.nextUrl.searchParams.get('url');
   if (!urlParam || !isAllowedAppleAudioUrl(urlParam)) {
@@ -38,4 +40,18 @@ export async function GET(req: NextRequest) {
   } catch {
     return NextResponse.json({ error: 'Failed to fetch audio preview' }, { status: 502 });
   }
+}
+
+export async function HEAD(req: NextRequest) {
+  const urlParam = req.nextUrl.searchParams.get('url');
+  if (!urlParam || !isAllowedAppleAudioUrl(urlParam)) {
+    return new NextResponse(null, { status: 400 });
+  }
+
+  return new NextResponse(null, {
+    status: 200,
+    headers: {
+      'Cache-Control': 'public, max-age=86400, s-maxage=604800, immutable',
+    },
+  });
 }
