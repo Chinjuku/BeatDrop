@@ -25,7 +25,7 @@ import {
   TIME_RANGE_PRESETS,
   TimeRangePresetId,
 } from '../types';
-import { readDailyChallengeResponse } from '../shared/dailyChallengeClient';
+import { DailyChallengeLoadError, readDailyChallengeResponse } from '../shared/dailyChallengeClient';
 import { useTheme } from './ThemeContext';
 import { useAudioController, prefetchAudio, AudioPlaybackState } from '../hooks/useAudioController';
 import { getCachedArtists, setCachedArtists, getCachedHistory, setCachedHistory } from '../lib/clientDb';
@@ -44,6 +44,9 @@ const STORAGE_FASTEST_KEY = 'songspot:fastest-time';
 const STORAGE_LOCAL_ARTISTS_KEY = 'songspot:custom-artists';
 const STORAGE_TIME_PRESET_KEY = 'songspot:time-range-preset';
 const STORAGE_CUSTOM_STAGES_KEY = 'songspot:custom-stages';
+const STORAGE_DAILY_CATEGORY_KEY = 'songspot:daily-category';
+const STORAGE_DAILY_DIFFICULTY_KEY = 'songspot:daily-difficulty';
+const STORAGE_DAILY_ACTIVE_ROUND_KEY = 'songspot:daily-active-round';
 const STORAGE_PLAYED_IDS_KEY = 'songspot:played-ids';
 const MAX_PLAYED_HISTORY = 200;
 const PLAYED_IDS_TTL_MS = 12 * 60 * 60 * 1000; // 12 hours
@@ -294,6 +297,22 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           customStages: stages,
         }));
       }
+
+      // Restore last selected Daily Challenge mode (category & difficulty)
+      const savedDailyCat = localStorage.getItem(STORAGE_DAILY_CATEGORY_KEY) as CategoryType | null;
+      const savedDailyDiff = localStorage.getItem(STORAGE_DAILY_DIFFICULTY_KEY) as DifficultyLevel | null;
+      const validCategories = new Set<CategoryType>(['thai', 'international', 'all']);
+      const validDifficulties = new Set<DifficultyLevel>(['easy', 'medium', 'hard', 'expert', 'impossible']);
+      if (
+        (savedDailyCat && validCategories.has(savedDailyCat)) ||
+        (savedDailyDiff && validDifficulties.has(savedDailyDiff))
+      ) {
+        setConfig((prev) => ({
+          ...prev,
+          category: savedDailyCat && validCategories.has(savedDailyCat) ? savedDailyCat : prev.category,
+          difficulty: savedDailyDiff && validDifficulties.has(savedDailyDiff) ? savedDailyDiff : prev.difficulty,
+        }));
+      }
     } catch {}
   }, []);
 
@@ -317,7 +336,13 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   // Sync difficulty with ThemeContext
   useEffect(() => {
     setActiveDifficulty(config.difficulty);
-  }, [config.difficulty, setActiveDifficulty]);
+    if (config.mode === 'daily') {
+      try {
+        localStorage.setItem(STORAGE_DAILY_DIFFICULTY_KEY, config.difficulty);
+        localStorage.setItem(STORAGE_DAILY_CATEGORY_KEY, config.category);
+      } catch {}
+    }
+  }, [config.difficulty, config.category, config.mode, setActiveDifficulty]);
 
   // Sync timeRangePreset & customStages to localStorage
   useEffect(() => {
@@ -553,9 +578,11 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       setRevealSong(null);
       setHistory([]);
       setRoundLoadError(null);
+      if (activeCfg.mode === 'guesser') setGuesserFeedback(null);
 
       let dailyRequestTimedOut = false;
       let dailyRequestTimeoutId: number | undefined;
+      let failedRequest: { endpoint?: string; status?: number; apiCode?: unknown; apiMessage?: string } = {};
       try {
         const stagesParam =
           activeCfg.customStages && activeCfg.customStages.length >= 2
@@ -563,7 +590,6 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             : undefined;
 
         if (activeCfg.mode === 'daily') {
-          // Daily Challenge always uses the shared Songspot timing configuration.
           setDailyLoadError(null);
           setDailyInfo(null);
           setDailyResults([]);
@@ -571,7 +597,13 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           setDailyCorrectCount(0);
           setDailySkipCount(0);
           setDailyTotalAnswerTimeMs(0);
-          const dailyParams = new URLSearchParams({ category: activeCfg.category });
+          const dailyParams = new URLSearchParams({
+            category: activeCfg.category,
+            difficulty: activeCfg.difficulty,
+          });
+          if (stagesParam) {
+            dailyParams.set('customStages', stagesParam);
+          }
           dailyRequestTimeoutId = window.setTimeout(() => {
             dailyRequestTimedOut = true;
             controller.abort();
@@ -579,6 +611,7 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           const res = await fetch(`/api/daily?${dailyParams.toString()}`, {
             signal: controller.signal,
           });
+          failedRequest = { endpoint: '/api/daily', status: res.status };
           const info = await readDailyChallengeResponse(res);
           if (dailyRequestTimeoutId !== undefined) window.clearTimeout(dailyRequestTimeoutId);
           dailyRequestTimeoutId = undefined;
@@ -593,6 +626,37 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           setRound(info.currentIndex < info.rounds.length ? info.rounds[info.currentIndex] : null);
           setOutcome(null);
           setRevealSong(null);
+
+          // Restore mid-round stage and history if player refreshed during active daily song
+          if (info.currentIndex < info.rounds.length) {
+            try {
+              const activeKey = `${info.dateKey}::${info.category}::${info.difficulty || activeCfg.difficulty}::${info.currentIndex}`;
+              const savedMidRound =
+                sessionStorage.getItem(STORAGE_DAILY_ACTIVE_ROUND_KEY) ||
+                localStorage.getItem(STORAGE_DAILY_ACTIVE_ROUND_KEY);
+              if (savedMidRound) {
+                const parsed = JSON.parse(savedMidRound);
+                if (parsed?.key === activeKey && parsed.roundToken && Array.isArray(parsed.history)) {
+                  setRound((prev) => (prev ? {
+                    ...prev,
+                    roundToken: parsed.roundToken,
+                    stage: parsed.stage ?? prev.stage,
+                    clipSeconds: parsed.clipSeconds ?? prev.clipSeconds,
+                  } : prev));
+                  setHistory(parsed.history);
+                } else {
+                  sessionStorage.removeItem(STORAGE_DAILY_ACTIVE_ROUND_KEY);
+                  localStorage.removeItem(STORAGE_DAILY_ACTIVE_ROUND_KEY);
+                }
+              }
+            } catch {}
+          } else {
+            try {
+              sessionStorage.removeItem(STORAGE_DAILY_ACTIVE_ROUND_KEY);
+              localStorage.removeItem(STORAGE_DAILY_ACTIVE_ROUND_KEY);
+            } catch {}
+          }
+
           if (info.currentIndex + 1 < info.rounds.length && info.rounds[info.currentIndex + 1]?.audioUrl) {
             prefetchAudio(info.rounds[info.currentIndex + 1].audioUrl);
           }
@@ -625,8 +689,14 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         const res = await fetch(`/api/songs?${params.toString()}`, {
           signal: controller.signal,
         });
-        const json = await res.json();
-        if (!res.ok || json.code !== 0 || !json.data) {
+        const json = await res.json().catch(() => null);
+        failedRequest = {
+          endpoint: '/api/songs',
+          status: res.status,
+          apiCode: json?.code,
+          apiMessage: typeof json?.message === 'string' ? json.message : undefined,
+        };
+        if (!res.ok || json?.code !== 0 || !json?.data) {
           throw new Error('Round request failed');
         }
         if (activeCfg.mode === 'guesser' && (!Array.isArray(json.data.choices) || json.data.choices.length !== 4)) {
@@ -640,10 +710,17 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         } else if (activeCfg.mode === 'guesser') {
           setRoundLoadError('Could not load the next song. Check your connection and retry.');
         }
-        console.error('[Game] Failed to start round', {
+        if (err instanceof DailyChallengeLoadError) {
+          failedRequest.status = err.status;
+          failedRequest.apiCode = err.apiCode;
+          failedRequest.apiMessage = err.apiMessage;
+        }
+        console.error('[Game] Failed to start round', JSON.stringify({
           mode: activeCfg.mode,
           errorType: err instanceof Error ? err.name : 'unknown',
-        });
+          errorMessage: err instanceof Error ? err.message : String(err),
+          ...failedRequest,
+        }));
       } finally {
         if (dailyRequestTimeoutId !== undefined) window.clearTimeout(dailyRequestTimeoutId);
         if (roundAbortControllerRef.current === controller) {
@@ -671,16 +748,24 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         : path.startsWith('/guesser')
         ? 'guesser'
         : config.mode;
-      const initialCfg = initialMode !== config.mode
+      let initialCfg = initialMode !== config.mode
         ? {
             ...config,
             mode: initialMode,
-            ...(initialMode === 'daily'
-              ? { timeRangePreset: 'songspot' as const, customStages: TIME_RANGE_PRESETS.songspot.stages }
-              : {}),
           }
         : config;
-      if (initialMode !== config.mode) {
+      if (initialMode === 'daily') {
+        const savedDailyCat = localStorage.getItem(STORAGE_DAILY_CATEGORY_KEY) as CategoryType | null;
+        const savedDailyDiff = localStorage.getItem(STORAGE_DAILY_DIFFICULTY_KEY) as DifficultyLevel | null;
+        const validCategories = new Set<CategoryType>(['thai', 'international', 'all']);
+        const validDifficulties = new Set<DifficultyLevel>(['easy', 'medium', 'hard', 'expert', 'impossible']);
+        initialCfg = {
+          ...initialCfg,
+          category: savedDailyCat && validCategories.has(savedDailyCat) ? savedDailyCat : initialCfg.category,
+          difficulty: savedDailyDiff && validDifficulties.has(savedDailyDiff) ? savedDailyDiff : initialCfg.difficulty,
+        };
+      }
+      if (initialCfg !== config) {
         setConfig(initialCfg);
       }
       if (!roundAbortControllerRef.current) {
@@ -775,12 +860,12 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     startNewRound(nextCfg);
   };
 
-  const handleConfigChange = (nextCfg: GameConfig, startImmediately = true) => {
+  const handleConfigChange = useCallback((nextCfg: GameConfig, startImmediately = true) => {
     setConfig(nextCfg);
     if (startImmediately) {
       startNewRound(nextCfg);
     }
-  };
+  }, [startNewRound]);
 
   const applyDailyResult = (data: RoundActionResponse) => {
     if (!data.dailyResult) return;
@@ -799,6 +884,10 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     setDailyCorrectCount((prev) => prev + (data.dailyResult === 'correct' ? 1 : 0));
     setDailySkipCount((prev) => prev + (data.dailyResult === 'skipped' ? 1 : 0));
     setDailyTotalAnswerTimeMs((prev) => prev + (data.elapsedTimeMs || 0));
+    try {
+      sessionStorage.removeItem(STORAGE_DAILY_ACTIVE_ROUND_KEY);
+      localStorage.removeItem(STORAGE_DAILY_ACTIVE_ROUND_KEY);
+    } catch {}
   };
 
   // Submit a song guess
@@ -821,7 +910,19 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           candidateArtist: selectedSong.artistName,
         }),
       });
-      const json = await res.json();
+      const json = await res.json().catch(() => null);
+      if (!res.ok || json?.code !== 0 || !json.data) {
+        const serverMessage = typeof json?.message === 'string' ? ` ${json.message}` : '';
+        if (config.mode === 'guesser') {
+          setGuesserFeedback(`Could not check that answer. Please try again.${serverMessage}`);
+        }
+        console.warn('[Game] Guess request was rejected', {
+          mode: config.mode,
+          status: res.status,
+          code: json?.code,
+        });
+        return;
+      }
       if (json.code === 0 && json.data) {
         const data: RoundActionResponse = json.data;
         if (data.outcome === 'correct' && data.reveal) {
@@ -869,7 +970,7 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
               artistName: selectedSong.artistName,
               stageIndex: currentStage,
               clipSeconds: activeClipSeconds,
-              status: 'wrong',
+              status: data.roundResult === 'skipped' ? 'skipped' : 'wrong',
             },
           ]);
           setOutcome('failed');
@@ -896,20 +997,48 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
               status: 'wrong',
             },
           ]);
-          setRound((prev) =>
-            prev
+          setRound((prev) => {
+            const nextRound = prev
               ? {
                   ...prev,
                   roundToken: data.roundToken!,
                   stage: data.stage,
                   clipSeconds: data.clipSeconds,
                 }
-              : prev
-          );
+              : prev;
+            if (config.mode === 'daily' && dailyInfo) {
+              try {
+                const activeKey = `${dailyInfo.dateKey}::${dailyInfo.category}::${dailyInfo.difficulty || config.difficulty}::${dailyIndex}`;
+                const payload = JSON.stringify({
+                  key: activeKey,
+                  roundToken: data.roundToken,
+                  stage: data.stage,
+                  clipSeconds: data.clipSeconds,
+                  history: [
+                    ...history,
+                    {
+                      trackId: selectedSong.id,
+                      title: selectedSong.title,
+                      artistName: selectedSong.artistName,
+                      stageIndex: currentStage,
+                      clipSeconds: activeClipSeconds,
+                      status: 'wrong',
+                    },
+                  ],
+                });
+                sessionStorage.setItem(STORAGE_DAILY_ACTIVE_ROUND_KEY, payload);
+                localStorage.setItem(STORAGE_DAILY_ACTIVE_ROUND_KEY, payload);
+              } catch {}
+            }
+            return nextRound;
+          });
         }
       }
     } catch (err) {
-      console.error('Error submitting guess:', err);
+      console.error('[Game] Error submitting guess:', err);
+      if (config.mode === 'guesser') {
+        setGuesserFeedback('Could not check that answer. Check your connection and try again.');
+      }
     } finally {
       roundActionLockRef.current = false;
       setSubmittingGuess(false);
@@ -932,29 +1061,46 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           giveUp: giveUpDirectly,
         }),
       });
-      const json = await res.json();
+      const json = await res.json().catch(() => null);
+      if (!res.ok || json?.code !== 0 || !json?.data) {
+        if (config.mode === 'guesser') {
+          const detail = typeof json?.message === 'string' ? ` ${json.message}` : '';
+          setGuesserFeedback(`Skip could not be recorded. Please retry.${detail}`);
+        }
+        console.warn('[Game] Skip request was rejected', { mode: config.mode, status: res.status, code: json?.code });
+        return;
+      }
       if (json.code === 0 && json.data) {
         const data: RoundActionResponse = json.data;
-        if (data.outcome === 'failed' && data.reveal) {
+        if ((data.outcome === 'failed' || data.outcome === 'correct') && data.reveal) {
+          const resultStatus = data.roundResult === 'correct'
+            ? 'correct'
+            : data.roundResult === 'skipped' ? 'skipped' : 'wrong';
           setHistory((prev) => [
             ...prev,
             {
-              trackId: 'skipped',
-              title: giveUpDirectly ? 'ยอมแพ้ (Give Up)' : 'ข้าม (Skipped)',
-              artistName: '—',
+              trackId: data.reveal!.id,
+              title: data.reveal!.title,
+              artistName: data.reveal!.artistName,
               stageIndex: currentStage,
               clipSeconds: activeClipSeconds,
-              status: 'skipped',
+              status: resultStatus,
             },
           ]);
-          setOutcome('failed');
+          setOutcome(data.outcome === 'correct' ? 'correct' : 'failed');
           setRevealSong(data.reveal);
           if (data.reveal.previewUrl) prefetchAudio(data.reveal.previewUrl);
           recordPlayedTrack(data.reveal.id);
-          setStreak(0);
-          try {
-            localStorage.setItem(STORAGE_STREAK_KEY, '0');
-          } catch {}
+          if (config.mode === 'guesser' && resultStatus === 'skipped') {
+            setGuesserSkipCount((count) => count + 1);
+            setGuesserFeedback('Skipped · no points awarded');
+          }
+          if (resultStatus !== 'correct') {
+            setStreak(0);
+            try {
+              localStorage.setItem(STORAGE_STREAK_KEY, '0');
+            } catch {}
+          }
           if (config.mode === 'daily') applyDailyResult(data);
         } else if (data.outcome === 'active' && data.roundToken) {
           setHistory((prev) => [
@@ -968,16 +1114,41 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
               status: 'skipped',
             },
           ]);
-          setRound((prev) =>
-            prev
+          setRound((prev) => {
+            const nextRound = prev
               ? {
                   ...prev,
                   roundToken: data.roundToken!,
                   stage: data.stage,
                   clipSeconds: data.clipSeconds,
                 }
-              : prev
-          );
+              : prev;
+            if (config.mode === 'daily' && dailyInfo) {
+              try {
+                const activeKey = `${dailyInfo.dateKey}::${dailyInfo.category}::${dailyInfo.difficulty || config.difficulty}::${dailyIndex}`;
+                const payload = JSON.stringify({
+                  key: activeKey,
+                  roundToken: data.roundToken,
+                  stage: data.stage,
+                  clipSeconds: data.clipSeconds,
+                  history: [
+                    ...history,
+                    {
+                      trackId: 'skipped',
+                      title: 'ข้าม (Skipped)',
+                      artistName: '—',
+                      stageIndex: currentStage,
+                      clipSeconds: activeClipSeconds,
+                      status: 'skipped',
+                    },
+                  ],
+                });
+                sessionStorage.setItem(STORAGE_DAILY_ACTIVE_ROUND_KEY, payload);
+                localStorage.setItem(STORAGE_DAILY_ACTIVE_ROUND_KEY, payload);
+              } catch {}
+            }
+            return nextRound;
+          });
         }
       }
     } catch (err) {
@@ -989,46 +1160,8 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   const handleGuesserSkip = async () => {
-    if (config.mode !== 'guesser' || !round || outcome || submittingGuess || roundActionLockRef.current) return;
-    roundActionLockRef.current = true;
-    stop();
-    setSubmittingGuess(true);
-    try {
-      const res = await fetch('/api/round/skip', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ roundToken: round.roundToken, giveUp: true }),
-      });
-      const json = await res.json();
-      if (
-        !res.ok ||
-        json.code !== 0 ||
-        json.data?.outcome !== 'failed' ||
-        json.data?.roundResult !== 'skipped' ||
-        !json.data?.reveal
-      ) {
-        setGuesserFeedback('Skip could not be recorded. Please retry.');
-        console.warn('[Game] Song Guesser skip was rejected', { status: res.status, code: json.code });
-        return;
-      }
-      const data = json.data as RoundActionResponse;
-      setGuesserSkipCount((count) => count + 1);
-      setGuesserFeedback('Skipped · no points awarded');
-      if (data.reveal?.id) recordPlayedTrack(data.reveal.id);
-      setStreak(0);
-      try {
-        localStorage.setItem(STORAGE_STREAK_KEY, '0');
-      } catch {}
-      await startNewRound(config, true);
-    } catch (err) {
-      setGuesserFeedback('Skip could not be recorded. Please retry.');
-      console.warn('[Game] Song Guesser skip request failed', {
-        errorType: err instanceof Error ? err.name : 'unknown',
-      });
-    } finally {
-      roundActionLockRef.current = false;
-      setSubmittingGuess(false);
-    }
+    if (config.mode !== 'guesser') return;
+    await handleSkip(false);
   };
 
   const handleDailyTimeout = async () => {
@@ -1075,7 +1208,13 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           const res = await fetch('/api/daily/round', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ roundIndex: nextIdx, category: dailyInfo.category, dateKey: dailyInfo.dateKey }),
+            body: JSON.stringify({
+              roundIndex: nextIdx,
+              category: dailyInfo.category,
+              difficulty: config.difficulty,
+              customStages: config.customStages,
+              dateKey: dailyInfo.dateKey,
+            }),
           });
           const json = await res.json();
           if (!res.ok || json.code !== 0 || !json.data) {
@@ -1106,9 +1245,9 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
-  // Shared by the Song Guesser's difficulty tabs; Daily Challenge has no difficulty control.
+  // Shared by Daily Challenge and Song Guesser difficulty tabs
   const handleDailyDifficultySelect = (difficulty: DifficultyLevel) => {
-    if (config.mode === 'daily' || config.difficulty === difficulty) return;
+    if (config.difficulty === difficulty) return;
     const nextCfg = { ...config, difficulty };
     setConfig(nextCfg);
     void startNewRound(nextCfg);

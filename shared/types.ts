@@ -113,7 +113,8 @@ export const SONGSPOT_STAGES = TIME_RANGE_PRESETS.songspot.stages;
 export const DAILY_ALLOWED_TIME_MS = SONGSPOT_STAGES.reduce((sum, seconds) => sum + seconds * 1000, 0);
 export const DAILY_BASE_SCORE = 500;
 export const DAILY_MAX_SPEED_BONUS = 500;
-export const DAILY_SKIP_PENALTY = 300;
+export const DAILY_SKIP_PENALTY = 0;
+export const DAILY_STAGE_SCORES = [1000, 800, 600, 400, 200] as const;
 export const DAILY_ROUND_COUNT = 5;
 
 export const DIFFICULTY_PRESETS: Record<DifficultyLevel, DifficultyPreset> = {
@@ -384,6 +385,7 @@ export interface LeaderboardEntry {
 export interface DailyChallengeInfo {
   dateKey: string; // YYYY-MM-DD
   category: CategoryType;
+  difficulty?: DifficultyLevel;
   totalRounds: number;
   rounds: RoundStartResponse[];
   currentIndex: number;
@@ -398,6 +400,7 @@ export interface DailyRoundProgress {
   playerId: string;
   dateKey: string;
   category: CategoryType;
+  difficulty?: DifficultyLevel;
   roundIndex: number;
   trackId: string;
   startedAt: number;
@@ -412,6 +415,7 @@ export interface DailyLeaderboardEntry {
   playerId: string;
   dateKey: string;
   category: CategoryType;
+  difficulty?: DifficultyLevel;
   playerName: string;
   score: number;
   correctCount: number;

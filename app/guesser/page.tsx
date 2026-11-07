@@ -4,8 +4,8 @@ import { useGame } from '../../context/GameContext';
 import { AudioPlayer } from '../../components/AudioPlayer';
 import { SpinningAlbumArt } from '../../components/SpinningAlbumArt';
 import { TimeRangeSelector } from '../../components/TimeRangeSelector';
-import { DIFFICULTY_PRESETS, DifficultyLevel, GameConfig } from '../../types';
-import { Disc, Flame, ListChecks, Loader2, Trophy } from 'lucide-react';
+import { DEFAULT_TIME_STAGES, DIFFICULTY_PRESETS, DifficultyLevel, GameConfig } from '../../types';
+import { Flag, Flame, ListChecks, Loader2, SkipForward, Trophy } from 'lucide-react';
 
 const SongGuesserPage: React.FC = () => {
   const {
@@ -23,6 +23,7 @@ const SongGuesserPage: React.FC = () => {
     stages,
     currentStage,
     activeClipSeconds,
+    nextStageSeconds,
     streak,
     bestStreak,
     volume,
@@ -35,7 +36,7 @@ const SongGuesserPage: React.FC = () => {
     handleToggleFullPreview,
     onSeek,
     handleSelectGuess,
-    handleGuesserSkip,
+    handleSkip,
     guesserSkipCount,
     guesserFeedback,
     handleNextRoundOrDaily,
@@ -47,13 +48,18 @@ const SongGuesserPage: React.FC = () => {
     setSelectedChoiceId(null);
   }, [round?.roundToken]);
 
-  // Ensure config mode is guesser
+  // Ensure config mode is guesser and default timeRangePreset is standard
   useEffect(() => {
     if (config.mode !== 'guesser') {
       handleConfigChange(
         {
           ...config,
           mode: 'guesser',
+          timeRangePreset: config.timeRangePreset || 'standard',
+          customStages:
+            config.customStages && config.customStages.length >= 2
+              ? config.customStages
+              : DEFAULT_TIME_STAGES,
         },
         true
       );
@@ -357,14 +363,50 @@ const SongGuesserPage: React.FC = () => {
                     );
                   })}
                 </div>
-                <button
-                  type="button"
-                  onClick={() => void handleGuesserSkip()}
-                  disabled={loadingRound || submittingGuess || !round}
-                  className="w-full min-h-12 rounded-2xl border-2 border-amber-400/70 bg-amber-400/10 px-4 py-3 text-sm font-black tracking-[0.2em] text-amber-300 transition hover:bg-amber-400/20 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  {submittingGuess ? 'SKIPPING…' : 'SKIP'}
-                </button>
+                <div className="flex items-center gap-2 pt-1">
+                  {/* Skip / Unlock More Time Button */}
+                  <button
+                    type="button"
+                    onClick={() => void handleSkip(false)}
+                    disabled={loadingRound || submittingGuess || !round}
+                    className="flex-1 px-4 py-3 min-h-[44px] rounded-xl border text-xs sm:text-sm font-extrabold flex items-center justify-center gap-1.5 transition hover:brightness-110 active:scale-95 disabled:opacity-50 disabled:pointer-events-none"
+                    style={{
+                      backgroundColor: 'var(--song-surface-soft)',
+                      borderColor: 'var(--song-border)',
+                      color: 'var(--song-text)',
+                    }}
+                  >
+                    {submittingGuess ? (
+                      <Loader2 className="w-4 h-4 animate-spin text-purple-400" />
+                    ) : (
+                      <SkipForward className="w-4 h-4" style={{ color: '#b57aff' }} />
+                    )}
+                    <span>
+                      {submittingGuess
+                        ? 'กำลังตรวจ...'
+                        : nextStageSeconds !== null
+                          ? `ข้าม (+${nextStageSeconds}s)`
+                          : 'ยอมแพ้ / เฉลย'}
+                    </span>
+                  </button>
+
+                  {/* Dedicated Give Up Button */}
+                  <button
+                    type="button"
+                    onClick={() => void handleSkip(true)}
+                    disabled={loadingRound || submittingGuess || !round}
+                    className="px-4 py-3 min-h-[44px] rounded-xl border text-xs sm:text-sm font-bold flex items-center justify-center gap-1.5 transition hover:brightness-110 flex-shrink-0 active:scale-95 disabled:opacity-50 disabled:pointer-events-none"
+                    style={{
+                      backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                      borderColor: 'rgba(239, 68, 68, 0.35)',
+                      color: '#f87171',
+                    }}
+                    title="ยอมแพ้เพื่อเฉลยเพลงทันที"
+                  >
+                    <Flag className="w-3.5 h-3.5 text-red-400" />
+                    <span>ยอมแพ้</span>
+                  </button>
+                </div>
               </div>
             )}
           </div>

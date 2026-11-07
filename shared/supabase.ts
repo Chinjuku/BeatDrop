@@ -28,6 +28,11 @@ export interface SupabaseArtistRow {
   updated_at?: string;
 }
 
+export type GuesserRoundClaim =
+  | { kind: 'claimed'; result: 'correct' | 'wrong' | 'skipped' }
+  | { kind: 'already-finalized'; result: 'correct' | 'wrong' | 'skipped' }
+  | { kind: 'unavailable' };
+
 export function isDbLocal(): boolean {
   return process.env.DB_LOCAL === 'true';
 }
@@ -61,7 +66,34 @@ function getRestUrl(path: string): string {
 const SUPABASE_TIMEOUT_MS = 4500;
 let remoteJobsTableAvailable: boolean | null = null;
 let remoteTrackArtistsTableAvailable: boolean | null = null;
+let remoteGuesserResultsTableAvailable: boolean | null = null;
+let remoteDailyProgressTableAvailable: boolean | null = null;
+let remoteDailyLeaderboardTableAvailable: boolean | null = null;
 const memorySyncJobs = new Map<string, ArtistSyncJob>();
+const memoryGuesserResults = new Map<string, 'correct' | 'wrong' | 'skipped'>();
+const memoryDailyProgress = new Map<string, DailyRoundProgress>();
+const memoryDailyLeaderboard = new Map<string, DailyLeaderboardEntry>();
+
+function dailyProgressKey(
+  playerId: string,
+  dateKey: string,
+  category: CategoryType,
+  roundIndex: number
+): string {
+  return `${playerId}::${dateKey}::${category}::${roundIndex}`;
+}
+
+function dailyLeaderboardKey(
+  playerId: string,
+  dateKey: string,
+  category: CategoryType
+): string {
+  return `${playerId}::${dateKey}::${category}`;
+}
+
+function isMissingOrDeniedTableStatus(status: number): boolean {
+  return status === 400 || status === 401 || status === 403 || status === 404;
+}
 
 async function supabaseFetch(url: string, init?: RequestInit, timeoutMs = SUPABASE_TIMEOUT_MS): Promise<Response> {
   return fetch(url, {
@@ -108,8 +140,48 @@ export function rowToSong(r: SupabaseSongRow): Song {
 }
 
 export const supabaseAdmin = {
-  async claimGuesserRoundResult(roundId: string, result: 'correct' | 'wrong' | 'skipped'): Promise<boolean> {
-    if (!isSupabaseConfigured()) return false;
+  async getGuesserRoundResult(roundId: string): Promise<'correct' | 'wrong' | 'skipped' | null> {
+    const mem = memoryGuesserResults.get(roundId) ?? null;
+    if (!isSupabaseConfigured() || remoteGuesserResultsTableAvailable === false) {
+      return mem;
+    }
+    try {
+      const response = await supabaseFetch(getRestUrl(
+        `guesser_round_results?round_id=eq.${encodeURIComponent(roundId)}&select=result&limit=1`
+      ), { headers: getSupabaseHeaders() });
+      if (!response.ok) {
+        if (isMissingOrDeniedTableStatus(response.status)) {
+          remoteGuesserResultsTableAvailable = false;
+        }
+        return mem;
+      }
+      remoteGuesserResultsTableAvailable = true;
+      const rows = await response.json() as Array<{ result?: unknown }>;
+      const result = rows[0]?.result;
+      if (result === 'correct' || result === 'wrong' || result === 'skipped') {
+        memoryGuesserResults.set(roundId, result);
+        return result;
+      }
+      return mem;
+    } catch {
+      return mem;
+    }
+  },
+
+  async claimGuesserRoundResult(roundId: string, result: 'correct' | 'wrong' | 'skipped'): Promise<GuesserRoundClaim> {
+    const claimInMemory = (): GuesserRoundClaim => {
+      const existing = memoryGuesserResults.get(roundId);
+      if (existing) {
+        return { kind: 'already-finalized', result: existing };
+      }
+      memoryGuesserResults.set(roundId, result);
+      return { kind: 'claimed', result };
+    };
+
+    if (!isSupabaseConfigured()) return { kind: 'unavailable' };
+    if (remoteGuesserResultsTableAvailable === false) {
+      return claimInMemory();
+    }
     try {
       const response = await supabaseFetch(getRestUrl('guesser_round_results?on_conflict=round_id'), {
         method: 'POST',
@@ -121,38 +193,111 @@ export const supabaseAdmin = {
         }),
       });
       if (!response.ok) {
+        if (isMissingOrDeniedTableStatus(response.status)) {
+          remoteGuesserResultsTableAvailable = false;
+          return claimInMemory();
+        }
         console.error('[Song Guesser] Could not persist round result', { status: response.status });
-        return false;
+      } else {
+        remoteGuesserResultsTableAvailable = true;
+        const rows = await response.json() as unknown[];
+        if (rows.length === 1) {
+          memoryGuesserResults.set(roundId, result);
+          return { kind: 'claimed', result };
+        }
       }
-      const rows = await response.json() as unknown[];
-      return rows.length === 1;
-    } catch (err) {
-      console.error('[Song Guesser] Round result persistence request failed', {
-        errorType: err instanceof Error ? err.name : 'unknown',
-      });
-      return false;
+
+      // A retried or concurrent request must receive the already persisted
+      // terminal result. That keeps the UI recoverable without awarding twice.
+      const existingResponse = await supabaseFetch(getRestUrl(
+        `guesser_round_results?round_id=eq.${encodeURIComponent(roundId)}&select=result&limit=1`
+      ), { headers: getSupabaseHeaders() });
+      if (!existingResponse.ok) {
+        if (isMissingOrDeniedTableStatus(existingResponse.status)) {
+          remoteGuesserResultsTableAvailable = false;
+        }
+        return claimInMemory();
+      }
+      const existingRows = await existingResponse.json() as Array<{ result?: unknown }>;
+      const existingResult = existingRows[0]?.result;
+      if (existingResult === 'correct' || existingResult === 'wrong' || existingResult === 'skipped') {
+        memoryGuesserResults.set(roundId, existingResult);
+        return { kind: 'already-finalized', result: existingResult };
+      }
+      return claimInMemory();
+    } catch {
+      return claimInMemory();
     }
   },
 
   async getOrCreateDailyRoundProgress(progress: DailyRoundProgress): Promise<DailyRoundProgress | null> {
-    if (!isSupabaseConfigured()) return null;
-    const post = await supabaseFetch(getRestUrl('daily_round_progress?on_conflict=player_id,date_key,category,round_index'), {
-      method: 'POST',
-      headers: getSupabaseHeaders('resolution=ignore-duplicates,return=minimal'),
-      body: JSON.stringify({
-        player_id: progress.playerId,
-        date_key: progress.dateKey,
-        category: progress.category,
-        round_index: progress.roundIndex,
-        track_id: progress.trackId,
-        started_at: progress.startedAt,
-      }),
-    });
-    if (!post.ok) return null;
-    const rows = await this.getDailyRoundProgress(
-      progress.playerId, progress.dateKey, progress.category, progress.roundIndex
+    const key = dailyProgressKey(
+      progress.playerId,
+      progress.dateKey,
+      progress.category,
+      progress.roundIndex
     );
-    return rows[0] || null;
+    const getOrCreateInMemory = (): DailyRoundProgress => {
+      const existing = memoryDailyProgress.get(key);
+      if (existing) {
+        if (existing.status === 'pending' && existing.trackId !== progress.trackId) {
+          const synced: DailyRoundProgress = { ...existing, trackId: progress.trackId };
+          memoryDailyProgress.set(key, synced);
+          return synced;
+        }
+        return existing;
+      }
+      const created: DailyRoundProgress = {
+        playerId: progress.playerId,
+        dateKey: progress.dateKey,
+        category: progress.category,
+        roundIndex: progress.roundIndex,
+        trackId: progress.trackId,
+        startedAt: progress.startedAt,
+        status: 'pending',
+        score: 0,
+        speedBonus: 0,
+        answerTimeMs: 0,
+      };
+      memoryDailyProgress.set(key, created);
+      return created;
+    };
+
+    if (!isSupabaseConfigured()) return null;
+    if (remoteDailyProgressTableAvailable === false) {
+      return getOrCreateInMemory();
+    }
+    try {
+      const post = await supabaseFetch(getRestUrl('daily_round_progress?on_conflict=player_id,date_key,category,round_index'), {
+        method: 'POST',
+        headers: getSupabaseHeaders('resolution=ignore-duplicates,return=minimal'),
+        body: JSON.stringify({
+          player_id: progress.playerId,
+          date_key: progress.dateKey,
+          category: progress.category,
+          round_index: progress.roundIndex,
+          track_id: progress.trackId,
+          started_at: progress.startedAt,
+        }),
+      });
+      if (!post.ok) {
+        if (isMissingOrDeniedTableStatus(post.status)) {
+          remoteDailyProgressTableAvailable = false;
+        }
+        return getOrCreateInMemory();
+      }
+      remoteDailyProgressTableAvailable = true;
+      const rows = await this.getDailyRoundProgress(
+        progress.playerId, progress.dateKey, progress.category, progress.roundIndex
+      );
+      if (rows[0]) {
+        memoryDailyProgress.set(key, rows[0]);
+        return rows[0];
+      }
+      return getOrCreateInMemory();
+    } catch {
+      return getOrCreateInMemory();
+    }
   },
 
   async getDailyRoundProgress(
@@ -161,28 +306,60 @@ export const supabaseAdmin = {
     category: CategoryType,
     roundIndex?: number
   ): Promise<DailyRoundProgress[]> {
+    const getFromMemory = (): DailyRoundProgress[] => {
+      const list: DailyRoundProgress[] = [];
+      for (const item of memoryDailyProgress.values()) {
+        if (
+          item.playerId === playerId &&
+          item.dateKey === dateKey &&
+          item.category === category &&
+          (roundIndex === undefined || item.roundIndex === roundIndex)
+        ) {
+          list.push(item);
+        }
+      }
+      return list.sort((a, b) => a.roundIndex - b.roundIndex);
+    };
+
     if (!isSupabaseConfigured()) return [];
+    if (remoteDailyProgressTableAvailable === false) {
+      return getFromMemory();
+    }
     const indexFilter = roundIndex === undefined ? '' : `&round_index=eq.${roundIndex}`;
     try {
       const res = await supabaseFetch(getRestUrl(
         `daily_round_progress?player_id=eq.${encodeURIComponent(playerId)}&date_key=eq.${encodeURIComponent(dateKey)}&category=eq.${encodeURIComponent(category)}${indexFilter}&select=*&order=round_index.asc`
-      ));
-      if (!res.ok) return [];
+      ), { headers: getSupabaseHeaders() });
+      if (!res.ok) {
+        if (isMissingOrDeniedTableStatus(res.status)) {
+          remoteDailyProgressTableAvailable = false;
+        }
+        return getFromMemory();
+      }
+      remoteDailyProgressTableAvailable = true;
       const rows = await res.json() as Array<Record<string, unknown>>;
-      return rows.map((row) => ({
-        playerId: String(row.player_id),
-        dateKey: String(row.date_key),
-        category: row.category as CategoryType,
-        roundIndex: Number(row.round_index),
-        trackId: String(row.track_id),
-        startedAt: Number(row.started_at),
-        status: row.status as DailyRoundProgress['status'],
-        score: Number(row.score),
-        speedBonus: Number(row.speed_bonus),
-        answerTimeMs: Number(row.answer_time_ms),
-      }));
+      const mapped = rows.map((row) => {
+        const item: DailyRoundProgress = {
+          playerId: String(row.player_id),
+          dateKey: String(row.date_key),
+          category: row.category as CategoryType,
+          roundIndex: Number(row.round_index),
+          trackId: String(row.track_id),
+          startedAt: Number(row.started_at),
+          status: row.status as DailyRoundProgress['status'],
+          score: Number(row.score),
+          speedBonus: Number(row.speed_bonus),
+          answerTimeMs: Number(row.answer_time_ms),
+        };
+        memoryDailyProgress.set(
+          dailyProgressKey(item.playerId, item.dateKey, item.category, item.roundIndex),
+          item
+        );
+        return item;
+      });
+      return mapped;
     } catch {
-      return [];
+      return getFromMemory();
     }
   },
 
@@ -197,42 +374,107 @@ export const supabaseAdmin = {
     speedBonus: number;
     answerTimeMs: number;
   }): Promise<{ updated: boolean; progress: DailyRoundProgress | null }> {
+    const key = dailyProgressKey(
+      input.playerId,
+      input.dateKey,
+      input.category,
+      input.roundIndex
+    );
+    const finalizeInMemory = (): { updated: boolean; progress: DailyRoundProgress | null } => {
+      const existing = memoryDailyProgress.get(key);
+      if (existing && existing.status !== 'pending') {
+        return { updated: false, progress: existing };
+      }
+      const finalized: DailyRoundProgress = {
+        playerId: input.playerId,
+        dateKey: input.dateKey,
+        category: input.category,
+        roundIndex: input.roundIndex,
+        trackId: input.trackId,
+        startedAt: existing?.startedAt ?? Math.max(0, Date.now() - input.answerTimeMs),
+        status: input.status,
+        score: input.score,
+        speedBonus: input.speedBonus,
+        answerTimeMs: input.answerTimeMs,
+      };
+      memoryDailyProgress.set(key, finalized);
+      return { updated: true, progress: finalized };
+    };
+
     if (!isSupabaseConfigured()) return { updated: false, progress: null };
+    if (remoteDailyProgressTableAvailable === false) {
+      return finalizeInMemory();
+    }
     try {
       const res = await supabaseFetch(getRestUrl(
-        `daily_round_progress?player_id=eq.${encodeURIComponent(input.playerId)}&date_key=eq.${encodeURIComponent(input.dateKey)}&category=eq.${encodeURIComponent(input.category)}&round_index=eq.${input.roundIndex}&track_id=eq.${encodeURIComponent(input.trackId)}&status=eq.pending`
+        `daily_round_progress?player_id=eq.${encodeURIComponent(input.playerId)}&date_key=eq.${encodeURIComponent(input.dateKey)}&category=eq.${encodeURIComponent(input.category)}&round_index=eq.${input.roundIndex}&status=eq.pending`
       ), {
         method: 'PATCH',
         headers: getSupabaseHeaders('return=representation'),
         body: JSON.stringify({
+          track_id: input.trackId,
           status: input.status,
           score: input.score,
           speed_bonus: input.speedBonus,
           answer_time_ms: input.answerTimeMs,
         }),
       });
-      if (!res.ok) return { updated: false, progress: null };
+      if (!res.ok) {
+        if (isMissingOrDeniedTableStatus(res.status)) {
+          remoteDailyProgressTableAvailable = false;
+        }
+        return finalizeInMemory();
+      }
+      remoteDailyProgressTableAvailable = true;
       const rows = await res.json() as Array<Record<string, unknown>>;
-      const progress = rows[0] ? {
-        playerId: String(rows[0].player_id),
-        dateKey: String(rows[0].date_key),
-        category: rows[0].category as CategoryType,
-        roundIndex: Number(rows[0].round_index),
-        trackId: String(rows[0].track_id),
-        startedAt: Number(rows[0].started_at),
-        status: rows[0].status as DailyRoundProgress['status'],
-        score: Number(rows[0].score),
-        speedBonus: Number(rows[0].speed_bonus),
-        answerTimeMs: Number(rows[0].answer_time_ms),
-      } : null;
-      return { updated: Boolean(progress), progress };
+      if (rows[0]) {
+        const progress: DailyRoundProgress = {
+          playerId: String(rows[0].player_id),
+          dateKey: String(rows[0].date_key),
+          category: rows[0].category as CategoryType,
+          roundIndex: Number(rows[0].round_index),
+          trackId: String(rows[0].track_id),
+          startedAt: Number(rows[0].started_at),
+          status: rows[0].status as DailyRoundProgress['status'],
+          score: Number(rows[0].score),
+          speedBonus: Number(rows[0].speed_bonus),
+          answerTimeMs: Number(rows[0].answer_time_ms),
+        };
+        memoryDailyProgress.set(key, progress);
+        return { updated: true, progress };
+      }
+
+      const existingRows = await this.getDailyRoundProgress(
+        input.playerId,
+        input.dateKey,
+        input.category,
+        input.roundIndex
+      );
+      if (existingRows[0] && existingRows[0].status !== 'pending') {
+        memoryDailyProgress.set(key, existingRows[0]);
+        return { updated: false, progress: existingRows[0] };
+      }
+      return finalizeInMemory();
     } catch {
-      return { updated: false, progress: null };
+      return finalizeInMemory();
     }
   },
 
   async submitDailyLeaderboard(entry: DailyLeaderboardEntry): Promise<{ inserted: boolean; entry: DailyLeaderboardEntry | null }> {
+    const key = dailyLeaderboardKey(entry.playerId, entry.dateKey, entry.category);
+    const submitInMemory = (): { inserted: boolean; entry: DailyLeaderboardEntry | null } => {
+      const existing = memoryDailyLeaderboard.get(key);
+      if (existing) {
+        return { inserted: false, entry: existing };
+      }
+      memoryDailyLeaderboard.set(key, entry);
+      return { inserted: true, entry };
+    };
+
     if (!isSupabaseConfigured()) return { inserted: false, entry: null };
+    if (remoteDailyLeaderboardTableAvailable === false) {
+      return submitInMemory();
+    }
     try {
       const res = await supabaseFetch(getRestUrl('daily_leaderboard?on_conflict=player_id,date_key,category'), {
         method: 'POST',
@@ -250,42 +492,97 @@ export const supabaseAdmin = {
           created_at: entry.createdAt,
         }),
       });
-      if (!res.ok) return { inserted: false, entry: null };
+      if (!res.ok) {
+        if (isMissingOrDeniedTableStatus(res.status)) {
+          remoteDailyLeaderboardTableAvailable = false;
+        }
+        return submitInMemory();
+      }
+      remoteDailyLeaderboardTableAvailable = true;
       const rows = await res.json() as Array<Record<string, unknown>>;
       const row = rows[0];
       if (!row) {
         const prior = await this.getDailyLeaderboard(entry.dateKey, entry.category, 500);
-        return { inserted: false, entry: prior.find((item) => item.playerId === entry.playerId) || null };
+        const existing = prior.find((item) => item.playerId === entry.playerId) || memoryDailyLeaderboard.get(key) || null;
+        return { inserted: false, entry: existing };
       }
-      return { inserted: true, entry: {
-        id: String(row.id), playerId: String(row.player_id), dateKey: String(row.date_key),
-        category: row.category as CategoryType, playerName: String(row.player_name),
-        score: Number(row.score), correctCount: Number(row.correct_count),
-        skipCount: Number(row.skip_count), totalAnswerTimeMs: Number(row.total_answer_time_ms),
+      const saved: DailyLeaderboardEntry = {
+        id: String(row.id),
+        playerId: String(row.player_id),
+        dateKey: String(row.date_key),
+        category: row.category as CategoryType,
+        playerName: String(row.player_name),
+        score: Number(row.score),
+        correctCount: Number(row.correct_count),
+        skipCount: Number(row.skip_count),
+        totalAnswerTimeMs: Number(row.total_answer_time_ms),
         createdAt: String(row.created_at),
-      } };
+      };
+      memoryDailyLeaderboard.set(key, saved);
+      return { inserted: true, entry: saved };
     } catch {
-      return { inserted: false, entry: null };
+      return submitInMemory();
     }
   },
 
   async getDailyLeaderboard(dateKey: string, category: CategoryType, limit = 50): Promise<DailyLeaderboardEntry[]> {
+    const getFromMemory = (): DailyLeaderboardEntry[] => {
+      const list: DailyLeaderboardEntry[] = [];
+      for (const item of memoryDailyLeaderboard.values()) {
+        if (item.dateKey === dateKey && item.category === category) {
+          list.push(item);
+        }
+      }
+      return list
+        .sort(
+          (a, b) =>
+            b.score - a.score ||
+            b.correctCount - a.correctCount ||
+            a.skipCount - b.skipCount ||
+            a.totalAnswerTimeMs - b.totalAnswerTimeMs ||
+            a.playerName.localeCompare(b.playerName) ||
+            a.id.localeCompare(b.id)
+        )
+        .slice(0, Math.max(1, Math.min(100, limit)));
+    };
+
     if (!isSupabaseConfigured()) return [];
+    if (remoteDailyLeaderboardTableAvailable === false) {
+      return getFromMemory();
+    }
     try {
       const res = await supabaseFetch(getRestUrl(
         `daily_leaderboard?date_key=eq.${encodeURIComponent(dateKey)}&category=eq.${encodeURIComponent(category)}&select=*&order=score.desc,correct_count.desc,skip_count.asc,total_answer_time_ms.asc,player_name.asc,id.asc&limit=${Math.max(1, Math.min(100, limit))}`
-      ));
-      if (!res.ok) return [];
+      ), { headers: getSupabaseHeaders() });
+      if (!res.ok) {
+        if (isMissingOrDeniedTableStatus(res.status)) {
+          remoteDailyLeaderboardTableAvailable = false;
+        }
+        return getFromMemory();
+      }
+      remoteDailyLeaderboardTableAvailable = true;
       const rows = await res.json() as Array<Record<string, unknown>>;
-      return rows.map((row) => ({
-        id: String(row.id), playerId: String(row.player_id), dateKey: String(row.date_key),
-        category: row.category as CategoryType, playerName: String(row.player_name),
-        score: Number(row.score), correctCount: Number(row.correct_count),
-        skipCount: Number(row.skip_count), totalAnswerTimeMs: Number(row.total_answer_time_ms),
-        createdAt: String(row.created_at),
-      }));
+      return rows.map((row) => {
+        const entry: DailyLeaderboardEntry = {
+          id: String(row.id),
+          playerId: String(row.player_id),
+          dateKey: String(row.date_key),
+          category: row.category as CategoryType,
+          playerName: String(row.player_name),
+          score: Number(row.score),
+          correctCount: Number(row.correct_count),
+          skipCount: Number(row.skip_count),
+          totalAnswerTimeMs: Number(row.total_answer_time_ms),
+          createdAt: String(row.created_at),
+        };
+        memoryDailyLeaderboard.set(
+          dailyLeaderboardKey(entry.playerId, entry.dateKey, entry.category),
+          entry
+        );
+        return entry;
+      });
     } catch {
-      return [];
+      return getFromMemory();
     }
   },
 

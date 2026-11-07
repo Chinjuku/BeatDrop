@@ -4,6 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { Artist, ArtistRole, ArtistSyncJob, CategoryType, DailyLeaderboardEntry, DailyRoundProgress, LeaderboardEntry, Song, TrackArtistCredit } from '../shared/types';
 import { isDbLocal, isSupabaseConfigured, supabaseAdmin } from './supabase';
+import type { GuesserRoundClaim } from '../shared/supabase';
 import { getArtistCandidateTokens, normalizeText } from './itunes';
 
 const DATA_DIR = path.resolve(process.cwd(), 'data');
@@ -337,7 +338,24 @@ function rowToLeaderboard(row: LeaderboardRow): LeaderboardEntry {
 // ---------------- Public Database Operations ---------------- //
 
 export const dbService = {
-  async claimGuesserRoundResult(roundId: string, result: 'correct' | 'wrong' | 'skipped'): Promise<boolean> {
+  async getGuesserRoundResult(roundId: string): Promise<'correct' | 'wrong' | 'skipped' | null> {
+    if (isSupabaseConfigured() && !isDbLocal()) {
+      return supabaseAdmin.getGuesserRoundResult(roundId);
+    }
+    try {
+      const row = db.prepare(
+        'SELECT result FROM guesser_round_results WHERE round_id = ?'
+      ).get(roundId) as { result?: unknown } | undefined;
+      return row?.result === 'correct' || row?.result === 'wrong' || row?.result === 'skipped'
+        ? row.result
+        : null;
+    } catch (err) {
+      console.error('Failed to read Song Guesser round result:', err);
+      return null;
+    }
+  },
+
+  async claimGuesserRoundResult(roundId: string, result: 'correct' | 'wrong' | 'skipped'): Promise<GuesserRoundClaim> {
     if (isSupabaseConfigured() && !isDbLocal()) {
       return supabaseAdmin.claimGuesserRoundResult(roundId, result);
     }
@@ -347,10 +365,17 @@ export const dbService = {
         VALUES (?, ?, ?)
         ON CONFLICT(round_id) DO NOTHING
       `).run(roundId, result, new Date().toISOString());
-      return Number(inserted.changes) === 1;
+      if (Number(inserted.changes) === 1) return { kind: 'claimed', result };
+      const existing = db.prepare(
+        'SELECT result FROM guesser_round_results WHERE round_id = ?'
+      ).get(roundId) as { result?: unknown } | undefined;
+      if (existing?.result === 'correct' || existing?.result === 'wrong' || existing?.result === 'skipped') {
+        return { kind: 'already-finalized', result: existing.result };
+      }
+      return { kind: 'unavailable' };
     } catch (err) {
       console.error('Failed to claim Song Guesser round result:', err);
-      return false;
+      return { kind: 'unavailable' };
     }
   },
   getOrCreateLocalDailyChallengeIds(

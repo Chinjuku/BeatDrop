@@ -13,7 +13,7 @@ process.env.NODE_ENV = 'test';
 const { selectGuesserChoices, getStableSongArtistId, getSongArtistGender } = await import('../lib/engine/guesserChoices');
 const { dbService } = await import('../lib/db');
 const { signRoundToken } = await import('../lib/token');
-const { activeRounds, handleSkip, handleStartRound } = await import('../lib/engine/roundEngine');
+const { activeRounds, handleGuess, handleSkip, handleStartRound } = await import('../lib/engine/roundEngine');
 const { ensureCatalogLoaded, songPool } = await import('../lib/engine/songPool');
 
 function song(id: string, artistId: string, artistName: string, genre: string) {
@@ -115,7 +115,9 @@ const skippedBody = response.body as { data: { outcome: string; roundResult: str
 assert.equal(skippedBody.data.outcome, 'failed');
 assert.equal(skippedBody.data.roundResult, 'skipped');
 assert.equal(skippedBody.data.reveal.id, skippedTrack.id, 'a full-song skip reveals and finalizes the current song');
-assert.equal(await dbService.claimGuesserRoundResult(roundId, 'correct'), false, 'a skipped round cannot later win or add score');
+assert.deepEqual(await dbService.claimGuesserRoundResult(roundId, 'correct'), {
+  kind: 'already-finalized', result: 'skipped',
+}, 'a skipped round cannot later win or add score');
 assert.equal(activeRounds.has(roundToken), false, 'skipping consumes and stops the previous round');
 
 const stageSkipState = { ...roundState, roundId: 'test-guesser-stage-skip' };
@@ -133,6 +135,14 @@ assert.equal(stageSkipBody.data.outcome, 'active', 'snippet skip keeps the Song 
 assert.equal(stageSkipBody.data.stage, 1);
 assert.equal(stageSkipBody.data.roundResult, 'skipped', 'the marker describes the skipped snippet stage, not a finalized song');
 assert.ok(activeRounds.has(stageSkipBody.data.roundToken));
+const staleStageReplay = {
+  statusCode: 200,
+  body: null as unknown,
+  status(code: number) { this.statusCode = code; return this; },
+  json(body: unknown) { this.body = body; return this; },
+};
+await handleSkip({ body: { roundToken: stageSkipToken, giveUp: false }, headers: {} } as never, staleStageReplay as never);
+assert.equal(staleStageReplay.statusCode, 400, 'idempotent terminal retries must not reopen old snippet-stage tokens');
 
 const nextRoundResponse = {
   statusCode: 200,
@@ -147,7 +157,8 @@ assert.notEqual(nextRound.roundToken, roundToken, 'a successful skip transitions
 assert.equal(nextRound.choices.length, 4, 'the next Song Guesser round retains its four choices');
 const duplicateSkip = { ...response, body: null as unknown, statusCode: 200 };
 await handleSkip({ body: { roundToken, giveUp: true }, headers: {} } as never, duplicateSkip as never);
-assert.notEqual(duplicateSkip.statusCode, 200, 'duplicate skip submissions must be rejected');
+assert.equal(duplicateSkip.statusCode, 200, 'a repeated skip returns the already-finalized result');
+assert.equal((duplicateSkip.body as { data: { roundResult: string } }).data.roundResult, 'skipped');
 
 const concurrentRoundId = 'test-guesser-concurrent-skip';
 const concurrentState = { ...roundState, roundId: concurrentRoundId };
@@ -164,12 +175,46 @@ await Promise.all(concurrentResponses.map((res) => handleSkip(
   { body: { roundToken: concurrentToken, giveUp: true }, headers: {} } as never,
   res as never
 )));
-assert.equal(concurrentResponses.filter((res) => res.statusCode === 200).length, 1, 'concurrent duplicate skips must only finalize once');
-assert.equal(await dbService.claimGuesserRoundResult(concurrentRoundId, 'correct'), false);
+assert.equal(concurrentResponses.filter((res) => res.statusCode === 200).length, 2, 'concurrent duplicate skips return the same persisted result');
+assert.deepEqual(await dbService.claimGuesserRoundResult(concurrentRoundId, 'correct'), {
+  kind: 'already-finalized', result: 'skipped',
+});
 
 const wrongRoundClaim = await dbService.claimGuesserRoundResult('test-guesser-wrong-round', 'wrong');
-assert.equal(wrongRoundClaim, true);
-assert.equal(await dbService.claimGuesserRoundResult('test-guesser-wrong-round', 'correct'), false, 'wrong answers cannot be replayed as correct answers');
+assert.deepEqual(wrongRoundClaim, { kind: 'claimed', result: 'wrong' });
+assert.deepEqual(await dbService.claimGuesserRoundResult('test-guesser-wrong-round', 'correct'), {
+  kind: 'already-finalized', result: 'wrong',
+}, 'wrong answers cannot be replayed as correct answers');
+
+// Simulate remote Supabase where guesser_round_results table returns 404 (not migrated yet)
+const prevSupabaseUrl = process.env.SUPABASE_URL;
+const prevSupabaseKey = process.env.SUPABASE_ANON_KEY;
+const prevFetch = globalThis.fetch;
+process.env.SUPABASE_URL = 'https://mock-project.supabase.co';
+process.env.SUPABASE_ANON_KEY = 'mock-anon-key';
+globalThis.fetch = async () => new Response(JSON.stringify({ code: 'PGRST205', message: 'table not found' }), { status: 404 });
+try {
+  const unmigratedSkipState = { ...roundState, roundId: 'test-guesser-unmigrated-skip', startedAt: Date.now() - 200 };
+  const unmigratedSkipToken = signRoundToken(unmigratedSkipState);
+  activeRounds.set(unmigratedSkipToken, unmigratedSkipState);
+  const unmigratedSkipRes = makeResponse();
+  await handleSkip({ body: { roundToken: unmigratedSkipToken, giveUp: true }, headers: {} } as never, unmigratedSkipRes as never);
+  assert.equal(unmigratedSkipRes.statusCode, 200, 'Song Guesser skip must succeed via fallback when remote table is missing');
+  assert.equal((unmigratedSkipRes.body as { data: { reveal: { id: string } } }).data.reveal.id, skippedTrack.id);
+
+  const unmigratedGuessState = { ...roundState, roundId: 'test-guesser-unmigrated-guess', startedAt: Date.now() - 200 };
+  const unmigratedGuessToken = signRoundToken(unmigratedGuessState);
+  activeRounds.set(unmigratedGuessToken, unmigratedGuessState);
+  const unmigratedGuessRes = makeResponse();
+  await handleGuess({ body: { roundToken: unmigratedGuessToken, candidateTrackId: skippedTrack.id }, headers: {} } as never, unmigratedGuessRes as never);
+  assert.equal(unmigratedGuessRes.statusCode, 200, 'Song Guesser guess must succeed via fallback when remote table is missing');
+  assert.equal((unmigratedGuessRes.body as { data: { outcome: string; reveal: { id: string } } }).data.outcome, 'correct');
+  assert.equal((unmigratedGuessRes.body as { data: { outcome: string; reveal: { id: string } } }).data.reveal.id, skippedTrack.id);
+} finally {
+  globalThis.fetch = prevFetch;
+  if (prevSupabaseUrl === undefined) delete process.env.SUPABASE_URL; else process.env.SUPABASE_URL = prevSupabaseUrl;
+  if (prevSupabaseKey === undefined) delete process.env.SUPABASE_ANON_KEY; else process.env.SUPABASE_ANON_KEY = prevSupabaseKey;
+}
 
 console.log('Song Guesser checks passed: helper and real-route four-choice behavior, distinct artist IDs, male/female gender consistency, genre preference, unknown metadata fallback, insufficient-data handling, skip-to-next-round transition, duplicate/concurrent skip rejection, and no skipped/wrong round score claim.');
 fs.rmSync(tempDir, { recursive: true, force: true });

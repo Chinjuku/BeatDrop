@@ -32,16 +32,13 @@ function mockResponse() {
 }
 
 assert.deepEqual(types.SONGSPOT_STAGES, types.TIME_RANGE_PRESETS.songspot.stages);
-assert.equal(types.DAILY_ALLOWED_TIME_MS, types.SONGSPOT_STAGES.reduce((sum, seconds) => sum + seconds * 1000, 0));
-assert.equal(scoring.getDailyCorrectScore(0).score, 1000);
-assert.equal(scoring.getDailyCorrectScore(types.DAILY_ALLOWED_TIME_MS).score, 500);
-assert.equal(scoring.getDailyCorrectScore(types.DAILY_ALLOWED_TIME_MS / 2).speedBonus, 250);
-assert.equal(scoring.getDailyCorrectScore(-100).score, 1000);
-assert.equal(scoring.getDailyCorrectScore(types.DAILY_ALLOWED_TIME_MS * 2).score, 500);
-assert.equal(scoring.applyDailySkipPenalty(100), 0);
-assert.equal(scoring.applyDailySkipPenalty(900), 600);
-assert.equal(scoring.isDailyRoundExpired(1000, 1000 + types.DAILY_ALLOWED_TIME_MS), true);
-assert.equal(scoring.isDailyRoundExpired(1000, 999 + types.DAILY_ALLOWED_TIME_MS), false);
+assert.deepEqual(types.DEFAULT_TIME_STAGES, types.TIME_RANGE_PRESETS.standard.stages);
+assert.equal(scoring.getDailyStageScore(0).score, 1000);
+assert.equal(scoring.getDailyStageScore(1).score, 800);
+assert.equal(scoring.getDailyStageScore(2).score, 600);
+assert.equal(scoring.getDailyStageScore(3).score, 400);
+assert.equal(scoring.getDailyStageScore(4).score, 200);
+assert.equal(scoring.applyDailySkipPenalty(100), 100);
 
 const bangkokBeforeReset = token.getBangkokDateKey(new Date('2026-06-01T16:59:59.000Z'));
 const bangkokAfterReset = token.getBangkokDateKey(new Date('2026-06-01T17:00:00.000Z'));
@@ -75,7 +72,7 @@ const firstDailyBody = firstDailyResponse.body as {
 };
 assert.equal(firstDailyBody.code, 0);
 assert.equal(firstDailyBody.data.rounds.length, 5);
-assert.deepEqual(firstDailyBody.data.rounds[0].stages, types.SONGSPOT_STAGES);
+assert.deepEqual(firstDailyBody.data.rounds[0].stages, types.DEFAULT_TIME_STAGES);
 const playerCookie = firstDailyResponse.cookie.split(';')[0];
 const secondDailyResponse = mockResponse();
 await handleDaily({ query: { category: 'all' }, headers: {} } as never, secondDailyResponse as never);
@@ -90,40 +87,51 @@ await handleDaily({ query: { category: 'all' }, headers: { cookie: playerCookie 
 assert.equal((samePlayerRefresh.body as typeof firstDailyBody).data.currentIndex, 0);
 assert.equal((samePlayerRefresh.body as typeof firstDailyBody).data.rounds[0].roundToken !== '', true);
 
+// Round 0: Skip snippet once (0.5s -> 2s), then guess correctly at stage 1 -> 800 pts
 const firstRoundToken = firstDailyBody.data.rounds[0].roundToken;
 const activeRound = (await import('../lib/engine/roundEngine')).activeRounds.get(firstRoundToken);
 assert.ok(activeRound);
+const stageSkipRes = mockResponse();
+await handleSkip({
+  body: { roundToken: firstRoundToken, giveUp: false },
+  headers: { cookie: playerCookie },
+} as never, stageSkipRes as never);
+const stageSkipData = (stageSkipRes.body as { code: number; data: { outcome: string; stage: number; clipSeconds: number; roundToken: string } }).data;
+assert.equal(stageSkipData.outcome, 'active', 'Daily Challenge skip (giveUp=false) must advance time stage without ending the song');
+assert.equal(stageSkipData.stage, 1);
+assert.equal(stageSkipData.clipSeconds, types.DEFAULT_TIME_STAGES[1]);
+
 await new Promise((resolve) => setTimeout(resolve, 60));
 const correctResponse = mockResponse();
 await handleGuess({
-  body: { roundToken: firstRoundToken, candidateTrackId: activeRound!.track.id },
+  body: { roundToken: stageSkipData.roundToken, candidateTrackId: activeRound!.track.id },
   headers: { cookie: playerCookie },
 } as never, correctResponse as never);
 const correctBody = correctResponse.body as { code: number; data: { dailyResult: string; scoreDelta: number; speedBonus: number } };
 assert.equal(correctBody.code, 0);
 assert.equal(correctBody.data.dailyResult, 'correct');
-assert.ok(correctBody.data.scoreDelta >= 500 && correctBody.data.scoreDelta <= 1000);
-assert.equal(correctBody.data.scoreDelta, 500 + correctBody.data.speedBonus);
+assert.equal(correctBody.data.scoreDelta, 800, 'Correct guess at stage 1 awards 800 pts');
 const duplicateAnswerResponse = mockResponse();
 await handleGuess({
-  body: { roundToken: firstRoundToken, candidateTrackId: activeRound!.track.id },
+  body: { roundToken: stageSkipData.roundToken, candidateTrackId: activeRound!.track.id },
   headers: { cookie: playerCookie },
 } as never, duplicateAnswerResponse as never);
 assert.notEqual(duplicateAnswerResponse.statusCode, 200, 'duplicate answer must not award points twice');
 
+// Round 1: Give up directly (giveUp=true) -> finalized as skipped with 0 pts
 const secondRoundInfo = mockResponse();
 await handleDaily({ query: { category: 'all' }, headers: { cookie: playerCookie } } as never, secondRoundInfo as never);
 const secondRoundData = (secondRoundInfo.body as typeof firstDailyBody).data;
 assert.equal(secondRoundData.currentIndex, 1, 'refresh resumes the persisted next round');
 const skipResponse = mockResponse();
 await handleSkip({
-  body: { roundToken: secondRoundData.rounds[1].roundToken },
+  body: { roundToken: secondRoundData.rounds[1].roundToken, giveUp: true },
   headers: { cookie: playerCookie },
 } as never, skipResponse as never);
 const skipBody = skipResponse.body as { code: number; data: { dailyResult: string; scoreDelta: number } };
 assert.equal(skipBody.code, 0);
 assert.equal(skipBody.data.dailyResult, 'skipped');
-assert.equal(skipBody.data.scoreDelta, -300);
+assert.equal(skipBody.data.scoreDelta, 0);
 
 const thirdRoundInfo = mockResponse();
 await handleDaily({ query: { category: 'all' }, headers: { cookie: playerCookie } } as never, thirdRoundInfo as never);
@@ -131,7 +139,7 @@ const thirdRound = (thirdRoundInfo.body as typeof firstDailyBody).data.rounds[2]
 let tokenForWrong = thirdRound.roundToken;
 let wrongResult: { code: number; data: { outcome: string; dailyResult?: string; roundToken?: string } } | null = null;
 await new Promise((resolve) => setTimeout(resolve, 60));
-for (let attempt = 0; attempt < types.SONGSPOT_STAGES.length; attempt++) {
+for (let attempt = 0; attempt < types.DEFAULT_TIME_STAGES.length; attempt++) {
   const wrongResponse = mockResponse();
   await handleGuess({
     body: { roundToken: tokenForWrong, candidateTrackId: 'not-the-track', candidateTitle: 'Wrong guess', candidateArtist: 'Wrong artist' },
@@ -156,7 +164,7 @@ for (const roundIndex of [3, 4]) {
     token = (info.body as typeof firstDailyBody).data.rounds[roundIndex].roundToken;
   }
   const skipped = mockResponse();
-  await handleSkip({ body: { roundToken: token }, headers: { cookie: playerCookie } } as never, skipped as never);
+  await handleSkip({ body: { roundToken: token, giveUp: true }, headers: { cookie: playerCookie } } as never, skipped as never);
   assert.equal((skipped.body as { data: { dailyResult: string } }).data.dailyResult, 'skipped');
 }
 const completedInfo = mockResponse();
@@ -164,6 +172,12 @@ await handleDaily({ query: { category: 'all' }, headers: { cookie: playerCookie 
 const completedData = (completedInfo.body as typeof firstDailyBody).data;
 assert.equal(completedData.currentIndex, types.DAILY_ROUND_COUNT);
 assert.equal(completedData.results.filter((status) => status === 'skipped').length, 3);
+
+// Same player can independently play a different difficulty mode (e.g., hard) on the same day
+const hardModeInfo = mockResponse();
+await handleDaily({ query: { category: 'all', difficulty: 'hard' }, headers: { cookie: playerCookie } } as never, hardModeInfo as never);
+assert.equal(hardModeInfo.statusCode, 200);
+assert.equal((hardModeInfo.body as typeof firstDailyBody).data.currentIndex, 0, 'different difficulty has its own progress board');
 
 const now = Date.now();
 const progress = {
@@ -180,35 +194,37 @@ const progress = {
 };
 assert.ok(await dbService.getOrCreateDailyRoundProgress(progress));
 const competingFinalizations = await Promise.all([
-  scoring.finalizeDailyRound({ ...progress, outcome: 'correct', now: now + 100 }),
-  scoring.finalizeDailyRound({ ...progress, outcome: 'correct', now: now + 200 }),
+  scoring.finalizeDailyRound({ ...progress, stage: 0, outcome: 'correct', now: now + 100 }),
+  scoring.finalizeDailyRound({ ...progress, stage: 0, outcome: 'correct', now: now + 200 }),
 ]);
 assert.equal(competingFinalizations.filter((result) => result.updated).length, 1, 'one round may award at most once');
 const persisted = await dbService.getDailyRoundProgress(playerId, challengeDate, 'all');
 assert.equal(persisted.length, 1);
 assert.equal(persisted[0].status, 'correct');
-assert.equal(persisted[0].score, scoring.getDailyCorrectScore(persisted[0].answerTimeMs).score);
+assert.equal(persisted[0].score, 1000);
 
-const expiredProgress = {
+// No 25-second timeout: answering after 60s still awards stage points
+const longRoundProgress = {
   playerId: '00000000-0000-4000-8000-000000000099',
   dateKey: challengeDate,
   category: 'all' as const,
   roundIndex: 0,
-  trackId: 'track-expired',
+  trackId: 'track-no-timeout',
   startedAt: 1000,
   status: 'pending' as const,
   score: 0,
   speedBonus: 0,
   answerTimeMs: 0,
 };
-await dbService.getOrCreateDailyRoundProgress(expiredProgress);
-const expiration = await scoring.finalizeDailyRound({
-  ...expiredProgress,
+await dbService.getOrCreateDailyRoundProgress(longRoundProgress);
+const longAnswer = await scoring.finalizeDailyRound({
+  ...longRoundProgress,
+  stage: 2,
   outcome: 'correct',
-  now: 1000 + types.DAILY_ALLOWED_TIME_MS,
+  now: 1000 + 60_000,
 });
-assert.equal(expiration.status, 'expired', 'late answers are finalized as timeout, even if correct');
-assert.equal(expiration.scoreDelta, 0);
+assert.equal(longAnswer.status, 'correct', 'Daily Challenge has no 25s auto-expire timeout');
+assert.equal(longAnswer.scoreDelta, 600);
 
 const rankingDate = '2099-11-07';
 const candidates = [
@@ -246,6 +262,26 @@ await handleDaily({ query: { category: 'all' }, headers: {} } as never, failedDa
 assert.equal(failedDatabaseResponse.statusCode, 503);
 assert.ok(!(failedDatabaseResponse.body as { message: string }).message.includes('private database connection detail'));
 dbService.getDailyRoundProgress = originalProgressReader;
+
+// Simulate remote Supabase where daily_round_progress / daily_challenges return 404 (not migrated yet)
+const prevSupabaseUrl = process.env.SUPABASE_URL;
+const prevSupabaseKey = process.env.SUPABASE_ANON_KEY;
+const prevFetch = globalThis.fetch;
+process.env.SUPABASE_URL = 'https://mock-project.supabase.co';
+process.env.SUPABASE_ANON_KEY = 'mock-anon-key';
+globalThis.fetch = async () => new Response(JSON.stringify({ code: 'PGRST205', message: 'table not found' }), { status: 404 });
+try {
+  const unmigratedDailyRes = mockResponse();
+  await handleDaily({ query: { category: 'thai' }, headers: {} } as never, unmigratedDailyRes as never);
+  assert.equal(unmigratedDailyRes.statusCode, 200, 'Daily Challenge must succeed via fallback when remote progress table is missing');
+  const unmigratedData = (unmigratedDailyRes.body as typeof firstDailyBody).data;
+  assert.equal(unmigratedData.rounds.length, 5);
+  assert.ok(unmigratedData.rounds[0].roundToken, 'First round token must be issued');
+} finally {
+  globalThis.fetch = prevFetch;
+  if (prevSupabaseUrl === undefined) delete process.env.SUPABASE_URL; else process.env.SUPABASE_URL = prevSupabaseUrl;
+  if (prevSupabaseKey === undefined) delete process.env.SUPABASE_ANON_KEY; else process.env.SUPABASE_ANON_KEY = prevSupabaseKey;
+}
 
 console.log('Daily Challenge regression checks passed: timing inheritance, scoring bounds, timeout, Bangkok reset, signed sessions, stable shared sequence and refresh, successful five-round response, empty catalog and database errors, correct/wrong/skip gameplay, atomic duplicate finalization, deterministic ranking, and concurrent/duplicate leaderboard submissions.');
 fs.rmSync(tempDir, { recursive: true, force: true });

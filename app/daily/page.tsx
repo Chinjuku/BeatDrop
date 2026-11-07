@@ -5,19 +5,25 @@ import { useGame } from '../../context/GameContext';
 import { AudioPlayer } from '../../components/AudioPlayer';
 import { GuessAutocomplete } from '../../components/GuessAutocomplete';
 import { SpinningAlbumArt } from '../../components/SpinningAlbumArt';
+import { TimeRangeSelector } from '../../components/TimeRangeSelector';
 import {
   CalendarDays,
   Trophy,
   Loader2,
   Play,
+  Share2,
+  Check,
 } from 'lucide-react';
-import { DAILY_SKIP_PENALTY, GameConfig, SONGSPOT_STAGES } from '../../types';
+import { DEFAULT_TIME_STAGES, DIFFICULTY_PRESETS, DifficultyLevel, GameConfig } from '../../types';
+import { shareOrCopy } from '../../lib/shareUtils';
 
 const DailyChallengePage: React.FC = () => {
   const router = useRouter(); const navigate = (p: string) => router.push(p);
+  const [copiedShareText, setCopiedShareText] = useState(false);
   const {
     config,
     handleConfigChange,
+    handleDailyDifficultySelect,
     round,
     loadingRound,
     submittingGuess,
@@ -50,80 +56,85 @@ const DailyChallengePage: React.FC = () => {
     onSeek,
     handleSelectGuess,
     handleSkip,
-    handleDailyTimeout,
     handleNextRoundOrDaily,
     setTicketModalOpen,
     setLeaderboardOpen,
   } = useGame();
   const handleConfigChangeRef = useRef(handleConfigChange);
   handleConfigChangeRef.current = handleConfigChange;
-  const [remainingMs, setRemainingMs] = useState(0);
-  const timeoutTriggeredFor = useRef<string | null>(null);
-  const timeoutHandlerRef = useRef(handleDailyTimeout);
-  timeoutHandlerRef.current = handleDailyTimeout;
 
-  // Normalize only configuration. Missing challenge data is handled as a load error below,
+  // Normalize only configuration on page entry. Missing challenge data is handled as a load error below,
   // so a failed request cannot trigger an automatic request loop.
   useEffect(() => {
-    const matchesSongspotStages =
-      config.customStages?.length === SONGSPOT_STAGES.length &&
-      config.customStages.every((seconds, index) => seconds === SONGSPOT_STAGES[index]);
-    if (
-      config.mode !== 'daily' ||
-      config.timeRangePreset !== 'songspot' ||
-      !matchesSongspotStages ||
-      Boolean(config.artistName) ||
-      (config.yearFilter || 'any') !== 'any' ||
-      (config.genreFilter || 'any') !== 'any' ||
-      (dailyInfo && dailyInfo.category !== config.category)
-    ) {
+    if (config.mode !== 'daily') {
+      let targetCat = config.category;
+      let targetDiff = config.difficulty;
+      try {
+        const savedCat = localStorage.getItem('songspot:daily-category') as any;
+        const savedDiff = localStorage.getItem('songspot:daily-difficulty') as any;
+        if (['thai', 'international', 'all'].includes(savedCat)) targetCat = savedCat;
+        if (['easy', 'medium', 'hard', 'expert', 'impossible'].includes(savedDiff)) targetDiff = savedDiff;
+      } catch {}
+
       handleConfigChangeRef.current(
         {
           ...config,
           mode: 'daily',
-          customStages: SONGSPOT_STAGES,
-          timeRangePreset: 'songspot',
+          category: targetCat,
+          difficulty: targetDiff,
+          timeRangePreset: config.timeRangePreset || 'standard',
           artistName: undefined,
           yearFilter: 'any',
           genreFilter: 'any',
         },
         true
       );
+    } else if (
+      Boolean(config.artistName) ||
+      (config.yearFilter || 'any') !== 'any' ||
+      (config.genreFilter || 'any') !== 'any'
+    ) {
+      handleConfigChangeRef.current(
+        {
+          ...config,
+          artistName: undefined,
+          yearFilter: 'any',
+          genreFilter: 'any',
+        },
+        false
+      );
     }
-  }, [
-    config.mode,
-    config.category,
-    config.timeRangePreset,
-    config.customStages,
-    config.artistName,
-    config.yearFilter,
-    config.genreFilter,
-    dailyInfo?.category,
-  ]);
-
-  useEffect(() => {
-    if (config.mode !== 'daily' || !round?.expiresAt || outcome) {
-      setRemainingMs(0);
-      return;
-    }
-    const update = () => {
-      const remaining = Math.max(0, round.expiresAt! - Date.now());
-      setRemainingMs(remaining);
-      if (remaining === 0 && timeoutTriggeredFor.current !== round.roundToken) {
-        timeoutTriggeredFor.current = round.roundToken;
-        void timeoutHandlerRef.current();
-      }
-    };
-    update();
-    const timer = window.setInterval(update, 100);
-    return () => window.clearInterval(timer);
-  }, [config.mode, round?.roundToken, round?.expiresAt, outcome]);
+  }, [config.mode, config.artistName, config.yearFilter, config.genreFilter]);
 
   // Check if all 5 daily songs have been finished
   const isDailyFinished =
     dailyResults.length === 5 &&
     dailyResults.every((r) => r !== 'pending') &&
     (!outcome || dailyIndex >= 5);
+
+  const handleShareDailyResult = async () => {
+    const emojiMap: Record<string, string> = {
+      correct: '🟩',
+      wrong: '🟥',
+      skipped: '🟧',
+      expired: '⬛',
+      pending: '⬜',
+    };
+    const emojiRow = dailyResults.map((r) => emojiMap[r] || '⬛').join(' ');
+    const catLabel = config.category === 'thai' ? 'เพลงไทย 🇹🇭' : config.category === 'international' ? 'เพลงสากล 🌍' : 'รวมไทย & สากล 🔥';
+    const diffLabel = config.difficulty.toUpperCase();
+    const shareText = `BeatDrop Daily #${dailyInfo?.dateKey || 'Challenge'}\nโหมด: ${catLabel} (${diffLabel})\n${emojiRow}\nคะแนน: ${dailyScore} pts (ถูก ${dailyCorrectCount}/5)\nhttps://beatdrop.app/daily`;
+
+    const result = await shareOrCopy({
+      title: 'BeatDrop Daily Challenge Result',
+      text: shareText,
+      url: typeof window !== 'undefined' ? window.location.href : undefined,
+    });
+    if (result === 'copied') {
+      setCopiedShareText(true);
+      setTimeout(() => setCopiedShareText(false), 2500);
+    }
+  };
 
   return (
     <div className="w-full flex flex-col items-center my-auto">
@@ -167,6 +178,22 @@ const DailyChallengePage: React.FC = () => {
             <strong className="font-mono text-amber-400">{dailyScore} pts</strong>
           </div>
 
+          {/* Round Stats Pill */}
+          <div
+            className="flex items-center gap-2 px-3 py-1 sm:py-1.5 rounded-full border text-xs font-bold shadow-sm"
+            style={{
+              backgroundColor: 'var(--song-surface)',
+              borderColor: 'var(--song-border)',
+              color: 'var(--song-muted)',
+            }}
+          >
+            <span>Round <strong className="text-white">{Math.min(dailyIndex + 1, dailyInfo?.totalRounds || 5)}/{dailyInfo?.totalRounds || 5}</strong></span>
+            <span className="opacity-30">|</span>
+            <span className="text-emerald-400">✓ {dailyCorrectCount}</span>
+            <span className="opacity-30">|</span>
+            <span className="text-amber-400">✕ {dailySkipCount}</span>
+          </div>
+
           {/* Rankings Button */}
           <button
             type="button"
@@ -183,27 +210,35 @@ const DailyChallengePage: React.FC = () => {
             <span>Rankings</span>
           </button>
 
-          {/* Category Pill */}
-          <span
-            className="text-xs font-bold px-2.5 py-1 sm:py-1.5 rounded-full border"
+          {/* Category Pill / Switcher */}
+          <button
+            type="button"
+            onClick={() => {
+              const nextCat = config.category === 'thai' ? 'international' : config.category === 'international' ? 'all' : 'thai';
+              handleConfigChange({ ...config, category: nextCat }, true);
+            }}
+            className="text-xs font-bold px-2.5 py-1 sm:py-1.5 rounded-full border transition hover:brightness-110 active:scale-95 cursor-pointer flex items-center gap-1 shadow-sm"
             style={{
               backgroundColor: 'var(--song-surface)',
               borderColor: 'var(--song-border)',
               color: 'var(--song-accent-text)',
             }}
+            title="กดเพื่อสลับโหมด: เพลงไทย / เพลงสากล / รวมไทย & สากล"
           >
-            {config.category === 'thai'
-              ? '🇹🇭 เพลงไทย'
-              : config.category === 'international'
-                ? '🌍 เพลงสากล'
-                : '🔥 รวมไทย & สากล'}
-          </span>
+            <span>
+              {config.category === 'thai'
+                ? '🇹🇭 เพลงไทย'
+                : config.category === 'international'
+                  ? '🌍 เพลงสากล'
+                  : '🔥 รวมไทย & สากล'}
+            </span>
+          </button>
         </div>
       </div>
 
       {/* 2. Controls Card: 5-Song Progress + Difficulty + Time Range */}
       <div
-        className="w-full max-w-xl p-3 sm:p-3.5 rounded-2xl border flex flex-col items-center justify-center gap-2.5 mb-3"
+        className="w-full max-w-xl p-3 rounded-2xl border flex flex-col items-center justify-center gap-2.5 mb-3"
         style={{
           backgroundColor: 'var(--song-surface)',
           borderColor: 'var(--song-border)',
@@ -243,11 +278,51 @@ const DailyChallengePage: React.FC = () => {
 
         <div className="w-full h-px opacity-30 my-0.5" style={{ backgroundColor: 'var(--song-border)' }} />
 
-        <div className="w-full flex items-center justify-center gap-4 text-[11px] font-bold" style={{ color: 'var(--song-muted)' }}>
-          <span>Round {Math.min(dailyIndex + 1, dailyInfo?.totalRounds || 5)} / {dailyInfo?.totalRounds || 5}</span>
-          <span>Correct {dailyCorrectCount}</span>
-          <span>Skips {dailySkipCount}</span>
-          <span className="font-mono text-amber-300">{(remainingMs / 1000).toFixed(1)}s</span>
+        {/* Row 2: Difficulty Tabs */}
+        <div className="songspot-difficulty-tabs w-full justify-center">
+          {(['easy', 'medium', 'hard', 'expert', 'impossible'] as DifficultyLevel[]).map(
+            (lvl) => {
+              const preset = DIFFICULTY_PRESETS[lvl];
+              const isSelected = config.difficulty === lvl;
+              return (
+                <button
+                  key={lvl}
+                  type="button"
+                  className="songspot-difficulty-tab"
+                  aria-pressed={isSelected}
+                  style={
+                    {
+                      '--tab-color': preset.accent,
+                      '--tab-text': preset.accentText,
+                      '--tab-on': preset.accentOn,
+                    } as React.CSSProperties
+                  }
+                  onClick={() => handleDailyDifficultySelect(lvl)}
+                  title={preset.description}
+                >
+                  {preset.label}
+                </button>
+              );
+            }
+          )}
+        </div>
+
+        <div className="w-full h-px opacity-30 my-0.5" style={{ backgroundColor: 'var(--song-border)' }} />
+
+        {/* Row 3: Time Range (Centered) */}
+        <div className="w-full flex items-center justify-center">
+          <TimeRangeSelector
+            currentPreset={config.timeRangePreset}
+            stages={config.customStages}
+            onChangePreset={(presetId, nextStages) => {
+              const nextCfg: GameConfig = {
+                ...config,
+                timeRangePreset: presetId,
+                customStages: nextStages,
+              };
+              handleConfigChange(nextCfg, true);
+            }}
+          />
         </div>
       </div>
 
@@ -303,6 +378,29 @@ const DailyChallengePage: React.FC = () => {
               ))}
             </div>
 
+            {/* Share Result Button (Wordle-style Emoji Scorecard) */}
+            <button
+              type="button"
+              onClick={handleShareDailyResult}
+              className="w-full max-w-sm py-3 px-4 mb-3 rounded-xl font-black text-xs sm:text-sm flex items-center justify-center gap-2 transition hover:brightness-110 active:scale-98 shadow-md cursor-pointer"
+              style={{
+                backgroundColor: '#22c55e',
+                color: '#ffffff',
+              }}
+            >
+              {copiedShareText ? (
+                <>
+                  <Check className="w-4 h-4 text-white" />
+                  <span>คัดลอกผลลัพธ์ลงคลิปบอร์ดแล้ว!</span>
+                </>
+              ) : (
+                <>
+                  <Share2 className="w-4 h-4 text-white" />
+                  <span>แชร์ผลคะแนนประจำวัน (Share Scorecard)</span>
+                </>
+              )}
+            </button>
+
             <div className="w-full flex flex-col sm:flex-row gap-2.5 max-w-sm">
               <button
                 type="button"
@@ -356,11 +454,23 @@ const DailyChallengePage: React.FC = () => {
           </div>
         ) : outcome && revealSong ? (
           <>
-          <div className="text-center text-sm font-bold mb-2" role="status" aria-live="polite">
-            {dailyFeedback?.dailyResult === 'correct' && `Correct · +${dailyFeedback.scoreDelta} pts (500 base + ${dailyFeedback.speedBonus} speed)`}
-            {dailyFeedback?.dailyResult === 'wrong' && 'Wrong answer · 0 pts'}
-            {dailyFeedback?.dailyResult === 'skipped' && `Skipped · −${DAILY_SKIP_PENALTY} penalty (score floors at 0)`}
-            {dailyFeedback?.dailyResult === 'expired' && 'Time expired · 0 pts'}
+          <div className="text-center text-sm font-bold mb-2 flex items-center justify-center gap-2 flex-wrap" role="status" aria-live="polite">
+            {dailyFeedback?.dailyResult === 'correct' && (
+              <span className="text-emerald-400">
+                ✓ ตอบถูก! +{dailyFeedback.scoreDelta} pts
+                {Boolean(dailyFeedback.speedBonus) && ` (โบนัสความเร็ว +${dailyFeedback.speedBonus})`}
+                {typeof dailyFeedback.elapsedTimeMs === 'number' && ` · ${(dailyFeedback.elapsedTimeMs / 1000).toFixed(1)}s`}
+              </span>
+            )}
+            {dailyFeedback?.dailyResult === 'wrong' && (
+              <span className="text-red-400">✕ ทายผิด · 0 pts</span>
+            )}
+            {dailyFeedback?.dailyResult === 'skipped' && (
+              <span className="text-amber-400">− ยอมแพ้ / ข้ามเพลง · 0 pts</span>
+            )}
+            {dailyFeedback?.dailyResult === 'expired' && (
+              <span className="text-neutral-400">รอบสิ้นสุด · 0 pts</span>
+            )}
           </div>
           <SpinningAlbumArt
             song={revealSong}

@@ -91,17 +91,6 @@ export const Navbar: React.FC<NavbarProps> = ({
     setMounted(true);
   }, []);
 
-  // Lock background scroll when mobile navigation drawer is active
-  useEffect(() => {
-    if (activeMenu === 'mobile') {
-      const originalOverflow = document.body.style.overflow;
-      document.body.style.overflow = 'hidden';
-      return () => {
-        document.body.style.overflow = originalOverflow;
-      };
-    }
-  }, [activeMenu]);
-
   const headerRef = useRef<HTMLElement>(null);
   const mobileDrawerRef = useRef<HTMLDivElement>(null);
 
