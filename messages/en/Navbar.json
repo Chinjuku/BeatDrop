@@ -1,0 +1,76 @@
+{
+  "homeTitle": "BeatDrop — Home",
+  "mainNav": "Main menu",
+  "play": "Play",
+  "categories": "Categories",
+  "genres": "Genres",
+  "eras": "Eras",
+  "artists": "Artists",
+  "eraClassic": "Classic",
+  "browseAll": "Browse all categories",
+  "clip": {
+    "badge": "Clip quiz",
+    "title": "Hear it, name the song",
+    "line1": "Starts with a sub-second clip",
+    "line2": "Search the title to answer",
+    "searchDemo": "Search for a song…",
+    "cta": "Play the clip quiz"
+  },
+  "choice": {
+    "badge": "4 choices",
+    "title": "Hear it, pick the answer",
+    "line1": "Listen to a short clip",
+    "line2": "Pick from 4 answers",
+    "demoA": "แสงสุดท้าย - Bodyslam",
+    "demoB": "โต๊ะริม - Nont Tanont",
+    "demoC": "Cruel Summer - Taylor Swift",
+    "demoD": "Bohemian Rhapsody - Queen",
+    "cta": "Play multiple choice"
+  },
+  "catalog": {
+    "thai": "Thai songs",
+    "international": "International",
+    "all": "Thai & International",
+    "switchTitle": "Switch music catalog",
+    "ariaLabel": "Music catalog: {label}",
+    "choose": "Choose a catalog",
+    "section": "Music catalog"
+  },
+  "settings": {
+    "title": "Settings: artists and theme",
+    "ariaLabel": "Settings and theme",
+    "label": "Settings"
+  },
+  "artistLibrary": "Artist library",
+  "manageArtists": "Add & manage artists",
+  "manageArtistsHint": "Search or add new artists",
+  "theme": "Theme",
+  "syncAccent": "Match the light to difficulty",
+  "adminKeyRequired": "Key required",
+  "language": "Language",
+  "languageGroup": "Choose language",
+  "languages": {
+    "th": "ไทย",
+    "en": "English"
+  },
+  "menu": {
+    "title": "Menu",
+    "open": "Open menu",
+    "close": "Close menu"
+  },
+  "mobile": {
+    "play": "Play (clip quiz)",
+    "daily": "Daily Challenge (5 songs)",
+    "guesser": "Song Guesser (4 choices)",
+    "topics": "Play by topic"
+  },
+  "leaderboard": "Leaderboard",
+  "manageLibrary": "Manage artist library",
+  "artistCount": "{count, plural, one {# artist} other {# artists}}",
+  "themes": {
+    "songspot-dark": { "description": "Original Songspot emerald stage & spotlight theme" },
+    "spotify-green": { "description": "Deep matte carbon with vibrant #1DB954 studio accents" },
+    "neon-cyber": { "description": "Synthwave electric cyan & magenta midnight glow" },
+    "sunset": { "description": "Warm analog amber, coral orange & vintage vinyl tones" }
+  }
+}

@@ -1,8 +1,8 @@
 'use client';
+import { Link, usePathname, useRouter } from '../i18n/navigation';
 
-import React from 'react';
-import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation';
+import React, { useEffect, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { Navbar } from './Navbar';
 import { AddArtistModal } from './AddArtistModal';
 import { LeaderboardModal } from './LeaderboardModal';
@@ -16,6 +16,7 @@ import { invalidateArtists, invalidateSongs } from '../lib/queryClient';
 import type { GameConfig, GameMode } from '../types';
 
 export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const t = useTranslations('Shell');
   const router = useRouter();
   const pathname = usePathname() || '/play';
   const navigate = (path: string) => router.push(path);
@@ -30,6 +31,7 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
     bestStreak,
     fastestTime,
     dailyInfo,
+    dailyIndex,
     dailyScore,
     addArtistOpen,
     setAddArtistOpen,
@@ -43,6 +45,12 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
     stages,
     history,
   } = useGame();
+
+  // The install offer waits until the player has finished at least one round this visit.
+  const [hasFinishedRound, setHasFinishedRound] = useState(false);
+  useEffect(() => {
+    if (outcome) setHasFinishedRound(true);
+  }, [outcome]);
 
   const handleToggleDailyMode = () => {
     if (pathname === '/daily') {
@@ -114,7 +122,7 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
         currentMode={config.mode}
         onSelectQuiz={handleSelectQuiz}
       />
-      <PwaManager />
+      <PwaManager canOfferInstall={hasFinishedRound} />
       <CookieConsent />
 
       {/* Page Content */}
@@ -150,18 +158,18 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
             </span>
           </div>
           <nav
-            aria-label="ลิงก์นโยบายและข้อมูลเว็บไซต์"
+            aria-label={t('footerNav')}
             className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1.5 text-[11px]"
           >
-            <span className="opacity-60">🇹🇭 Thai &amp; International Music Challenge</span>
+            <span className="opacity-60">🇹🇭 {t('footerTagline')}</span>
             <span aria-hidden="true" className="opacity-25">
               •
             </span>
             <Link href="/privacy" className="opacity-75 underline-offset-2 transition hover:underline hover:opacity-100">
-              ความเป็นส่วนตัว
+              {t('privacyLink')}
             </Link>
             <Link href="/cookies" className="opacity-75 underline-offset-2 transition hover:underline hover:opacity-100">
-              คุกกี้
+              {t('cookiesLink')}
             </Link>
             <CookiePreferencesButton variant="link" className="opacity-75 hover:opacity-100" />
           </nav>
@@ -205,6 +213,8 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
         dailyScore={pathname === '/daily' || config.mode === 'daily' ? dailyScore : null}
         isDailyMode={pathname === '/daily' || config.mode === 'daily'}
         dateKey={dailyInfo?.dateKey}
+        dailyRoundsPlayed={dailyInfo ? Math.min(dailyIndex, dailyInfo.rounds.length) : 0}
+        dailyRoundsTotal={dailyInfo?.rounds.length ?? 0}
       />
 
       <ShareTicketModal

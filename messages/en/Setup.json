@@ -1,0 +1,34 @@
+{
+  "roundSetup": "Round setup",
+  "reel": {
+    "genre": "Genre",
+    "era": "Era",
+    "artist": "Artist",
+    "genreAction": "Browse all genres",
+    "eraAction": "Browse all eras and years",
+    "artistAction": "Search the artist library"
+  },
+  "genreModal": {
+    "dialogTitle": "All genres",
+    "heading": "Choose a genre",
+    "searchPlaceholder": "Search genres (e.g. Pop, Rock, Indie, T-Pop)..."
+  },
+  "eraModal": {
+    "dialogTitle": "All eras and years",
+    "heading": "Choose a year or decade",
+    "decades": "Decades",
+    "exactYears": "Exact release year (2000 – 2026)"
+  },
+  "artistModal": {
+    "dialogTitle": "Choose an artist",
+    "heading": "Choose an artist from the library",
+    "searchPlaceholder": "Search artists or genres in the library...",
+    "tabAll": "All ({count})",
+    "tabThai": "Thai ({count})",
+    "tabIntl": "International ({count})",
+    "trackCount": "{count, plural, one {# song} other {# songs}}",
+    "noResults": "No artist matching \"{search}\" in the library",
+    "addPrompt": "Want an artist who isn't here yet?",
+    "addArtist": "Add a new artist"
+  }
+}

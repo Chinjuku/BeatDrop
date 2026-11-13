@@ -1,0 +1,17 @@
+{
+  "categoryMode": {
+    "thai": "Thai songs mode",
+    "international": "International mode",
+    "mixed": "Thai & International"
+  },
+  "filter": {
+    "artist": "Artist: {value}",
+    "era": "Year/Era: {value}",
+    "genre": "Genre: {value}",
+    "clearArtist": "Clear this artist (back to random artists)",
+    "clearEra": "Clear this year/era (back to all eras)",
+    "clearGenre": "Clear this genre (back to all genres)"
+  },
+  "loading": "Picking a new song...",
+  "historyHeading": "Guesses this round ({used}/{total})"
+}

@@ -1,0 +1,34 @@
+{
+  "roundSetup": "ตั้งค่ารอบ",
+  "reel": {
+    "genre": "แนวเพลง",
+    "era": "ยุค",
+    "artist": "ศิลปิน",
+    "genreAction": "เลือกแนวเพลงทั้งหมด",
+    "eraAction": "เลือกปีและทศวรรษทั้งหมด",
+    "artistAction": "ค้นหาและเลือกศิลปินในคลัง"
+  },
+  "genreModal": {
+    "dialogTitle": "แนวเพลงทั้งหมด",
+    "heading": "เลือกแนวเพลง",
+    "searchPlaceholder": "ค้นหาแนวเพลง (เช่น Pop, Rock, Indie, T-Pop)..."
+  },
+  "eraModal": {
+    "dialogTitle": "ทุกยุคและทุกปี",
+    "heading": "เลือกปีหรือทศวรรษ",
+    "decades": "ทศวรรษ",
+    "exactYears": "เจาะจงปีที่ปล่อยเพลง (2000 – 2026)"
+  },
+  "artistModal": {
+    "dialogTitle": "เลือกศิลปิน",
+    "heading": "เลือกศิลปินในคลัง",
+    "searchPlaceholder": "ค้นหาชื่อศิลปิน หรือแนวเพลงในคลัง...",
+    "tabAll": "ทั้งหมด ({count})",
+    "tabThai": "เพลงไทย ({count})",
+    "tabIntl": "เพลงสากล ({count})",
+    "trackCount": "{count} เพลง",
+    "noResults": "ไม่พบศิลปิน \"{search}\" ในคลังเพลง",
+    "addPrompt": "อยากเล่นศิลปินอื่นที่ยังไม่มีในนี้?",
+    "addArtist": "เพิ่มศิลปินใหม่เข้าคลัง"
+  }
+}

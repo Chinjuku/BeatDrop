@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { Modal } from './Modal';
 import {
   AlertCircle,
@@ -40,6 +41,7 @@ export const AddArtistModal: React.FC<AddArtistModalProps> = ({
   onArtistRemoved,
   onPlayArtist,
 }) => {
+  const t = useTranslations('Artists');
   const { syncArtist, syncingArtistId, fetchArtists } = useGame();
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedQuery, setDebouncedQuery] = useState('');
@@ -117,7 +119,7 @@ export const AddArtistModal: React.FC<AddArtistModalProps> = ({
       signal: abortCtrl.signal,
     })
       .then((res) => {
-        if (!res.ok) throw new Error(`ค้นหาไม่สำเร็จ (HTTP ${res.status})`);
+        if (!res.ok) throw new Error(t('search.httpError', { status: res.status }));
         return res.json();
       })
       .then((json) => {
@@ -132,7 +134,7 @@ export const AddArtistModal: React.FC<AddArtistModalProps> = ({
       .catch((err: unknown) => {
         if (!isMounted || (err as Error)?.name === 'AbortError') return;
         console.error('Artist discovery error:', err);
-        setSearchError((err as Error).message || 'เกิดข้อผิดพลาดในการเชื่อมต่อ');
+        setSearchError((err as Error).message || t('search.networkError'));
         setDiscovered([]);
       })
       .finally(() => {
@@ -197,18 +199,18 @@ export const AddArtistModal: React.FC<AddArtistModalProps> = ({
       onArtistAdded(result.artist);
       setToast({
         type: 'success',
-        title: `ซิงก์เพลงของ "${result.artist.name}" สำเร็จ!`,
+        title: t('sync.successTitle', { name: result.artist.name }),
         detail:
           result.added > 0
-            ? `เพิ่มเพลงใหม่ +${result.added} เพลง (รวมในคลัง ${result.newCount} เพลง)`
-            : `มีเพลงในคลังครบถ้วนแล้ว (${result.newCount} เพลง)`,
+            ? t('sync.added', { added: result.added, total: result.newCount })
+            : t('sync.upToDate', { total: result.newCount }),
       });
       setSearchQuery('');
       setDiscovered([]);
     } catch (err) {
       setToast({
         type: 'error',
-        title: `ไม่สามารถดึงเพลงของ "${cleanName}" ได้`,
+        title: t('sync.errorTitle', { name: cleanName }),
         detail: (err as Error).message,
       });
     } finally {
@@ -220,7 +222,7 @@ export const AddArtistModal: React.FC<AddArtistModalProps> = ({
     <Modal
       open={isOpen}
       onClose={onClose}
-      title="Add and manage artists"
+      title={t('modalTitle')}
       dismissOnBackdrop={false}
       panelClassName="!bg-transparent !border-0 !shadow-none !overflow-visible !max-h-none"
     >
@@ -250,10 +252,10 @@ export const AddArtistModal: React.FC<AddArtistModalProps> = ({
             </span>
             <div className="min-w-0">
               <h2 className="text-sm sm:text-base font-extrabold truncate">
-                เพิ่มและจัดการศิลปิน (Add / Manage Artists)
+                {t('title')}
               </h2>
               <p className="text-[10px] sm:text-xs truncate" style={{ color: 'var(--song-muted)' }}>
-                ค้นหาชื่อศิลปินเพื่อดึงเพลงเข้าคลังอัตโนมัติ
+                {t('subtitle')}
               </p>
             </div>
           </div>
@@ -262,7 +264,7 @@ export const AddArtistModal: React.FC<AddArtistModalProps> = ({
             type="button"
             onClick={onClose}
             className="p-1.5 sm:p-2 rounded-full hover:bg-white/10 transition flex-shrink-0"
-            aria-label="Close modal"
+            aria-label={t('close')}
           >
             <X className="w-5 h-5" />
           </button>
@@ -281,7 +283,7 @@ export const AddArtistModal: React.FC<AddArtistModalProps> = ({
               }}
             >
               <Loader2 className="w-4 h-4 animate-spin flex-shrink-0" />
-              <span>กำลังดึงเพลงจาก iTunes API และบันทึกลงฐานข้อมูล...</span>
+              <span>{t('syncing')}</span>
             </div>
           )}
 
@@ -321,7 +323,7 @@ export const AddArtistModal: React.FC<AddArtistModalProps> = ({
                 type="button"
                 onClick={() => setToast(null)}
                 className="p-1 rounded-xl hover:bg-white/10 transition flex-shrink-0"
-                aria-label="Dismiss notification"
+                aria-label={t('dismiss')}
               >
                 <X className="w-3.5 h-3.5" />
               </button>
@@ -341,7 +343,7 @@ export const AddArtistModal: React.FC<AddArtistModalProps> = ({
                     handleAddOrSync(searchQuery.trim());
                   }
                 }}
-                placeholder="ค้นหาชื่อศิลปิน เช่น NONT TANONT, Bodyslam, Three Man Down, Taylor Swift..."
+                placeholder={t('search.placeholder')}
                 className="w-full pl-10 pr-10 py-3 rounded-xl border text-base sm:text-sm font-semibold focus:outline-none transition shadow-inner"
                 style={{
                   backgroundColor: 'var(--song-surface-soft)',
@@ -378,7 +380,7 @@ export const AddArtistModal: React.FC<AddArtistModalProps> = ({
                 }}
               >
                 <Loader2 className="w-3.5 h-3.5 animate-spin" style={{ color: 'var(--song-accent-text)' }} />
-                <span>กำลังค้นหาศิลปิน &ldquo;{searchQuery}&rdquo; จากระบบและ iTunes...</span>
+                <span>{t('search.searching', { query: searchQuery })}</span>
               </div>
             )}
 
@@ -386,7 +388,7 @@ export const AddArtistModal: React.FC<AddArtistModalProps> = ({
             {searchError && (
               <div className="p-3 rounded-xl border flex items-center gap-2 text-xs font-semibold text-rose-300 border-rose-500/30 bg-rose-500/10">
                 <AlertCircle className="w-4 h-4 shrink-0 text-rose-400" />
-                <span>ค้นหาไม่สำเร็จ: {searchError}</span>
+                <span>{t('search.failed', { error: searchError })}</span>
               </div>
             )}
 
@@ -401,10 +403,10 @@ export const AddArtistModal: React.FC<AddArtistModalProps> = ({
               >
                 <AlertCircle className="w-5 h-5 mx-auto text-amber-400" />
                 <div className="text-xs sm:text-sm font-bold text-white">
-                  ไม่พบศิลปินที่ตรงกับ &ldquo;{searchQuery}&rdquo;
+                  {t('search.noMatch', { query: searchQuery })}
                 </div>
                 <div className="text-[11px]" style={{ color: 'var(--song-muted)' }}>
-                  ไม่มีในคลังและไม่พบใน iTunes • ลองตรวจสอบตัวสะกด หรือพิมพ์ชื่อภาษาไทย/อังกฤษให้ถูกต้อง
+                  {t('search.noMatchHint')}
                 </div>
               </div>
             )}
@@ -424,7 +426,7 @@ export const AddArtistModal: React.FC<AddArtistModalProps> = ({
               >
                 <div className="flex items-center gap-2">
                   <Plus className="w-4 h-4" />
-                  <span>ดึงเพลงของ <strong>"{extractSoloArtistName(searchQuery.trim())}"</strong> เข้าคลังทันที</span>
+                  <span>{t.rich('search.syncNow', { name: extractSoloArtistName(searchQuery.trim()), strong: (chunks) => <strong>{chunks}</strong> })}</span>
                 </div>
                 {addingName === extractSoloArtistName(searchQuery.trim()) && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
               </button>
@@ -434,7 +436,7 @@ export const AddArtistModal: React.FC<AddArtistModalProps> = ({
             {uniqueDiscovered.length > 0 && (
               <div className="space-y-1.5 pt-1">
                 <div className="text-xs font-extrabold uppercase tracking-wider flex items-center justify-between" style={{ color: 'var(--song-accent-text)' }}>
-                  <span>พบศิลปินใหม่จากออนไลน์ ({uniqueDiscovered.length})</span>
+                  <span>{t('discovered', { count: uniqueDiscovered.length })}</span>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-56 overflow-y-auto pr-1">
                   {uniqueDiscovered.map((art) => {
@@ -472,7 +474,7 @@ export const AddArtistModal: React.FC<AddArtistModalProps> = ({
                           <div className="min-w-0">
                             <div className="text-xs font-bold truncate">{art.name}</div>
                             <div className="text-[10px]" style={{ color: 'var(--song-muted)' }}>
-                              {art.category === 'thai' ? '🇹🇭 เพลงไทย' : '🌍 สากล'} • {art.mainGenre}
+                              {art.category === 'thai' ? `🇹🇭 ${t('category.thai')}` : `🌍 ${t('category.international')}`} • {art.mainGenre}
                             </div>
                           </div>
                         </div>
@@ -488,7 +490,7 @@ export const AddArtistModal: React.FC<AddArtistModalProps> = ({
                               }}
                             >
                               <Check className="w-3.5 h-3.5 text-emerald-400" />
-                              <span>ในคลังแล้ว</span>
+                              <span>{t('inLibrary')}</span>
                             </span>
                           ) : (
                             <button
@@ -508,7 +510,7 @@ export const AddArtistModal: React.FC<AddArtistModalProps> = ({
                               ) : (
                                 <>
                                   <Plus className="w-3.5 h-3.5" />
-                                  <span>เพิ่มศิลปิน</span>
+                                  <span>{t('add')}</span>
                                 </>
                               )}
                             </button>
@@ -527,8 +529,8 @@ export const AddArtistModal: React.FC<AddArtistModalProps> = ({
             <div className="flex items-center justify-between text-xs font-extrabold uppercase tracking-wider" style={{ color: 'var(--song-muted)' }}>
               <span>
                 {searchQuery.trim()
-                  ? `ศิลปินในคลังที่ตรงกับคำค้นหา (${filteredLibrary.length})`
-                  : `ศิลปินในคลังทั้งหมด (${artists.length} ศิลปิน)`}
+                  ? t('library.matching', { count: filteredLibrary.length })
+                  : t('library.all', { count: artists.length })}
               </span>
             </div>
 
@@ -537,7 +539,7 @@ export const AddArtistModal: React.FC<AddArtistModalProps> = ({
                 className="py-3 px-3 rounded-xl border border-dashed text-center text-xs"
                 style={{ borderColor: 'var(--song-border)', color: 'var(--song-muted)' }}
               >
-                ไม่มีศิลปินชื่อ &ldquo;{searchQuery}&rdquo; อยู่ในคลังเดิมของคุณ
+                {t('library.noMatch', { query: searchQuery })}
               </div>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-64 overflow-y-auto pr-1">
@@ -576,7 +578,7 @@ export const AddArtistModal: React.FC<AddArtistModalProps> = ({
                         <div className="text-[10px] whitespace-nowrap truncate" style={{ color: 'var(--song-muted)' }}>
                           {artist.category === 'thai' ? '🇹🇭' : '🌍'} {artist.mainGenre} •{' '}
                           <span className="font-bold" style={{ color: 'var(--song-accent-text)' }}>
-                            {trackCount} เพลง
+                            {t('trackCount', { count: trackCount })}
                           </span>
                         </div>
                       </div>
@@ -594,10 +596,10 @@ export const AddArtistModal: React.FC<AddArtistModalProps> = ({
                           backgroundColor: 'var(--song-accent)',
                           color: 'var(--song-accent-on)',
                         }}
-                        title={`เล่นโหมดศิลปิน ${artist.name}`}
+                        title={t('playTitle', { name: artist.name })}
                       >
                         <Play className="w-3 h-3 fill-current" />
-                        <span>เล่น</span>
+                        <span>{t('play')}</span>
                       </button>
                     </div>
                   </div>

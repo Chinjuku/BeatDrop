@@ -1,0 +1,15 @@
+{
+  "choicesBadge": "4 CHOICES",
+  "skips": "Skips: {count}",
+  "loading": "Building a 4-choice round...",
+  "retry": "Retry",
+  "retrying": "Retrying…",
+  "result": {
+    "correct": "Correct choice · points recorded through your streak",
+    "skipped": "Skipped · no points",
+    "incorrect": "Incorrect choice",
+    "incorrectWithAnswer": "Incorrect choice: {title} — {artist}"
+  },
+  "pickAnswer": "Pick one of 4 answers",
+  "giveUpTitle": "Give up and reveal the song now"
+}

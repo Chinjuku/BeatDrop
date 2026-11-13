@@ -4,10 +4,8 @@ import {
   CategoryType,
   DAILY_ROUND_COUNT,
   DailyChallengeInfo,
-  DEFAULT_TIME_STAGES,
+  DAILY_TIME_STAGES,
   DifficultyLevel,
-  MAX_SNIPPET_DURATION,
-  MIN_SNIPPET_DURATION,
   RoundStartResponse,
   Song,
 } from '../../shared/types';
@@ -27,21 +25,6 @@ export function scopePlayerIdByDifficulty(playerId: string, difficulty: Difficul
   if (!difficulty || difficulty === 'easy') return playerId;
   const hex = crypto.createHash('sha256').update(`${playerId}:${difficulty}`).digest('hex');
   return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-4${hex.slice(13, 16)}-8${hex.slice(17, 20)}-${hex.slice(20, 32)}`;
-}
-
-function parseDailyStages(raw: unknown): number[] {
-  const parts = Array.isArray(raw)
-    ? raw.map((v) => Number(v))
-    : typeof raw === 'string' && raw.trim()
-      ? raw.split(',').map((v) => Number(v.trim()))
-      : [];
-  const valid = parts
-    .filter((n) => Number.isFinite(n) && n >= MIN_SNIPPET_DURATION && n <= MAX_SNIPPET_DURATION)
-    .map((n) => Math.round(n * 10) / 10);
-  if (valid.length >= 2 && valid.length <= 6) {
-    return Array.from(new Set(valid)).sort((a, b) => a - b);
-  }
-  return DEFAULT_TIME_STAGES;
 }
 
 export function seededHash(str: string): number {
@@ -161,7 +144,7 @@ async function getOrStartRound(
   roundIndex: number,
   track: Song,
   difficulty: DifficultyLevel = 'easy',
-  stages: number[] = DEFAULT_TIME_STAGES
+  stages: number[] = [...DAILY_TIME_STAGES]
 ): Promise<RoundStartResponse | null> {
   const now = Date.now();
   const progress = await dbService.getOrCreateDailyRoundProgress({
@@ -234,7 +217,8 @@ export async function handleDaily(req: Request, res: Response): Promise<void> {
   const difficulty = ALLOWED_DIFFICULTIES.has(rawDifficulty as DifficultyLevel)
     ? (rawDifficulty as DifficultyLevel)
     : 'easy';
-  const stages = parseDailyStages(req.query.customStages);
+  // Client-supplied customStages are ignored: Daily timing is identical for everyone.
+  const stages = [...DAILY_TIME_STAGES];
   const basePlayerId = getDailyPlayerId(req, res);
   const playerId = scopePlayerIdByDifficulty(basePlayerId, difficulty);
   const dateKey = getBangkokDateKey();
@@ -341,7 +325,7 @@ export async function handleStartDailyRound(req: Request, res: Response): Promis
   const difficulty = ALLOWED_DIFFICULTIES.has(rawDifficulty as DifficultyLevel)
     ? (rawDifficulty as DifficultyLevel)
     : 'easy';
-  const stages = parseDailyStages(req.body?.customStages);
+  const stages = [...DAILY_TIME_STAGES];
   const playerId = scopePlayerIdByDifficulty(basePlayerId, difficulty);
   const requestedDate = typeof req.body?.dateKey === 'string' ? req.body.dateKey : '';
   const dateKey = /^\d{4}-\d{2}-\d{2}$/.test(requestedDate) ? requestedDate : getBangkokDateKey();

@@ -1,0 +1,28 @@
+{
+  "siteTitle": "BeatDrop • Guess Thai & international songs from a split second",
+  "siteDescription": "BeatDrop is a music guessing game for Thai and international songs. Hear as little as you dare, then name the song fast. Play the Daily Challenge, Song Guesser, or pick an artist, genre or era, with daily leaderboards.",
+  "play": {
+    "title": "Play the music guessing game",
+    "description": "Start guessing Thai and international songs right away. Hear a short clip and name the song as fast as you can. Clips can be as short as 0.1 seconds. Free in your browser, no sign-up."
+  },
+  "daily": {
+    "title": "Daily Challenge — the song quiz of the day",
+    "description": "The same five songs for everyone each day, resetting on Thailand time (UTC+7). Scores are checked on the server for fairness; share your result and climb the daily leaderboard."
+  },
+  "guesser": {
+    "title": "Song Guesser — four-choice music quiz",
+    "description": "BeatDrop's Song Guesser mode: hear a preview and pick the right song from four choices. The shorter the clip you need, the better."
+  },
+  "categories": {
+    "title": "Categories and game modes",
+    "description": "Pick what to play: Thai or international music, by artist, genre, year or era, at the difficulty you want."
+  },
+  "privacy": {
+    "title": "Privacy Policy",
+    "description": "BeatDrop's privacy policy: what we collect, how we use it, how long we keep it, third-party services, and your rights under the PDPA and GDPR."
+  },
+  "cookies": {
+    "title": "Cookie Policy",
+    "description": "How BeatDrop uses cookies and browser storage: the full list, their purpose and lifetime, and how to change or withdraw your consent."
+  }
+}

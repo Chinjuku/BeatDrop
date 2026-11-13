@@ -1,0 +1,27 @@
+{
+  "ticket": {
+    "failed": "FAILED",
+    "headlineWon": "I got it in {seconds}s. How little do you need?",
+    "headlineLost": "I couldn’t name this one. How little do you need?",
+    "points": "{points} points",
+    "kicker": "MUSIC CHALLENGE",
+    "noSpoilers": "No spoilers",
+    "gameOverLine": "{seconds}s (Game Over)",
+    "shareTitle": "BeatDrop Music Ticket",
+    "dialogTitle": "Your music ticket",
+    "close": "Close ticket dialog",
+    "shareChallenge": "Share challenge",
+    "copied": "Copied! ✓",
+    "copyResult": "Copy result",
+    "copyHint": "Score + link + #beatdrop",
+    "saving": "Saving...",
+    "saveImage": "Save image",
+    "saveHint": "Ticket PNG",
+    "footnote": "Friends start a fresh round."
+  },
+  "daily": {
+    "modeLine": "Mode: {category} ({difficulty})",
+    "scoreLine": "Score: {score} pts ({correct}/{total} correct)",
+    "title": "BeatDrop Daily Challenge result"
+  }
+}

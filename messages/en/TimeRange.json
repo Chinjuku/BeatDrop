@@ -1,0 +1,27 @@
+{
+  "errors": {
+    "minEntries": "Enter at least 2 stages (e.g. 0.5, 1.5, 3, 6, 10)",
+    "outOfBounds": "Each stage must be between {min}s and {max}s",
+    "minUnique": "You need at least 2 different stages",
+    "maxStages": "Up to 8 stages",
+    "minStages": "At least 2 stages are required"
+  },
+  "selectorTitle": "Snippet length options",
+  "clipRange": "Clip range:",
+  "stage": "Stage {n}",
+  "modal": {
+    "dialogTitle": "Custom snippet stages",
+    "heading": "Custom snippet stages",
+    "subheading": "Set each stage length in seconds, separated by commas, up to {max}s",
+    "close": "Close",
+    "quickPresets": "Quick presets:",
+    "commaLabel": "Comma-separated values:",
+    "commaPlaceholder": "e.g. 0.5, 1.5, 3, 6, 10",
+    "adjustStages": "Adjust each stage ({count, plural, one {# stage} other {# stages}}):",
+    "addStage": "Add stage",
+    "removeStage": "Remove this stage",
+    "preview": "In-game timeline preview:",
+    "cancel": "Cancel",
+    "apply": "Save & apply"
+  }
+}

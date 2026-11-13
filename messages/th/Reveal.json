@@ -1,0 +1,31 @@
+{
+  "share": {
+    "wonLine": "ทายถูกใน {seconds} วินาที! ({difficulty})",
+    "lostLine": "รอบนี้เกือบได้! ({difficulty})",
+    "songLine": "เพลง: {title} — {artist} ({year})",
+    "title": "ผลการทายเพลง BeatDrop"
+  },
+  "vinylPause": "คลิกเพื่อหยุดชั่วคราว",
+  "vinylResume": "คลิกเพื่อเล่นต่อ",
+  "albumArtAlt": "ปกอัลบั้ม {title}",
+  "playingFull": "กำลังเล่น 30 วิ",
+  "paused": "หยุดชั่วคราว",
+  "guessedIn": "ทายถูกใน {seconds} วินาที!",
+  "theSongWas": "เพลงนี้คือ",
+  "stampWon": "เยี่ยม!",
+  "stampLost": "พลาด",
+  "album": "อัลบั้ม:",
+  "released": "ปีที่ปล่อย:",
+  "genre": "แนวเพลง:",
+  "pausePreview": "หยุดตัวอย่าง 30 วินาที",
+  "playPreview": "เล่นตัวอย่าง 30 วินาที",
+  "seekPreview": "เลื่อนตำแหน่งตัวอย่างเสียง 30 วินาที",
+  "fullPreview": "ตัวอย่างเต็ม {time}",
+  "toggleMute": "เปิด/ปิดเสียง",
+  "volume": "ระดับเสียง",
+  "attemptSummary": "สรุปการทายในรอบนี้",
+  "shareCard": "แชร์การ์ดเพลง",
+  "nextSong": "เพลงถัดไป",
+  "copied": "คัดลอกข้อความผลลัพธ์แล้ว!",
+  "copyText": "คัดลอกผลลัพธ์เป็นข้อความ"
+}

@@ -1,0 +1,76 @@
+{
+  "homeTitle": "BeatDrop — หน้าแรก",
+  "mainNav": "เมนูหลัก",
+  "play": "เล่น",
+  "categories": "หมวดหมู่เพลง",
+  "genres": "แนวเพลง",
+  "eras": "ยุคสมัย",
+  "artists": "ศิลปิน",
+  "eraClassic": "Classic",
+  "browseAll": "ดูหมวดหมู่ทั้งหมด",
+  "clip": {
+    "badge": "ทายจากคลิป",
+    "title": "ฟังแล้วทายชื่อเพลง",
+    "line1": "เริ่มจากคลิปสั้นไม่ถึงวินาที",
+    "line2": "พิมพ์ค้นชื่อเพลงเพื่อตอบ",
+    "searchDemo": "ค้นหาชื่อเพลง…",
+    "cta": "เริ่มเล่นทายจากคลิป"
+  },
+  "choice": {
+    "badge": "4 ตัวเลือก",
+    "title": "ฟังแล้วเลือกคำตอบ",
+    "line1": "ฟังคลิปสั้น ๆ",
+    "line2": "เลือกคำตอบจาก 4 ตัวเลือก",
+    "demoA": "แสงสุดท้าย - Bodyslam",
+    "demoB": "โต๊ะริม - Nont Tanont",
+    "demoC": "Cruel Summer - Taylor Swift",
+    "demoD": "Bohemian Rhapsody - Queen",
+    "cta": "เริ่มเล่นแบบ 4 ตัวเลือก"
+  },
+  "catalog": {
+    "thai": "เพลงไทย",
+    "international": "เพลงสากล",
+    "all": "รวมไทย & สากล",
+    "switchTitle": "สลับแคตตาล็อกเพลง",
+    "ariaLabel": "แคตตาล็อกเพลง: {label}",
+    "choose": "เลือกแคตตาล็อกเพลง",
+    "section": "แคตตาล็อกเพลง"
+  },
+  "settings": {
+    "title": "ตั้งค่า: จัดการศิลปินและเลือกสีธีม",
+    "ariaLabel": "ตั้งค่าและธีม",
+    "label": "ตั้งค่า"
+  },
+  "artistLibrary": "คลังศิลปิน",
+  "manageArtists": "เพิ่ม & จัดการศิลปิน",
+  "manageArtistsHint": "ค้นหาหรือเพิ่มศิลปินใหม่",
+  "theme": "ธีมสี",
+  "syncAccent": "เปลี่ยนสีไฟตามระดับความยาก",
+  "adminKeyRequired": "ต้องใช้คีย์",
+  "language": "ภาษา",
+  "languageGroup": "เลือกภาษา",
+  "languages": {
+    "th": "ไทย",
+    "en": "English"
+  },
+  "menu": {
+    "title": "เมนู",
+    "open": "เปิดเมนู",
+    "close": "ปิดเมนู"
+  },
+  "mobile": {
+    "play": "เล่น (ทายจากคลิป)",
+    "daily": "Daily Challenge (5 เพลง)",
+    "guesser": "Song Guesser (4 ตัวเลือก)",
+    "topics": "เลือกเล่นตามหัวข้อ"
+  },
+  "leaderboard": "ตารางอันดับ",
+  "manageLibrary": "จัดการศิลปินในคลัง",
+  "artistCount": "{count} ศิลปิน",
+  "themes": {
+    "songspot-dark": { "description": "ธีมดั้งเดิมของ Songspot เวทีสีมรกตและแสงสปอตไลต์" },
+    "spotify-green": { "description": "พื้นคาร์บอนด้าน ตัดด้วยสีเขียว #1DB954 แบบสตูดิโอ" },
+    "neon-cyber": { "description": "แสงนีออนซินธ์เวฟ ฟ้าไซแอนและแมเจนตายามเที่ยงคืน" },
+    "sunset": { "description": "โทนอบอุ่นแบบแอนะล็อก สีอำพัน ส้มคอรัล และแผ่นเสียงวินเทจ" }
+  }
+}

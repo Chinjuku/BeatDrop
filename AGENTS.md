@@ -91,7 +91,7 @@ Before changing architecture, inspect the actual tree and the nearest `AGENTS.md
 ### Daily Challenge
 - Same challenge date must resolve to the same challenge seed, track sequence, round count, and rules for all players.
 - Use the product's declared timezone consistently (currently documented as Asia/Bangkok / UTC+7); verify actual implementation before changing.
-- Daily Challenge timing must inherit the canonical Songspot timing configuration, not duplicate hardcoded values.
+- Daily Challenge clip stages are fixed server-side to the Standard preset via `DAILY_TIME_STAGES` (shared/types.ts); client-supplied stages are ignored. Do not duplicate hardcoded values.
 - Score calculation and validation must be authoritative on the server.
 - Duplicate submissions must not award points more than once.
 - Leaderboard ordering and tie-breakers must be deterministic.

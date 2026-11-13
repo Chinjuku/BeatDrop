@@ -1,5 +1,7 @@
 import type { MetadataRoute } from 'next';
 import { absoluteUrl } from '../lib/siteConfig';
+import { routing } from '../i18n/routing';
+import { localizedPath } from '../lib/i18nMetadata';
 
 export const dynamic = 'force-static';
 
@@ -20,10 +22,18 @@ const ROUTES: Entry[] = [
 
 export default function sitemap(): MetadataRoute.Sitemap {
   const lastModified = new Date();
-  return ROUTES.map(({ path, priority, changeFrequency }) => ({
-    url: absoluteUrl(path),
-    lastModified,
-    changeFrequency,
-    priority,
-  }));
+  // One entry per route per locale, each listing every language version (hreflang).
+  return ROUTES.flatMap(({ path, priority, changeFrequency }) =>
+    routing.locales.map((locale) => ({
+      url: absoluteUrl(localizedPath(path, locale)),
+      lastModified,
+      changeFrequency,
+      priority,
+      alternates: {
+        languages: Object.fromEntries(
+          routing.locales.map((l) => [l, absoluteUrl(localizedPath(path, l))])
+        ),
+      },
+    }))
+  );
 }

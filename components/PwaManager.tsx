@@ -1,6 +1,11 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { X } from 'lucide-react';
+import { useTranslations } from 'next-intl';
+import { getPreference, setPreference } from '../lib/preferenceStorage';
+
+const STORAGE_INSTALL_DISMISSED = 'songspot:install-dismissed';
 
 interface InstallPromptEvent extends Event {
   prompt: () => Promise<void>;
@@ -28,18 +33,26 @@ function registerServiceWorker(): Promise<ServiceWorkerRegistration | null> {
   return registrationPromise;
 }
 
-export function PwaManager() {
+interface PwaManagerProps {
+  /** Only offer installation once the player has engaged (e.g. finished a round). */
+  canOfferInstall?: boolean;
+}
+
+export function PwaManager({ canOfferInstall = false }: PwaManagerProps) {
+  const t = useTranslations('Pwa');
   const [online, setOnline] = useState(true);
   const [installPrompt, setInstallPrompt] = useState<InstallPromptEvent | null>(null);
   const [updateWaiting, setUpdateWaiting] = useState(false);
   const [iosHelpOpen, setIosHelpOpen] = useState(false);
   const [iosInstallAvailable, setIosInstallAvailable] = useState(false);
   const [standalone, setStandalone] = useState(false);
+  const [installDismissed, setInstallDismissed] = useState(false);
   const updateRequestedRef = useRef(false);
   const reloadStartedRef = useRef(false);
 
   useEffect(() => {
     setOnline(navigator.onLine);
+    setInstallDismissed(getPreference(STORAGE_INSTALL_DISMISSED) === 'true');
     const updateOnline = () => setOnline(true);
     const updateOffline = () => setOnline(false);
     const checkStandalone = () => {
@@ -131,21 +144,29 @@ export function PwaManager() {
     if (choice.outcome === 'accepted') setInstallPrompt(null);
   }, [installPrompt, iosInstallAvailable]);
 
-  const showInstall = !standalone && (installPrompt !== null || iosInstallAvailable);
+  const dismissInstall = useCallback(() => {
+    setInstallDismissed(true);
+    setIosHelpOpen(false);
+    setPreference(STORAGE_INSTALL_DISMISSED, 'true');
+  }, []);
+
+  const showInstall =
+    canOfferInstall &&
+    !installDismissed &&
+    !standalone &&
+    (installPrompt !== null || iosInstallAvailable);
 
   return (
     <>
       {(!online || updateWaiting) && (
         <div className="pwa-status" role="status" aria-live="polite">
           {!online && (
-            <span>
-              Offline: the app shell is available. New rounds, artist sync, and audio previews need an internet connection.
-            </span>
+            <span>{t('offline')}</span>
           )}
           {updateWaiting && online && (
             <>
-              <span>A BeatDrop update is ready.</span>
-              <button type="button" onClick={applyUpdate}>Refresh to update</button>
+              <span>{t('updateAvailable')}</span>
+              <button type="button" onClick={applyUpdate}>{t('refreshToUpdate')}</button>
             </>
           )}
         </div>
@@ -153,12 +174,18 @@ export function PwaManager() {
       {showInstall && (
         <div className="pwa-install-help">
           <button type="button" onClick={install} aria-expanded={iosHelpOpen}>
-            {iosInstallAvailable ? 'Add BeatDrop to Home Screen' : 'Install BeatDrop'}
+            {iosInstallAvailable ? t('addToHomeScreen') : t('install')}
+          </button>
+          <button
+            type="button"
+            className="pwa-install-dismiss"
+            onClick={dismissInstall}
+            aria-label={t('dismissInstall')}
+          >
+            <X className="w-4 h-4" aria-hidden="true" />
           </button>
           {iosHelpOpen && iosInstallAvailable && (
-            <p>
-              In Safari, tap Share, then choose “Add to Home Screen”.
-            </p>
+            <p>{t('iosHelp')}</p>
           )}
         </div>
       )}

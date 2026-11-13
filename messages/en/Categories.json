@@ -1,0 +1,54 @@
+{
+  "title": "Music Categories",
+  "tagline": "EXPLORE GENRES • ERAS • ARTISTS",
+  "intro": "Test your memory with split-second clips or 4-choice questions across genres, eras, or your favourite artists.",
+  "tabsLabel": "Choose how to explore music",
+  "tabs": {
+    "artists": "Artists",
+    "genres": "Genres",
+    "eras": "Eras"
+  },
+  "searchPlaceholder": "Search artists (e.g. Bodyslam, LISA, Taylor Swift)...",
+  "clearSearch": "Clear search",
+  "artists": {
+    "heading": "Guess songs by your favourite artist",
+    "addTitle": "Add a new artist from Apple iTunes",
+    "add": "Add artist",
+    "hint": "Pick an artist from your library to guess only their songs, or search to play right away."
+  },
+  "filter": {
+    "all": "All",
+    "thai": "Thai",
+    "international": "International",
+    "internationalShort": "International"
+  },
+  "empty": {
+    "noMatch": "No artists match “{query}” in “{category}”",
+    "otherCategory": "{count, plural, one {Found # artist} other {Found # artists}} in “{category}” ({names})",
+    "switchTo": "Switch to {category}",
+    "notInLibrary": "This artist isn't in your library yet",
+    "searchItunes": "Search and add a new artist from Apple iTunes"
+  },
+  "clipPlay": "Clip Play",
+  "choiceTitle": "Play 4-choice mode",
+  "choice": "4 choices",
+  "eraPlay": "Guess {era}",
+  "genres": {
+    "tpop": "Hit Thai pop from the charts, fresh and familiar",
+    "pop": "Catchy hooks from popular Thai and international pop",
+    "rock": "Full-on rock with guitar solos and big vocals",
+    "indie": "Thai and alternative indie with easy-listening melodies",
+    "rnb": "Smooth beats with R&B & Soul vibes, Thai and international",
+    "hiphop": "Hard-hitting beats and sharp rhymes from hip-hop",
+    "kpop": "Hit K-pop from famous Korean idols",
+    "edm": "Electronic dance tracks and club mixes"
+  },
+  "eras": {
+    "2020s": "Today's music (2020 - now): viral hits and Billboard charts",
+    "2010s": "The golden age of streaming (2010 - 2019)",
+    "2000s": "The millennium: MP3s and big albums (2000 - 2009)",
+    "1990s": "The cassette era: alternative and 90s pop",
+    "1980s": "Synth-pop and classic 80s disco",
+    "classic": "Timeless legendary songs"
+  }
+}

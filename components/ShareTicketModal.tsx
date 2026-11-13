@@ -1,5 +1,6 @@
 'use client';
 import React, { useRef, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { Modal } from './Modal';
 import {
   Check,
@@ -41,6 +42,8 @@ export const ShareTicketModal: React.FC<ShareTicketModalProps> = ({
   mode = 'standard',
   dateKey,
 }) => {
+  const t = useTranslations('Share');
+  const tc = useTranslations('Common');
   const [copied, setCopied] = useState(false);
   const [downloading, setDownloading] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -59,10 +62,13 @@ export const ShareTicketModal: React.FC<ShareTicketModalProps> = ({
     ? Math.max(100, Math.round(1000 - Math.max(0, activeIdx) * 150))
     : 0;
 
-  const timeDisplay = isWon ? `${guessedAtSeconds}s` : 'FAILED';
+  const timeDisplay = isWon ? `${guessedAtSeconds}s` : t('ticket.failed');
   const headlineCopy = isWon
-    ? `I got it in ${guessedAtSeconds}s. How little do you need?`
-    : 'I couldn’t name this one. How little do you need?';
+    ? t('ticket.headlineWon', { seconds: guessedAtSeconds })
+    : t('ticket.headlineLost');
+  const pointsLabel = t('ticket.points', { points });
+  const kicker = t('ticket.kicker');
+  const noSpoilers = t('ticket.noSpoilers');
 
   // Emoji summary line
   const emojiBoxes = stages.map((_, idx) => {
@@ -75,9 +81,9 @@ export const ShareTicketModal: React.FC<ShareTicketModalProps> = ({
   });
 
   const shareText = [
-    `BeatDrop • ${category === 'thai' ? '🇹🇭 เพลงไทย' : '🌍 เพลงสากล'}`,
+    `BeatDrop • ${category === 'thai' ? `🇹🇭 ${tc('category.thai')}` : `🌍 ${tc('category.international')}`}`,
     `HEAR LESS. KNOW MORE.`,
-    isWon ? `🟩 ${guessedAtSeconds}s • ${points} points` : `❌ ${stages[stages.length - 1]}s (Game Over)`,
+    isWon ? `🟩 ${guessedAtSeconds}s • ${pointsLabel}` : `❌ ${t('ticket.gameOverLine', { seconds: stages[stages.length - 1] })}`,
     emojiBoxes.join(''),
     `https://beatdrop-self.vercel.app #beatdrop`,
   ].join('\n');
@@ -92,7 +98,7 @@ export const ShareTicketModal: React.FC<ShareTicketModalProps> = ({
 
   const handleShare = async () => {
     const result = await shareOrCopy({
-      title: 'BeatDrop Music Ticket',
+      title: t('ticket.shareTitle'),
       text: shareText,
       url: typeof window !== 'undefined' ? window.location.origin : undefined,
     });
@@ -130,7 +136,7 @@ export const ShareTicketModal: React.FC<ShareTicketModalProps> = ({
       ctx.fillStyle = '#657060';
       ctx.font = '700 9.5px Poppins, sans-serif';
       ctx.textAlign = 'right';
-      ctx.fillText('MUSIC CHALLENGE', width - 32, 42);
+      ctx.fillText(kicker, width - 32, 42);
       ctx.textAlign = 'left';
 
       // Horizontal separator line
@@ -157,7 +163,7 @@ export const ShareTicketModal: React.FC<ShareTicketModalProps> = ({
 
       ctx.fillStyle = '#2e382d';
       ctx.font = '700 15px Poppins, sans-serif';
-      ctx.fillText(`${points} points`, 34, 274);
+      ctx.fillText(pointsLabel, 34, 274);
 
       // 5. Progression Stage Circles
       const circleCount = stages.length;
@@ -260,7 +266,7 @@ export const ShareTicketModal: React.FC<ShareTicketModalProps> = ({
 
       ctx.fillStyle = '#495347';
       ctx.font = '600 11px Poppins, sans-serif';
-      ctx.fillText('No spoilers', width - 96, 475);
+      ctx.fillText(noSpoilers, width - 96, 475);
 
       // 8. Download PNG
       const dataUrl = canvas.toDataURL('image/png');
@@ -276,7 +282,7 @@ export const ShareTicketModal: React.FC<ShareTicketModalProps> = ({
   };
 
   return (
-    <Modal open={isOpen} onClose={onClose} title="Your music ticket" panelClassName="!bg-transparent !border-0 !shadow-none !overflow-visible !max-h-none">
+    <Modal open={isOpen} onClose={onClose} title={t('ticket.dialogTitle')} panelClassName="!bg-transparent !border-0 !shadow-none !overflow-visible !max-h-none">
       <div
         className="w-[calc(100vw-16px)] sm:w-full max-w-[460px] md:max-w-[480px] self-center rounded-2xl sm:rounded-3xl p-3 sm:p-6 shadow-2xl flex flex-col items-center relative my-auto sst-dialog"
         style={{
@@ -289,13 +295,13 @@ export const ShareTicketModal: React.FC<ShareTicketModalProps> = ({
         {/* Modal Top Bar */}
         <div className="w-full flex items-center justify-between pb-2.5 sm:pb-3.5 border-b border-white/10 mb-3 sm:mb-4">
           <h2 className="text-xs sm:text-sm font-extrabold tracking-wide text-neutral-200">
-            Your music ticket
+            {t('ticket.dialogTitle')}
           </h2>
           <button
             type="button"
             onClick={onClose}
             className="p-1 sm:p-1.5 rounded-full hover:bg-white/10 transition text-neutral-400 hover:text-white"
-            aria-label="Close ticket dialog"
+            aria-label={t('ticket.close')}
           >
             <X className="w-5 h-5" />
           </button>
@@ -311,7 +317,7 @@ export const ShareTicketModal: React.FC<ShareTicketModalProps> = ({
                 <BeatDropLogo className="w-5 h-5 text-emerald-600" />
                 <span>BeatDrop</span>
               </div>
-              <span className="sst-kicker">MUSIC CHALLENGE</span>
+              <span className="sst-kicker">{kicker}</span>
             </div>
 
             {/* Game Title & Big Punchy Headlines */}
@@ -329,7 +335,7 @@ export const ShareTicketModal: React.FC<ShareTicketModalProps> = ({
                   {timeDisplay}
                 </strong>
               </div>
-              <div className="sst-detail">{points} points</div>
+              <div className="sst-detail">{pointsLabel}</div>
             </div>
 
             {/* Progression Circles (0.1s, 0.5s, 2s, 8s, 15s) */}
@@ -381,7 +387,7 @@ export const ShareTicketModal: React.FC<ShareTicketModalProps> = ({
               </div>
             </div>
             <div className="sst-stub-note">
-              <span>No spoilers</span>
+              <span>{noSpoilers}</span>
             </div>
           </div>
         </div>
@@ -395,7 +401,7 @@ export const ShareTicketModal: React.FC<ShareTicketModalProps> = ({
             className="sst-primary"
           >
             <Share2 className="w-5 h-5" />
-            <span>Share challenge</span>
+            <span>{t('ticket.shareChallenge')}</span>
           </button>
 
           {/* Secondary Buttons Row (Copy result & Save image) */}
@@ -404,9 +410,9 @@ export const ShareTicketModal: React.FC<ShareTicketModalProps> = ({
               <Copy className="w-5 h-5 text-emerald-400" />
               <div>
                 <div className="font-bold">
-                  {copied ? 'Copied! ✓' : 'Copy result'}
+                  {copied ? t('ticket.copied') : t('ticket.copyResult')}
                 </div>
-                <small>Score + link + #beatdrop</small>
+                <small>{t('ticket.copyHint')}</small>
               </div>
             </button>
 
@@ -418,9 +424,9 @@ export const ShareTicketModal: React.FC<ShareTicketModalProps> = ({
               <Download className="w-5 h-5 text-emerald-400" />
               <div>
                 <div className="font-bold">
-                  {downloading ? 'Saving...' : 'Save image'}
+                  {downloading ? t('ticket.saving') : t('ticket.saveImage')}
                 </div>
-                <small>Ticket PNG</small>
+                <small>{t('ticket.saveHint')}</small>
               </div>
             </button>
           </div>
@@ -428,7 +434,7 @@ export const ShareTicketModal: React.FC<ShareTicketModalProps> = ({
 
         {/* Footnote */}
         <p className="mt-3 text-[11px] font-semibold text-neutral-400 text-center">
-          Friends start a fresh round.
+          {t('ticket.footnote')}
         </p>
       </div>
     </Modal>

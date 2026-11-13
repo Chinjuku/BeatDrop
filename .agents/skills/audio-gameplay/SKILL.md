@@ -8,7 +8,7 @@ description: Use when changing audio preview playback, snippet duration, game ro
 1. Trace timing from preset/configuration through UI, game engine, hook, and actual media playback.
 2. Keep one canonical duration config.
 3. Product requirement: custom bounds 0.1–15 seconds; Standard preset 0.5–15 seconds; Songspot remains a distinct preset.
-4. Daily Challenge inherits Songspot timing.
+4. Daily Challenge uses `DAILY_TIME_STAGES` (Standard preset), fixed server-side.
 5. Convert seconds to milliseconds only at the media boundary.
 6. Verify the actual media element/Web Audio behavior; a correct slider value is insufficient.
 7. Handle metadata-not-ready, seek restrictions, autoplay rejection, network failure, and missing preview URL.

@@ -1,0 +1,16 @@
+{
+  "errors": {
+    "syncFailed": "Could not fetch songs from the server",
+    "roundLoad": "Could not load the next song. Check your connection and retry.",
+    "dailyLoad": "Daily Challenge could not be loaded. Check your connection and retry."
+  },
+  "feedback": {
+    "guessRejected": "Could not check that answer. Please try again.",
+    "guessNetwork": "Could not check that answer. Check your connection and try again.",
+    "skipRejected": "Skip could not be recorded. Please retry.",
+    "skipped": "Skipped · no points"
+  },
+  "history": {
+    "skipped": "Skipped"
+  }
+}

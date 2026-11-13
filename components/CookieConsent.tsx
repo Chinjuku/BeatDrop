@@ -1,8 +1,8 @@
 'use client';
+import { Link, usePathname } from '../i18n/navigation';
 
 import React, { useEffect, useId, useState } from 'react';
-import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import { Cookie, ShieldCheck, SlidersHorizontal, X } from 'lucide-react';
 import { Modal } from './Modal';
 import { useConsent } from '../context/ConsentContext';
@@ -59,6 +59,7 @@ export const CookieConsent: React.FC = () => {
     save,
   } = useConsent();
 
+  const t = useTranslations('Consent');
   const headingId = useId();
   const pathname = usePathname();
 
@@ -99,7 +100,7 @@ export const CookieConsent: React.FC = () => {
     <Modal
       open={open}
       onClose={blocking ? () => {} : closePreferences}
-      title="การตั้งค่าคุกกี้"
+      title={t('dialogTitle')}
       labelledBy={headingId}
       placement="bottom"
       dismissOnBackdrop={!blocking}
@@ -124,22 +125,20 @@ export const CookieConsent: React.FC = () => {
           </span>
           <div className="min-w-0 flex-1">
             <h2 id={headingId} className="text-[15px] sm:text-lg font-extrabold leading-tight tracking-tight">
-              {view === 'intro' ? 'คุกกี้และการจัดเก็บข้อมูล' : 'ตั้งค่าคุกกี้ของคุณ'}
+              {view === 'intro' ? t('introHeading') : t('customizeHeading')}
             </h2>
             <p
               className="mt-1 text-[11px] sm:text-xs font-semibold leading-relaxed"
               style={{ color: 'var(--song-muted)' }}
             >
-              {view === 'intro'
-                ? 'เลือกก่อนเริ่มเล่น เปลี่ยนได้ทุกเมื่อจากด้านล่างของหน้า'
-                : 'เปิดหรือปิดแต่ละหมวดได้ตามต้องการ'}
+              {view === 'intro' ? t('introSubheading') : t('customizeSubheading')}
             </p>
           </div>
           {!blocking && (
             <button
               type="button"
               onClick={closePreferences}
-              aria-label="ปิด"
+              aria-label={t('close')}
               className={`-mr-1 shrink-0 rounded-full p-2 transition hover:bg-white/10 ${FOCUS_RING}`}
               style={{ color: 'var(--song-muted)' }}
             >
@@ -154,13 +153,14 @@ export const CookieConsent: React.FC = () => {
         {view === 'intro' ? (
           <div className="space-y-3 text-xs sm:text-[13px] leading-relaxed" style={{ color: 'var(--song-muted)' }}>
             <p>
-              BeatDrop ใช้ที่จัดเก็บข้อมูล<strong style={{ color: 'var(--song-text)' }}>ที่จำเป็น</strong>
-              ต่อการเล่นเกมและความปลอดภัยของรอบเกมเสมอ
+              {t.rich('introNecessary', {
+                strong: (chunks) => <strong style={{ color: 'var(--song-text)' }}>{chunks}</strong>,
+              })}
             </p>
             <p>
-              ส่วนที่<strong style={{ color: 'var(--song-text)' }}>เป็นทางเลือก</strong> คือการจำการตั้งค่าของคุณ
-              (ธีม ความยาวสนิปเพ็ต สตรีค) และสถิติการใช้งานแบบไม่ระบุตัวบุคคล
-              เราจะใช้เฉพาะเมื่อคุณอนุญาตเท่านั้น
+              {t.rich('introOptional', {
+                strong: (chunks) => <strong style={{ color: 'var(--song-text)' }}>{chunks}</strong>,
+              })}
             </p>
             <ul className="space-y-1.5 pt-0.5">
               {CONSENT_CATEGORIES.map((category) => (
@@ -171,29 +171,35 @@ export const CookieConsent: React.FC = () => {
                     style={{ backgroundColor: 'var(--song-accent)' }}
                   />
                   <span className="font-bold" style={{ color: 'var(--song-text)' }}>
-                    {category.titleTh}
+                    {t(`categories.${category.id}.title`)}
                   </span>
-                  {category.required && <span className="text-[10px] font-bold opacity-60">(เปิดอยู่เสมอ)</span>}
+                  {category.required && (
+                    <span className="text-[10px] font-bold opacity-60">({t('alwaysOn')})</span>
+                  )}
                 </li>
               ))}
             </ul>
             <p className="pt-0.5">
-              อ่านรายละเอียดได้ที่{' '}
-              <Link
-                href="/cookies"
-                className="font-bold underline underline-offset-2"
-                style={{ color: 'var(--song-accent-text)' }}
-              >
-                นโยบายคุกกี้
-              </Link>{' '}
-              และ{' '}
-              <Link
-                href="/privacy"
-                className="font-bold underline underline-offset-2"
-                style={{ color: 'var(--song-accent-text)' }}
-              >
-                นโยบายความเป็นส่วนตัว
-              </Link>
+              {t.rich('readMore', {
+                cookies: (chunks) => (
+                  <Link
+                    href="/cookies"
+                    className="font-bold underline underline-offset-2"
+                    style={{ color: 'var(--song-accent-text)' }}
+                  >
+                    {chunks}
+                  </Link>
+                ),
+                privacy: (chunks) => (
+                  <Link
+                    href="/privacy"
+                    className="font-bold underline underline-offset-2"
+                    style={{ color: 'var(--song-accent-text)' }}
+                  >
+                    {chunks}
+                  </Link>
+                ),
+              })}
             </p>
           </div>
         ) : (
@@ -217,13 +223,7 @@ export const CookieConsent: React.FC = () => {
                     />
                     <span className="min-w-0 flex-1">
                       <span className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[13px] font-extrabold leading-tight">
-                        <span>{category.titleTh}</span>
-                        <span
-                          className="text-[10px] font-bold uppercase tracking-wider opacity-55"
-                          style={{ color: 'var(--song-muted)' }}
-                        >
-                          {category.titleEn}
-                        </span>
+                        <span>{t(`categories.${category.id}.title`)}</span>
                         {category.required && (
                           <span
                             className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-extrabold"
@@ -233,7 +233,7 @@ export const CookieConsent: React.FC = () => {
                             }}
                           >
                             <ShieldCheck aria-hidden="true" className="h-3 w-3" />
-                            เปิดอยู่เสมอ
+                            {t('alwaysOn')}
                           </span>
                         )}
                       </span>
@@ -242,7 +242,7 @@ export const CookieConsent: React.FC = () => {
                         className="mt-1.5 block text-[11px] leading-relaxed"
                         style={{ color: 'var(--song-muted)' }}
                       >
-                        {category.descriptionTh}
+                        {t(`categories.${category.id}.description`)}
                       </span>
                     </span>
                   </label>
@@ -250,8 +250,7 @@ export const CookieConsent: React.FC = () => {
               );
             })}
             <p className="pt-0.5 text-[11px] leading-relaxed" style={{ color: 'var(--song-muted)' }}>
-              หากปิด &ldquo;การตั้งค่าและความชอบ&rdquo; ข้อมูลที่บันทึกไว้ในเครื่อง เช่น ธีม สตรีค และชื่อผู้เล่น
-              จะถูกลบทันทีเมื่อกดบันทึก
+              {t('preferencesOffNote')}
             </p>
           </div>
         )}
@@ -267,36 +266,36 @@ export const CookieConsent: React.FC = () => {
             <SecondaryAction onClick={() => setView('customize')} className="sm:mr-auto sm:order-1">
               <span className="inline-flex items-center justify-center gap-1.5">
                 <SlidersHorizontal aria-hidden="true" className="h-3.5 w-3.5" />
-                ตั้งค่าเอง
+                {t('customize')}
               </span>
             </SecondaryAction>
             {/* Reject is a sibling of accept, same size — not a buried link. */}
             <SecondaryAction onClick={rejectOptional} className="sm:order-2">
-              ใช้เฉพาะที่จำเป็น
+              {t('necessaryOnly')}
             </SecondaryAction>
             <PrimaryAction onClick={acceptAll} className="sm:order-3">
-              ยอมรับทั้งหมด
+              {t('acceptAll')}
             </PrimaryAction>
           </div>
         ) : (
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
             {blocking ? (
               <SecondaryAction onClick={() => setView('intro')} className="sm:mr-auto sm:order-1">
-                ย้อนกลับ
+                {t('back')}
               </SecondaryAction>
             ) : (
               <SecondaryAction onClick={closePreferences} className="sm:mr-auto sm:order-1">
-                ยกเลิก
+                {t('cancel')}
               </SecondaryAction>
             )}
             <SecondaryAction onClick={rejectOptional} className="sm:order-2">
-              ปฏิเสธทั้งหมด
+              {t('rejectAll')}
             </SecondaryAction>
             <PrimaryAction
               onClick={() => save({ preferences: draftPreferences, analytics: draftAnalytics })}
               className="sm:order-3"
             >
-              บันทึกการตั้งค่า
+              {t('save')}
             </PrimaryAction>
           </div>
         )}

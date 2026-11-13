@@ -1,0 +1,16 @@
+{
+  "stage": "Stage {n}",
+  "unlocked": "Unlocked: {seconds}s",
+  "max": "Max {seconds}s",
+  "stopSnippet": "Stop snippet",
+  "playSnippet": "Play {seconds}-second snippet",
+  "loadingAudio": "Loading audio",
+  "status": {
+    "loading": "Loading audio...",
+    "playing": "Playing {seconds}-second snippet...",
+    "error": "Connection hiccup. Press the button to try again",
+    "idle": "Press the button or [Space] to hear {seconds} seconds"
+  },
+  "toggleMute": "Toggle mute",
+  "volume": "Volume"
+}

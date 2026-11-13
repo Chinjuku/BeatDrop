@@ -1,4 +1,5 @@
 'use client';
+import { useTranslations } from 'next-intl';
 import React, { useEffect, useRef, useState } from 'react';
 import { Loader2, Search, SkipForward, Check, Flag, ChevronLeft, X } from 'lucide-react';
 import { CategoryType, GameMode, Song } from '../types';
@@ -27,6 +28,7 @@ export const GuessAutocomplete: React.FC<GuessAutocompleteProps> = ({
   disabled,
   submitting,
 }) => {
+  const t = useTranslations('Guess');
   const [query, setQuery] = useState('');
   const [suggestions, setSuggestions] = useState<Song[]>([]);
   const [loading, setLoading] = useState(false);
@@ -35,6 +37,50 @@ export const GuessAutocomplete: React.FC<GuessAutocompleteProps> = ({
   const [networkError, setNetworkError] = useState<string | null>(null);
   // Songspot-style fullscreen search sheet on phones
   const [mobileOpen, setMobileOpen] = useState(false);
+  // Giving up ends the round (and the streak), so it takes a second tap within 3s.
+  const [confirmGiveUp, setConfirmGiveUp] = useState(false);
+  useEffect(() => {
+    if (!confirmGiveUp) return;
+    const timer = window.setTimeout(() => setConfirmGiveUp(false), 3000);
+    return () => window.clearTimeout(timer);
+  }, [confirmGiveUp]);
+  useEffect(() => {
+    if (disabled || submitting) setConfirmGiveUp(false);
+  }, [disabled, submitting]);
+  const handleGiveUpClick = () => {
+    if (!confirmGiveUp) {
+      setConfirmGiveUp(true);
+      return;
+    }
+    setConfirmGiveUp(false);
+    onGiveUp?.();
+  };
+
+  // iOS: the on-screen keyboard shrinks the *visual* viewport but not the layout one, so a
+  // 100dvh sheet ends up partly behind the keyboard and the page scrolls underneath it.
+  // Track the visual viewport and size the sheet to exactly what is visible.
+  useEffect(() => {
+    if (!mobileOpen) return;
+    const vv = window.visualViewport;
+    const root = document.documentElement;
+    const sync = () => {
+      const height = vv ? vv.height : window.innerHeight;
+      const top = vv ? vv.offsetTop : 0;
+      root.style.setProperty('--search-sheet-h', `${Math.round(height)}px`);
+      root.style.setProperty('--search-sheet-top', `${Math.round(top)}px`);
+    };
+    sync();
+    vv?.addEventListener('resize', sync);
+    vv?.addEventListener('scroll', sync);
+    window.addEventListener('resize', sync);
+    return () => {
+      vv?.removeEventListener('resize', sync);
+      vv?.removeEventListener('scroll', sync);
+      window.removeEventListener('resize', sync);
+      root.style.removeProperty('--search-sheet-h');
+      root.style.removeProperty('--search-sheet-top');
+    };
+  }, [mobileOpen]);
 
   // Auto-close mobile sheet if rotated/resized to desktop width
   useEffect(() => {
@@ -97,9 +143,9 @@ export const GuessAutocomplete: React.FC<GuessAutocompleteProps> = ({
           return;
         }
         if (abortController.signal.reason === 'timeout') {
-          setNetworkError('สัญญาณอินเทอร์เน็ตล่าช้า กรุณาลองใหม่อีกครั้ง');
+          setNetworkError(t('errors.timeout'));
         } else {
-          setNetworkError('ไม่สามารถค้นหาเพลงได้ กรุณาตรวจสอบการเชื่อมต่อ');
+          setNetworkError(t('errors.network'));
           console.error('Autocomplete error:', err);
         }
       } finally {
@@ -170,19 +216,19 @@ export const GuessAutocomplete: React.FC<GuessAutocompleteProps> = ({
       <Modal
         open={mobileOpen}
         onClose={() => setMobileOpen(false)}
-        title="Search songs"
+        title={t('searchTitle')}
         placement="fullscreen"
         dismissOnBackdrop={false}
-        className="!z-[200]"
-        panelClassName="!flex-col !gap-2 !px-3 !pb-3 !pt-[calc(0.75rem+env(safe-area-inset-top,0px))] !overflow-y-auto !overscroll-contain !touch-pan-y"
+        className="search-sheet-root !z-[200] !top-[var(--search-sheet-top,0px)] !bottom-auto !h-[var(--search-sheet-h,100dvh)] overscroll-contain"
+        panelClassName="search-sheet-panel !h-full !max-h-full !flex-col !gap-2 !px-3 !pb-3 !pt-[calc(0.75rem+env(safe-area-inset-top,0px))] !overflow-hidden"
       >
           <div className="flex min-h-0 flex-1 flex-col gap-2">
-            <div className="flex items-center gap-2">
+            <div className="flex shrink-0 items-center gap-2">
               <button
                 type="button"
                 onClick={() => setMobileOpen(false)}
                 className="p-2 shrink-0"
-                aria-label="ปิดการค้นหา"
+                aria-label={t('closeSearch')}
                 style={{ color: 'var(--song-text)' }}
               >
                 <ChevronLeft className="w-6 h-6" />
@@ -198,7 +244,7 @@ export const GuessAutocomplete: React.FC<GuessAutocompleteProps> = ({
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
                   onKeyDown={handleKeyDown}
-                  placeholder={isArtistScoped ? `เพลงของ ${artistFilter}...` : 'ชื่อเพลง หรือ ศิลปิน...'}
+                  placeholder={isArtistScoped ? t('mobilePlaceholderArtist', { artist: artistFilter ?? '' }) : t('mobilePlaceholder')}
                   className="w-full bg-transparent outline-none text-base font-semibold"
                   style={{ color: 'var(--song-text)' }}
                 />
@@ -210,7 +256,7 @@ export const GuessAutocomplete: React.FC<GuessAutocompleteProps> = ({
                       setSuggestions([]);
                     }}
                     className="p-1 rounded-full hover:bg-white/10 shrink-0 cursor-pointer"
-                    aria-label="ล้างคำค้นหา"
+                    aria-label={t('clearSearch')}
                   >
                     <X className="w-4 h-4 opacity-60 hover:opacity-100" />
                   </button>
@@ -227,14 +273,18 @@ export const GuessAutocomplete: React.FC<GuessAutocompleteProps> = ({
                 className="px-5 min-h-[46px] rounded-2xl font-extrabold text-sm shrink-0 disabled:opacity-50"
                 style={{ backgroundColor: 'var(--song-accent)', color: 'var(--song-accent-on)' }}
               >
-                {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : 'ทาย'}
+                {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : t('submit')}
               </button>
             </div>
 
             {suggestions.length > 0 && (
               <div
-                className="rounded-2xl border p-1.5 overflow-y-auto"
-                style={{ backgroundColor: 'var(--song-surface)', borderColor: 'var(--song-border)' }}
+                className="min-h-0 flex-1 rounded-2xl border p-1.5 overflow-y-auto overscroll-contain"
+                style={{
+                  backgroundColor: 'var(--song-surface)',
+                  borderColor: 'var(--song-border)',
+                  WebkitOverflowScrolling: 'touch',
+                }}
                 role="listbox"
               >
                 {suggestions.map((song, idx) => (
@@ -276,7 +326,7 @@ export const GuessAutocomplete: React.FC<GuessAutocompleteProps> = ({
                 className="rounded-2xl border p-4 text-center text-xs sm:text-sm font-semibold"
                 style={{ backgroundColor: 'var(--song-surface)', borderColor: 'var(--song-border)', color: 'var(--song-muted)' }}
               >
-                ไม่พบเพลงที่ตรงกับ &ldquo;{query}&rdquo;
+                {t('noResults', { query })}
               </div>
             )}
           </div>
@@ -298,7 +348,7 @@ export const GuessAutocomplete: React.FC<GuessAutocompleteProps> = ({
             </div>
           ) : suggestions.length === 0 ? (
             <div className="py-3 px-4 text-center text-xs font-semibold" style={{ color: 'var(--song-muted)' }}>
-              ไม่พบเพลงที่ตรงกับ &ldquo;{query}&rdquo;
+              {t('noResults', { query })}
             </div>
           ) : (
             <>
@@ -307,8 +357,8 @@ export const GuessAutocomplete: React.FC<GuessAutocompleteProps> = ({
                   className="px-3 py-1 text-[10px] font-extrabold uppercase tracking-wider border-b mb-1 flex items-center justify-between"
                   style={{ borderColor: 'var(--song-border)', color: 'var(--song-accent-text)' }}
                 >
-                  <span>🎤 เพลงเฉพาะของ {artistFilter}</span>
-                  <span>↑↓ เลือก • Enter ตอบ</span>
+                  <span>🎤 {t('artistOnly', { artist: artistFilter ?? '' })}</span>
+                  <span>{t('keyboardHint')}</span>
                 </div>
               )}
 
@@ -354,7 +404,7 @@ export const GuessAutocomplete: React.FC<GuessAutocompleteProps> = ({
                         }}
                       >
                         <Check className="w-3 h-3" />
-                        ทายเพลงนี้
+                        {t('guessThis')}
                       </span>
                     )}
                   </button>
@@ -397,10 +447,10 @@ export const GuessAutocomplete: React.FC<GuessAutocompleteProps> = ({
             onKeyDown={handleKeyDown}
             placeholder={
               submitting
-                ? 'กำลังตรวจสอบคำตอบ...'
+                ? t('checkingAnswer')
                 : isArtistScoped
-                  ? `เลือกเพลงของ ${artistFilter}...`
-                  : 'พิมพ์ชื่อเพลง หรือ ศิลปิน เพื่อทายคำตอบ...'
+                  ? t('placeholderArtist', { artist: artistFilter ?? '' })
+                  : t('placeholder')
             }
             className="w-full bg-transparent border-0 outline-none text-base sm:text-sm font-semibold placeholder:opacity-60 disabled:opacity-50"
             style={{ color: 'var(--song-text)' }}
@@ -413,7 +463,7 @@ export const GuessAutocomplete: React.FC<GuessAutocompleteProps> = ({
                 setSuggestions([]);
               }}
               className="p-1 rounded-full hover:bg-white/10 shrink-0 cursor-pointer mr-1"
-              aria-label="ล้างคำค้นหา"
+              aria-label={t('clearSearch')}
             >
               <X className="w-3.5 h-3.5 opacity-60 hover:opacity-100" />
             </button>
@@ -433,7 +483,7 @@ export const GuessAutocomplete: React.FC<GuessAutocompleteProps> = ({
             type="button"
             onClick={onSkip}
             disabled={disabled || submitting}
-            className="flex-1 sm:flex-none px-3.5 sm:px-4 py-2.5 min-h-[42px] rounded-xl border text-xs sm:text-sm font-extrabold flex items-center justify-center gap-1.5 transition hover:brightness-110 flex-shrink-0 active:scale-95 disabled:opacity-50 disabled:pointer-events-none"
+            className="flex-1 sm:flex-none px-3.5 sm:px-4 py-2.5 min-h-[44px] rounded-xl border text-xs sm:text-sm font-extrabold flex items-center justify-center gap-1.5 transition hover:brightness-110 flex-shrink-0 active:scale-95 disabled:opacity-50 disabled:pointer-events-none"
             style={{
               backgroundColor: 'var(--song-surface-soft)',
               borderColor: 'var(--song-border)',
@@ -447,10 +497,10 @@ export const GuessAutocomplete: React.FC<GuessAutocompleteProps> = ({
             )}
             <span>
               {submitting
-                ? 'กำลังตรวจ...'
+                ? t('checking')
                 : nextStageSeconds !== null
-                  ? `ข้าม (+${nextStageSeconds}s)`
-                  : 'ยอมแพ้ / เฉลย'}
+                  ? t('skip', { seconds: nextStageSeconds })
+                  : t('giveUpReveal')}
             </span>
           </button>
 
@@ -458,18 +508,22 @@ export const GuessAutocomplete: React.FC<GuessAutocompleteProps> = ({
           {onGiveUp && (
             <button
               type="button"
-              onClick={onGiveUp}
+              onClick={handleGiveUpClick}
               disabled={disabled || submitting}
-              className="px-3 sm:px-3.5 py-2.5 min-h-[42px] rounded-xl border text-xs sm:text-sm font-bold flex items-center justify-center gap-1.5 transition hover:brightness-110 flex-shrink-0 active:scale-95 disabled:opacity-50 disabled:pointer-events-none"
-              style={{
-                backgroundColor: 'rgba(239, 68, 68, 0.1)',
-                borderColor: 'rgba(239, 68, 68, 0.35)',
-                color: '#f87171',
-              }}
-              title="ยอมแพ้เพื่อเฉลยเพลงทันที"
+              className="px-3 sm:px-3.5 py-2.5 min-h-[44px] rounded-xl border text-xs sm:text-sm font-bold flex items-center justify-center gap-1.5 transition hover:brightness-110 flex-shrink-0 active:scale-95 disabled:opacity-50 disabled:pointer-events-none"
+              style={
+                confirmGiveUp
+                  ? { backgroundColor: '#ef4444', borderColor: '#ef4444', color: '#ffffff' }
+                  : {
+                      backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                      borderColor: 'rgba(239, 68, 68, 0.35)',
+                      color: '#f87171',
+                    }
+              }
+              title={t('giveUpTitle')}
             >
-              <Flag className="w-3.5 h-3.5 text-red-400" />
-              <span>ยอมแพ้</span>
+              <Flag className={`w-3.5 h-3.5 ${confirmGiveUp ? 'text-white' : 'text-red-400'}`} aria-hidden="true" />
+              <span aria-live="polite">{confirmGiveUp ? t('confirmGiveUp') : t('giveUp')}</span>
             </button>
           )}
         </div>

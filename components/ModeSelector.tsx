@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useMemo, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import {
   Calendar,
   Check,
@@ -23,6 +24,7 @@ import {
   YEAR_OPTIONS,
 } from '../types';
 import { TimeRangeSelector } from './TimeRangeSelector';
+import { SetupDisclosure, describeSetup } from './SetupDisclosure';
 import { Modal } from './Modal';
 
 interface ModeSelectorProps {
@@ -133,6 +135,8 @@ const GenrePickerModal: React.FC<{
   selectedGenre: string;
   onSelectGenre: (genre: string) => void;
 }> = ({ isOpen, onClose, selectedGenre, onSelectGenre }) => {
+  const t = useTranslations('Setup');
+  const tc = useTranslations('Common');
   const [search, setSearch] = useState('');
   if (!isOpen) return null;
 
@@ -141,7 +145,7 @@ const GenrePickerModal: React.FC<{
   );
 
   return (
-    <Modal open={isOpen} onClose={onClose} title="All Genres" dismissOnBackdrop={false} panelClassName="!bg-transparent !border-0 !shadow-none !overflow-visible !max-h-none">
+    <Modal open={isOpen} onClose={onClose} title={t('genreModal.dialogTitle')} dismissOnBackdrop={false} panelClassName="!bg-transparent !border-0 !shadow-none !overflow-visible !max-h-none">
       <div
         className="w-full max-w-md self-center rounded-2xl border p-4 sm:p-5 shadow-2xl space-y-4 max-h-[85vh] flex flex-col"
         style={{
@@ -153,13 +157,13 @@ const GenrePickerModal: React.FC<{
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Music className="w-4 h-4 text-emerald-400" />
-            <h3 className="text-sm font-extrabold tracking-wide">เลือกแนวเพลง (All Genres)</h3>
+            <h3 className="text-sm font-extrabold tracking-wide">{t('genreModal.heading')}</h3>
           </div>
           <button
             type="button"
             onClick={onClose}
             className="p-1 rounded-lg hover:bg-white/10 transition"
-            aria-label="Close"
+            aria-label={tc('close')}
           >
             <X className="w-4 h-4" />
           </button>
@@ -170,7 +174,7 @@ const GenrePickerModal: React.FC<{
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="ค้นหาแนวเพลง (เช่น Pop, Rock, Indie, T-Pop)..."
+            placeholder={t('genreModal.searchPlaceholder')}
             className="w-full pl-9 pr-3 py-2 rounded-xl border text-base sm:text-xs font-medium focus:outline-none"
             style={{
               backgroundColor: 'var(--song-surface-soft)',
@@ -205,7 +209,7 @@ const GenrePickerModal: React.FC<{
           >
             <span className="flex items-center gap-2">
               <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
-              Any genre (สุ่มทุกแนวเพลง)
+              {tc('any.genreLong')}
             </span>
             {(!selectedGenre || selectedGenre === 'any') && (
               <Check className="w-4 h-4 text-emerald-400" />
@@ -261,10 +265,12 @@ const EraPickerModal: React.FC<{
   selectedEra: string;
   onSelectEra: (era: string) => void;
 }> = ({ isOpen, onClose, selectedEra, onSelectEra }) => {
+  const t = useTranslations('Setup');
+  const tc = useTranslations('Common');
   if (!isOpen) return null;
 
   return (
-    <Modal open={isOpen} onClose={onClose} title="All Eras and Years" dismissOnBackdrop={false} panelClassName="!bg-transparent !border-0 !shadow-none !overflow-visible !max-h-none">
+    <Modal open={isOpen} onClose={onClose} title={t('eraModal.dialogTitle')} dismissOnBackdrop={false} panelClassName="!bg-transparent !border-0 !shadow-none !overflow-visible !max-h-none">
       <div
         className="w-full max-w-md self-center rounded-2xl border p-4 sm:p-5 shadow-2xl space-y-4 max-h-[85vh] flex flex-col"
         style={{
@@ -276,13 +282,13 @@ const EraPickerModal: React.FC<{
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Calendar className="w-4 h-4 text-emerald-400" />
-            <h3 className="text-sm font-extrabold tracking-wide">เลือกปีหรือทศวรรษ (All Eras & Years)</h3>
+            <h3 className="text-sm font-extrabold tracking-wide">{t('eraModal.heading')}</h3>
           </div>
           <button
             type="button"
             onClick={onClose}
             className="p-1 rounded-lg hover:bg-white/10 transition"
-            aria-label="Close"
+            aria-label={tc('close')}
           >
             <X className="w-4 h-4" />
           </button>
@@ -312,7 +318,7 @@ const EraPickerModal: React.FC<{
           >
             <span className="flex items-center gap-2">
               <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
-              Any era (สุ่มทุกยุคสมัย)
+              {tc('any.eraLong')}
             </span>
             {(!selectedEra || selectedEra === 'any') && (
               <Check className="w-4 h-4 text-emerald-400" />
@@ -322,7 +328,7 @@ const EraPickerModal: React.FC<{
           {/* Decades */}
           <div className="space-y-1.5">
             <div className="text-[11px] font-extrabold uppercase tracking-wider" style={{ color: 'var(--song-muted)' }}>
-              ทศวรรษ (Decades)
+              {t('eraModal.decades')}
             </div>
             <div className="grid grid-cols-3 gap-2">
               {DECADE_OPTIONS.map((dec) => {
@@ -350,7 +356,7 @@ const EraPickerModal: React.FC<{
                           }
                     }
                   >
-                    {dec === 'classic' ? 'Classic' : dec}
+                    {dec === 'classic' ? tc('eraClassic') : dec}
                   </button>
                 );
               })}
@@ -360,7 +366,7 @@ const EraPickerModal: React.FC<{
           {/* Exact Years 2026 down to 2000 */}
           <div className="space-y-1.5">
             <div className="text-[11px] font-extrabold uppercase tracking-wider" style={{ color: 'var(--song-muted)' }}>
-              เจาะจงปีที่ปล่อยเพลง (Exact Years: 2000 – 2026)
+              {t('eraModal.exactYears')}
             </div>
             <div className="grid grid-cols-4 sm:grid-cols-6 gap-1.5">
               {YEAR_OPTIONS.map((yr) => {
@@ -420,6 +426,8 @@ const ArtistPickerModal: React.FC<{
   onSelectArtist,
   onOpenAddArtist,
 }) => {
+  const t = useTranslations('Setup');
+  const tc = useTranslations('Common');
   const [search, setSearch] = useState('');
   const [tab, setTab] = useState<'all' | 'thai' | 'international'>(
     category === 'all' ? 'all' : category
@@ -449,7 +457,7 @@ const ArtistPickerModal: React.FC<{
   });
 
   return (
-    <Modal open={isOpen} onClose={onClose} title="Choose an artist" dismissOnBackdrop={false} panelClassName="!bg-transparent !border-0 !shadow-none !overflow-visible !max-h-none">
+    <Modal open={isOpen} onClose={onClose} title={t('artistModal.dialogTitle')} dismissOnBackdrop={false} panelClassName="!bg-transparent !border-0 !shadow-none !overflow-visible !max-h-none">
       <div
         className="w-full max-w-lg self-center rounded-2xl border p-4 sm:p-5 shadow-2xl space-y-3.5 max-h-[85vh] flex flex-col"
         style={{
@@ -463,7 +471,7 @@ const ArtistPickerModal: React.FC<{
           <div className="flex items-center gap-2">
             <Users className="w-4 h-4 text-emerald-400" />
             <h3 className="text-sm font-extrabold tracking-wide">
-              เลือกศิลปินในคลัง (Select Artist)
+              {t('artistModal.heading')}
             </h3>
             <span className="text-xs font-mono font-bold text-emerald-400">
               ({filteredArtists.length})
@@ -473,7 +481,7 @@ const ArtistPickerModal: React.FC<{
             type="button"
             onClick={onClose}
             className="p-1 rounded-lg hover:bg-white/10 transition"
-            aria-label="Close"
+            aria-label={tc('close')}
           >
             <X className="w-4 h-4" />
           </button>
@@ -486,7 +494,7 @@ const ArtistPickerModal: React.FC<{
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="ค้นหาชื่อศิลปิน หรือแนวเพลงในคลัง..."
+              placeholder={t('artistModal.searchPlaceholder')}
               className="w-full pl-9 pr-8 py-2 rounded-xl border text-base sm:text-xs font-medium focus:outline-none"
               style={{
                 backgroundColor: 'var(--song-surface-soft)',
@@ -524,7 +532,7 @@ const ArtistPickerModal: React.FC<{
                   : { color: 'var(--song-muted)' }
               }
             >
-              ทั้งหมด ({artists.length})
+              {t('artistModal.tabAll', { count: artists.length })}
             </button>
             <button
               type="button"
@@ -536,7 +544,7 @@ const ArtistPickerModal: React.FC<{
                   : { color: 'var(--song-muted)' }
               }
             >
-              <span>🇹🇭 เพลงไทย ({thaiCount})</span>
+              <span>🇹🇭 {t('artistModal.tabThai', { count: thaiCount })}</span>
             </button>
             <button
               type="button"
@@ -548,7 +556,7 @@ const ArtistPickerModal: React.FC<{
                   : { color: 'var(--song-muted)' }
               }
             >
-              <span>🌍 เพลงสากล ({intlCount})</span>
+              <span>🌍 {t('artistModal.tabIntl', { count: intlCount })}</span>
             </button>
           </div>
         </div>
@@ -578,7 +586,7 @@ const ArtistPickerModal: React.FC<{
           >
             <span className="flex items-center gap-2">
               <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
-              Any artist (สุ่มทุกศิลปินในคลัง)
+              {tc('any.artistLong')}
             </span>
             {(!selectedArtist || selectedArtist === 'any') && (
               <Check className="w-4 h-4 text-emerald-400" />
@@ -633,7 +641,7 @@ const ArtistPickerModal: React.FC<{
                       <div className="text-xs font-bold truncate">{artist.name}</div>
                       <div className="text-[10px] truncate" style={{ color: 'var(--song-muted)' }}>
                         {artist.category === 'thai' ? '🇹🇭' : '🌍'} {artist.mainGenre}
-                        {artist.trackCount ? ` • ${artist.trackCount} เพลง` : ''}
+                        {artist.trackCount ? ` • ${t('artistModal.trackCount', { count: artist.trackCount })}` : ''}
                       </div>
                     </div>
                   </div>
@@ -645,7 +653,7 @@ const ArtistPickerModal: React.FC<{
 
           {filteredArtists.length === 0 && (
             <div className="py-8 text-center text-xs space-y-1" style={{ color: 'var(--song-muted)' }}>
-              <p>ไม่พบศิลปิน &quot;{search}&quot; ในคลังเพลง</p>
+              <p>{t('artistModal.noResults', { search })}</p>
             </div>
           )}
         </div>
@@ -654,7 +662,7 @@ const ArtistPickerModal: React.FC<{
         {onOpenAddArtist && (
           <div className="pt-2 border-t flex items-center justify-between gap-2" style={{ borderColor: 'var(--song-border)' }}>
             <span className="text-[11px]" style={{ color: 'var(--song-muted)' }}>
-              อยากเล่นศิลปินอื่นที่ยังไม่มีในนี้?
+              {t('artistModal.addPrompt')}
             </span>
             <button
               type="button"
@@ -665,7 +673,7 @@ const ArtistPickerModal: React.FC<{
               className="text-xs font-bold text-emerald-400 hover:underline flex items-center gap-1 shrink-0"
             >
               <Plus className="w-3.5 h-3.5" />
-              เพิ่มศิลปินใหม่เข้าคลัง
+              {t('artistModal.addArtist')}
             </button>
           </div>
         )}
@@ -684,6 +692,8 @@ export const ModeSelector: React.FC<ModeSelectorProps> = ({
   category,
   onOpenAddArtist,
 }) => {
+  const t = useTranslations('Setup');
+  const tc = useTranslations('Common');
   const [genreModalOpen, setGenreModalOpen] = useState(false);
   const [eraModalOpen, setEraModalOpen] = useState(false);
   const [artistModalOpen, setArtistModalOpen] = useState(false);
@@ -695,7 +705,7 @@ export const ModeSelector: React.FC<ModeSelectorProps> = ({
   // Genre reel options
   const genreReelOptions = useMemo(() => {
     const opts = [
-      { value: 'any', label: 'Any genre' },
+      { value: 'any', label: tc('any.genre') },
       ...GENRE_OPTIONS.filter((g) => g !== 'any').map((g) => ({ value: g, label: g })),
     ];
     if (
@@ -706,15 +716,15 @@ export const ModeSelector: React.FC<ModeSelectorProps> = ({
       opts.push({ value: config.genreFilter, label: config.genreFilter });
     }
     return opts;
-  }, [config.genreFilter]);
+  }, [config.genreFilter, tc]);
 
   // Era reel options
   const eraReelOptions = useMemo(() => {
     const opts = [
-      { value: 'any', label: 'Any era' },
+      { value: 'any', label: tc('any.era') },
       ...DECADE_OPTIONS.map((d) => ({
         value: d,
-        label: d === 'classic' ? 'Classic' : d,
+        label: d === 'classic' ? tc('eraClassic') : d,
       })),
       ...YEAR_OPTIONS.slice(0, 10).map((y) => ({
         value: String(y),
@@ -729,7 +739,7 @@ export const ModeSelector: React.FC<ModeSelectorProps> = ({
       opts.push({ value: config.yearFilter, label: config.yearFilter });
     }
     return opts;
-  }, [config.yearFilter]);
+  }, [config.yearFilter, tc]);
 
   // Artist reel options
   const filteredPoolArtists = useMemo(() => {
@@ -738,7 +748,7 @@ export const ModeSelector: React.FC<ModeSelectorProps> = ({
 
   const artistReelOptions = useMemo(() => {
     const opts = [
-      { value: 'any', label: 'Any artist' },
+      { value: 'any', label: tc('any.artist') },
       ...filteredPoolArtists.map((a) => ({ value: a.name, label: a.name })),
     ];
     if (
@@ -749,13 +759,20 @@ export const ModeSelector: React.FC<ModeSelectorProps> = ({
       opts.push({ value: config.artistName, label: config.artistName });
     }
     return opts;
-  }, [filteredPoolArtists, config.artistName]);
+  }, [filteredPoolArtists, config.artistName, tc]);
 
   const difficultyList: DifficultyLevel[] = ['easy', 'medium', 'hard', 'expert', 'impossible'];
 
   return (
     <div className="w-full max-w-2xl mx-auto mb-5 space-y-3 relative z-10">
-      {/* Exact Songspot 3-Row Filter Reels + 5 Difficulty Tabs */}
+      {/* Exact Songspot 3-Row Filter Reels + 5 Difficulty Tabs (collapsed on phones) */}
+      <SetupDisclosure
+        summary={describeSetup({
+          difficulty: config.difficulty,
+          timeRangePreset: config.timeRangePreset,
+          extras: [config.genreFilter, config.yearFilter, config.artistName],
+        })}
+      >
       <div className="pt-1 pb-2">
         <div className="songspot-filter-stack">
           {/* Indicator Arrow at Top of Filter Reel */}
@@ -772,33 +789,33 @@ export const ModeSelector: React.FC<ModeSelectorProps> = ({
 
           {/* Row 1: GENRES */}
           <FilterReelRow
-            label="GENRES"
+            label={t('reel.genre')}
             options={genreReelOptions}
             value={config.genreFilter || 'any'}
             onSelect={(val) =>
               onChangeConfig({ ...config, genreFilter: val, mode: 'standard' }, true)
             }
             onOpenPicker={() => setGenreModalOpen(true)}
-            actionTitle="เลือกแนวเพลงทั้งหมด (All Genres)"
+            actionTitle={t('reel.genreAction')}
             actionIcon={<SlidersHorizontal className="w-3.5 h-3.5" />}
           />
 
           {/* Row 2: ERAS */}
           <FilterReelRow
-            label="ERAS"
+            label={t('reel.era')}
             options={eraReelOptions}
             value={config.yearFilter || 'any'}
             onSelect={(val) =>
               onChangeConfig({ ...config, yearFilter: val, mode: 'standard' }, true)
             }
             onOpenPicker={() => setEraModalOpen(true)}
-            actionTitle="เลือกปีและทศวรรษทั้งหมด (All Eras & Years)"
+            actionTitle={t('reel.eraAction')}
             actionIcon={<Calendar className="w-3.5 h-3.5" />}
           />
 
           {/* Row 3: ARTISTS */}
           <FilterReelRow
-            label="ARTISTS"
+            label={t('reel.artist')}
             options={artistReelOptions}
             value={config.artistName || 'any'}
             onSelect={(val) =>
@@ -812,14 +829,14 @@ export const ModeSelector: React.FC<ModeSelectorProps> = ({
               )
             }
             onOpenPicker={() => setArtistModalOpen(true)}
-            actionTitle="ค้นหาและเลือกศิลปินในคลัง (All Artists)"
+            actionTitle={t('reel.artistAction')}
             actionIcon={<SlidersHorizontal className="w-3.5 h-3.5" />}
           />
         </div>
 
         {/* 5 Difficulty Tabs + Time Range Selector */}
         <div className="flex flex-col items-center justify-center gap-2.5 mt-4 pt-1 w-full">
-          {/* Row 1: ระดับความยาก (5 Difficulty Tabs) */}
+          {/* Row 1: 5 Difficulty Tabs */}
           <div className="songspot-difficulty-tabs w-full justify-center">
             {difficultyList.map((lvl) => {
               const preset = DIFFICULTY_PRESETS[lvl];
@@ -838,7 +855,7 @@ export const ModeSelector: React.FC<ModeSelectorProps> = ({
                     } as React.CSSProperties
                   }
                   onClick={() => handleDifficultySelect(lvl)}
-                  title={preset.description}
+                  title={tc(`difficulty.${lvl}.description`)}
                 >
                   {preset.label}
                 </button>
@@ -865,6 +882,7 @@ export const ModeSelector: React.FC<ModeSelectorProps> = ({
           </div>
         </div>
       </div>
+      </SetupDisclosure>
 
       {/* Genre Picker Modal */}
       <GenrePickerModal

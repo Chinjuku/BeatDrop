@@ -25,6 +25,8 @@
   },
   "include": [
     "next-env.d.ts",
+    "middleware.ts",
+    "i18n/**/*.ts",
     "app/**/*.ts",
     "app/**/*.tsx",
     "components/**/*.ts",
