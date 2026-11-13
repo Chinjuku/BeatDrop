@@ -1,6 +1,7 @@
 'use client';
 import React, { useEffect } from 'react';
 import { useGame } from '../../context/GameContext';
+import { PageHero, HeroPill } from '../../components/PageHero';
 import { ModeSelector } from '../../components/ModeSelector';
 import { AudioPlayer } from '../../components/AudioPlayer';
 import { GuessAutocomplete } from '../../components/GuessAutocomplete';
@@ -51,25 +52,12 @@ const PlayPage: React.FC = () => {
 
   return (
     <div className="w-full flex flex-col items-center my-auto">
-      {/* BeatDrop Wordmark Slot */}
-      <div className="mb-3 text-center overflow-visible">
-        <div className="songspot-wordmark px-4 pb-0.5 italic bg-gradient-to-b from-white via-neutral-200 to-neutral-400 bg-clip-text text-transparent">
-          BeatDrop
-        </div>
-        <p className="text-[10px] sm:text-[11px] font-black uppercase tracking-[0.24em] opacity-45 mt-0.5" style={{ color: 'var(--song-muted)' }}>
-          HEAR LESS. KNOW MORE.
-        </p>
-        {/* Streak Stats Pill & Active Filter Badges */}
-        <div className="flex flex-wrap items-center justify-center gap-1.5 sm:gap-2 mt-2">
-          {/* Live Win Streaks Pill */}
-          <div
-            className="flex items-center gap-1.5 sm:gap-2.5 px-2.5 sm:px-3.5 py-1 sm:py-1.5 rounded-full border text-[11px] sm:text-xs font-bold shadow-sm"
-            style={{
-              backgroundColor: 'var(--song-surface)',
-              borderColor: 'var(--song-border)',
-              color: 'var(--song-text)',
-            }}
-          >
+      <PageHero
+        title="BeatDrop"
+        tagline="HEAR LESS. KNOW MORE."
+        gradient="from-white via-neutral-200 to-neutral-400"
+      >
+          <HeroPill className="gap-1.5 sm:gap-2.5">
             <span className="flex items-center gap-1" title="ชนะติดต่อกันรอบปัจจุบัน (Current Streak)">
               <Flame className="w-3.5 h-3.5 text-orange-400" />
               <span>
@@ -103,31 +91,17 @@ const PlayPage: React.FC = () => {
                 </span>
               </>
             )}
-          </div>
+          </HeroPill>
 
-          <span
-            className="text-xs font-bold px-2.5 py-1 sm:py-1.5 rounded-full border"
-            style={{
-              backgroundColor: 'var(--song-surface)',
-              borderColor: 'var(--song-border)',
-              color: 'var(--song-accent-text)',
-            }}
-          >
+          <HeroPill color="var(--song-accent-text)">
             {config.category === 'thai'
               ? '🇹🇭 โหมดเพลงไทย'
               : config.category === 'international'
                 ? '🌍 โหมดเพลงสากล'
                 : '🔥 รวมเพลงไทย & สากล'}
-          </span>
+          </HeroPill>
           {config.artistName && config.artistName !== 'any' && (
-            <span
-              className="text-xs font-bold px-2.5 py-0.5 rounded-full border flex items-center gap-1.5"
-              style={{
-                backgroundColor: 'var(--song-surface)',
-                borderColor: 'var(--song-accent)',
-                color: 'var(--song-text)',
-              }}
-            >
+            <HeroPill borderColor="var(--song-accent)">
               <span>🎤 ศิลปิน: {config.artistName}</span>
               <button
                 type="button"
@@ -137,17 +111,10 @@ const PlayPage: React.FC = () => {
               >
                 <X className="w-3 h-3" />
               </button>
-            </span>
+            </HeroPill>
           )}
           {config.yearFilter && config.yearFilter !== 'any' && (
-            <span
-              className="text-xs font-bold px-2.5 py-0.5 rounded-full border flex items-center gap-1.5"
-              style={{
-                backgroundColor: 'var(--song-surface)',
-                borderColor: 'var(--song-accent)',
-                color: 'var(--song-text)',
-              }}
-            >
+            <HeroPill borderColor="var(--song-accent)">
               <span>📅 ปี/ยุค: {config.yearFilter}</span>
               <button
                 type="button"
@@ -157,17 +124,10 @@ const PlayPage: React.FC = () => {
               >
                 <X className="w-3 h-3" />
               </button>
-            </span>
+            </HeroPill>
           )}
           {config.genreFilter && config.genreFilter !== 'any' && (
-            <span
-              className="text-xs font-bold px-2.5 py-0.5 rounded-full border flex items-center gap-1.5"
-              style={{
-                backgroundColor: 'var(--song-surface)',
-                borderColor: 'var(--song-accent)',
-                color: 'var(--song-text)',
-              }}
-            >
+            <HeroPill borderColor="var(--song-accent)">
               <span>🎸 แนวเพลง: {config.genreFilter}</span>
               <button
                 type="button"
@@ -177,10 +137,9 @@ const PlayPage: React.FC = () => {
               >
                 <X className="w-3 h-3" />
               </button>
-            </span>
+            </HeroPill>
           )}
-        </div>
-      </div>
+      </PageHero>
 
       {/* Filter Reels & Difficulty Selector */}
       <ModeSelector
@@ -282,7 +241,7 @@ const PlayPage: React.FC = () => {
                       )}
                     </div>
                     <span
-                      className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-md shrink-0 ml-2"
+                      className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-xl shrink-0 ml-2"
                       style={{
                         backgroundColor: 'var(--song-surface)',
                         color: 'var(--song-muted)',

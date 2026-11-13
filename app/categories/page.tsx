@@ -3,6 +3,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useGame } from '../../context/GameContext';
+import { PageHero, HeroPill } from '../../components/PageHero';
 import {
   Compass,
   Play,
@@ -112,32 +113,27 @@ const MusicCategoriesPage: React.FC = () => {
 
   return (
     <div className="w-full flex flex-col items-center max-w-4xl pt-1 sm:pt-4 pb-8 sm:pb-12">
-      {/* Hero Header */}
-      <div className="text-center mb-5 sm:mb-6 px-2">
-        <div
-          className="inline-flex items-center gap-1.5 sm:gap-2 px-3 py-1 rounded-full border mb-2 text-[11px] sm:text-xs font-bold"
-          style={{
-            backgroundColor: 'color-mix(in srgb, var(--song-accent) 15%, transparent)',
-            borderColor: 'var(--song-accent)',
-            color: 'var(--song-accent-text)',
-          }}
-        >
-          <Compass className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-          <span>MUSIC CATEGORIES</span>
-        </div>
-        <h1 className="text-xl sm:text-3xl md:text-4xl font-extrabold tracking-tight leading-snug">
-          Music Categories{' '}
-          <span className="block sm:inline text-sm sm:text-xl md:text-2xl font-bold opacity-80 mt-0.5 sm:mt-0">
-            (สำรวจแนวเพลง ยุคสมัย และศิลปิน)
-          </span>
-        </h1>
-        <p
-          className="text-xs sm:text-sm mt-1.5 opacity-70 max-w-lg mx-auto leading-relaxed"
-          style={{ color: 'var(--song-muted)' }}
-        >
-          ท้าทายความจำด้วยการฟังเสี้ยววินาที หรือตอบแบบ 4 ตัวเลือก ในแนวเพลง ยุคสมัย หรือศิลปินที่คุณชื่นชอบ
-        </p>
-      </div>
+      <PageHero
+        title="Music Categories"
+        tagline="EXPLORE GENRES • ERAS • ARTISTS"
+        gradient="from-white via-neutral-200 to-neutral-400"
+      >
+          <HeroPill
+            tone="accent"
+            accent="color-mix(in srgb, var(--song-accent) 15%, transparent)"
+            borderColor="var(--song-accent)"
+            color="var(--song-accent-text)"
+          >
+            <Compass className="w-3.5 h-3.5" />
+            <span>สำรวจแนวเพลง ยุคสมัย และศิลปิน</span>
+          </HeroPill>
+      </PageHero>
+      <p
+        className="text-xs sm:text-sm mb-5 sm:mb-6 px-2 text-center opacity-70 max-w-lg mx-auto leading-relaxed"
+        style={{ color: 'var(--song-muted)' }}
+      >
+        ท้าทายความจำด้วยการฟังเสี้ยววินาที หรือตอบแบบ 4 ตัวเลือก ในแนวเพลง ยุคสมัย หรือศิลปินที่คุณชื่นชอบ
+      </p>
 
       {/* Segmented Filter Switcher (Equal-width 3-tab layout that never breaks to 2 lines) */}
       <div
@@ -265,7 +261,7 @@ const MusicCategoriesPage: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setAddArtistOpen(true)}
-                className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-bold rounded-lg bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/25 transition shrink-0 cursor-pointer whitespace-nowrap"
+                className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-bold rounded-xl bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/25 transition shrink-0 cursor-pointer whitespace-nowrap"
                 title="เพิ่มศิลปินใหม่จาก Apple iTunes"
               >
                 <Plus className="w-3 h-3" />
@@ -290,7 +286,7 @@ const MusicCategoriesPage: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setArtistCategoryFilter('all')}
-                  className="px-2 py-1.5 sm:px-2.5 sm:py-1 rounded-lg text-[11px] sm:text-xs font-bold transition text-center justify-center flex items-center"
+                  className="px-2 py-1.5 sm:px-2.5 sm:py-1 rounded-xl text-[11px] sm:text-xs font-bold transition text-center justify-center flex items-center"
                   style={
                     artistCategoryFilter === 'all'
                       ? {
@@ -305,7 +301,7 @@ const MusicCategoriesPage: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setArtistCategoryFilter('thai')}
-                  className="px-2 py-1.5 sm:px-2.5 sm:py-1 rounded-lg text-[11px] sm:text-xs font-bold transition text-center justify-center flex items-center gap-1"
+                  className="px-2 py-1.5 sm:px-2.5 sm:py-1 rounded-xl text-[11px] sm:text-xs font-bold transition text-center justify-center flex items-center gap-1"
                   style={
                     artistCategoryFilter === 'thai'
                       ? {
@@ -321,7 +317,7 @@ const MusicCategoriesPage: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setArtistCategoryFilter('international')}
-                  className="px-2 py-1.5 sm:px-2.5 sm:py-1 rounded-lg text-[11px] sm:text-xs font-bold transition text-center justify-center flex items-center gap-1"
+                  className="px-2 py-1.5 sm:px-2.5 sm:py-1 rounded-xl text-[11px] sm:text-xs font-bold transition text-center justify-center flex items-center gap-1"
                   style={
                     artistCategoryFilter === 'international'
                       ? {
@@ -416,7 +412,7 @@ const MusicCategoriesPage: React.FC = () => {
                     <button
                       type="button"
                       onClick={() => setArtistCategoryFilter(artistCategoryFilter === 'thai' ? 'international' : 'thai')}
-                      className="px-3.5 py-1.5 text-xs font-semibold rounded-lg bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 hover:bg-emerald-500/30 transition-colors cursor-pointer"
+                      className="px-3.5 py-1.5 text-xs font-semibold rounded-xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 hover:bg-emerald-500/30 transition-colors cursor-pointer"
                     >
                       สลับไปดูหมวด {artistCategoryFilter === 'thai' ? '🌍 เพลงสากล' : '🇹🇭 เพลงไทย'} ทันที
                     </button>

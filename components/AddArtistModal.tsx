@@ -225,7 +225,7 @@ export const AddArtistModal: React.FC<AddArtistModalProps> = ({
       panelClassName="!bg-transparent !border-0 !shadow-none !overflow-visible !max-h-none"
     >
       <div
-        className="w-[calc(100vw-16px)] sm:w-full max-w-2xl md:max-w-3xl self-center rounded-2xl border shadow-2xl overflow-hidden flex flex-col max-h-[92dvh] my-auto relative animate-in zoom-in-95 duration-200"
+        className="w-[calc(100vw-16px)] sm:w-full max-w-2xl md:max-w-3xl self-center rounded-2xl sm:rounded-3xl border shadow-2xl overflow-hidden flex flex-col max-h-[92dvh] my-auto relative animate-in zoom-in-95 duration-200"
         style={{
           backgroundColor: 'var(--song-surface)',
           borderColor: 'var(--song-border)',
@@ -238,7 +238,16 @@ export const AddArtistModal: React.FC<AddArtistModalProps> = ({
           style={{ borderColor: 'var(--song-border)' }}
         >
           <div className="flex items-center gap-2 sm:gap-2.5 min-w-0">
-            <Mic2 className="w-5 h-5 flex-shrink-0" style={{ color: 'var(--song-accent-text)' }} />
+            <span
+              className="inline-flex items-center justify-center w-8 h-8 sm:w-9 sm:h-9 rounded-full border flex-shrink-0"
+              style={{
+                backgroundColor: 'color-mix(in srgb, var(--song-accent) 15%, transparent)',
+                borderColor: 'var(--song-accent)',
+                color: 'var(--song-accent-text)',
+              }}
+            >
+              <Mic2 className="w-4 h-4 sm:w-[18px] sm:h-[18px]" />
+            </span>
             <div className="min-w-0">
               <h2 className="text-sm sm:text-base font-extrabold truncate">
                 เพิ่มและจัดการศิลปิน (Add / Manage Artists)
@@ -311,7 +320,7 @@ export const AddArtistModal: React.FC<AddArtistModalProps> = ({
               <button
                 type="button"
                 onClick={() => setToast(null)}
-                className="p-1 rounded-lg hover:bg-white/10 transition flex-shrink-0"
+                className="p-1 rounded-xl hover:bg-white/10 transition flex-shrink-0"
                 aria-label="Dismiss notification"
               >
                 <X className="w-3.5 h-3.5" />
@@ -471,7 +480,7 @@ export const AddArtistModal: React.FC<AddArtistModalProps> = ({
                         <div className="flex items-center gap-1.5 flex-shrink-0">
                           {existingArtist ? (
                             <span
-                              className="px-2.5 py-1 rounded-lg text-xs font-bold flex items-center gap-1 border opacity-80"
+                              className="px-2.5 py-1 rounded-xl text-xs font-bold flex items-center gap-1 border opacity-80"
                               style={{
                                 backgroundColor: 'var(--song-surface)',
                                 borderColor: 'var(--song-border)',
@@ -488,7 +497,7 @@ export const AddArtistModal: React.FC<AddArtistModalProps> = ({
                               onClick={() =>
                                 handleAddOrSync(art.name, art.category, art.mainGenre, art.avatarUrl)
                               }
-                              className="px-3 py-1.5 rounded-lg text-xs font-extrabold flex items-center gap-1 transition disabled:opacity-50 hover:brightness-110"
+                              className="px-3 py-1.5 rounded-xl text-xs font-extrabold flex items-center gap-1 transition disabled:opacity-50 hover:brightness-110"
                               style={{
                                 backgroundColor: 'var(--song-accent)',
                                 color: 'var(--song-accent-on)',
@@ -580,7 +589,7 @@ export const AddArtistModal: React.FC<AddArtistModalProps> = ({
                           onPlayArtist(artist);
                           onClose();
                         }}
-                        className="px-2.5 py-1 rounded-lg text-[11px] font-bold flex items-center gap-1 transition hover:brightness-110"
+                        className="px-2.5 py-1 rounded-xl text-[11px] font-bold flex items-center gap-1 transition hover:brightness-110"
                         style={{
                           backgroundColor: 'var(--song-accent)',
                           color: 'var(--song-accent-on)',

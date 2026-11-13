@@ -2,6 +2,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useGame } from '../../context/GameContext';
+import { PageHero, HeroPill, HeroPillButton, HeroPillDivider } from '../../components/PageHero';
 import { AudioPlayer } from '../../components/AudioPlayer';
 import { GuessAutocomplete } from '../../components/GuessAutocomplete';
 import { SpinningAlbumArt } from '../../components/SpinningAlbumArt';
@@ -139,91 +140,46 @@ const DailyChallengePage: React.FC = () => {
 
   return (
     <div className="w-full flex flex-col items-center my-auto">
-      {/* 1. Header Wordmark & Tagline (Consistent across all 3 features) */}
-      <div className="mb-3 text-center overflow-visible">
-        <div className="songspot-wordmark px-4 pb-0.5 italic bg-gradient-to-b from-amber-200 via-yellow-300 to-amber-500 bg-clip-text text-transparent">
-          Daily Challenge
-        </div>
-        <p
-          className="text-[10px] sm:text-[11px] font-black uppercase tracking-[0.24em] mt-0.5"
-          style={{ color: 'var(--song-muted)' }}
-        >
-          5 SONGS • HEAR LESS. KNOW MORE.
-        </p>
-
-        {/* Status & Badge Pills Row (Consistent layout) */}
-        <div className="flex flex-wrap items-center justify-center gap-2 mt-2">
-          {/* Date Badge */}
-          <div
-            className="flex items-center gap-1.5 px-3.5 py-1 sm:py-1.5 rounded-full border text-xs font-bold shadow-sm"
-            style={{
-              backgroundColor: 'var(--song-surface)',
-              borderColor: 'var(--song-border)',
-              color: 'var(--song-text)',
-            }}
-          >
+      <PageHero
+        title="Daily Challenge"
+        tagline="5 SONGS • HEAR LESS. KNOW MORE."
+        gradient="from-amber-200 via-yellow-300 to-amber-500"
+      >
+          <HeroPill>
             <CalendarDays className="w-3.5 h-3.5" style={{ color: 'var(--song-accent-text)' }} />
             <span>{dailyInfo?.dateKey || 'Daily Challenge'}</span>
-          </div>
+          </HeroPill>
 
-          {/* Daily Score Pill */}
-          <div
-            className="flex items-center gap-1.5 px-3.5 py-1 sm:py-1.5 rounded-full border text-xs font-bold shadow-sm"
-            style={{
-              backgroundColor: 'var(--song-surface)',
-              borderColor: 'var(--song-border)',
-              color: 'var(--song-text)',
-            }}
-          >
+          <HeroPill>
             <span style={{ color: 'var(--song-muted)' }}>Score:</span>
             <strong className="font-mono text-amber-400">{dailyScore} pts</strong>
-          </div>
+          </HeroPill>
 
-          {/* Round Stats Pill */}
-          <div
-            className="flex items-center gap-2 px-3 py-1 sm:py-1.5 rounded-full border text-xs font-bold shadow-sm"
-            style={{
-              backgroundColor: 'var(--song-surface)',
-              borderColor: 'var(--song-border)',
-              color: 'var(--song-muted)',
-            }}
-          >
+          <HeroPill color="var(--song-muted)">
             <span>Round <strong className="text-white">{Math.min(dailyIndex + 1, dailyInfo?.totalRounds || 5)}/{dailyInfo?.totalRounds || 5}</strong></span>
-            <span className="opacity-30">|</span>
+            <HeroPillDivider />
             <span className="text-emerald-400">✓ {dailyCorrectCount}</span>
-            <span className="opacity-30">|</span>
+            <HeroPillDivider />
             <span className="text-amber-400">✕ {dailySkipCount}</span>
-          </div>
+          </HeroPill>
 
-          {/* Rankings Button */}
-          <button
-            type="button"
+          <HeroPillButton
             onClick={() => setLeaderboardOpen(true)}
-            className="px-3 py-1 sm:py-1.5 rounded-full border text-xs font-bold flex items-center gap-1.5 transition hover:brightness-110 shadow-sm"
-            style={{
-              backgroundColor: 'color-mix(in srgb, #f59e0b 16%, var(--song-surface))',
-              borderColor: 'rgba(245, 158, 11, 0.4)',
-              color: '#fbbf24',
-            }}
+            background="color-mix(in srgb, #f59e0b 16%, var(--song-surface))"
+            borderColor="rgba(245, 158, 11, 0.4)"
+            color="#fbbf24"
             title="เปิดตารางคะแนนอันดับผู้เล่น (Daily Rankings)"
           >
             <Trophy className="w-3.5 h-3.5 text-amber-400" />
             <span>Rankings</span>
-          </button>
+          </HeroPillButton>
 
-          {/* Category Pill / Switcher */}
-          <button
-            type="button"
+          <HeroPillButton
             onClick={() => {
               const nextCat = config.category === 'thai' ? 'international' : config.category === 'international' ? 'all' : 'thai';
               handleConfigChange({ ...config, category: nextCat }, true);
             }}
-            className="text-xs font-bold px-2.5 py-1 sm:py-1.5 rounded-full border transition hover:brightness-110 active:scale-95 cursor-pointer flex items-center gap-1 shadow-sm"
-            style={{
-              backgroundColor: 'var(--song-surface)',
-              borderColor: 'var(--song-border)',
-              color: 'var(--song-accent-text)',
-            }}
+            color="var(--song-accent-text)"
             title="กดเพื่อสลับโหมด: เพลงไทย / เพลงสากล / รวมไทย & สากล"
           >
             <span>
@@ -233,9 +189,8 @@ const DailyChallengePage: React.FC = () => {
                   ? '🌍 เพลงสากล'
                   : '🔥 รวมไทย & สากล'}
             </span>
-          </button>
-        </div>
-      </div>
+          </HeroPillButton>
+      </PageHero>
 
       {/* 2. Controls Card: 5-Song Progress + Difficulty + Time Range */}
       <div
@@ -551,7 +506,7 @@ const DailyChallengePage: React.FC = () => {
                       )}
                     </div>
                     <span
-                      className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-md shrink-0 ml-2"
+                      className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-xl shrink-0 ml-2"
                       style={{
                         backgroundColor: 'var(--song-surface)',
                         color: 'var(--song-muted)',

@@ -1650,28 +1650,6 @@ body {
   -webkit-overflow-scrolling: touch;
   overscroll-behavior-x: contain;
   padding-bottom: 0.25rem;
-  /* Blend the scrollbar into the dark page instead of a bright default bar,
-     while keeping the thumb just visible enough to read as an affordance. */
-  scrollbar-width: thin;
-  scrollbar-color: var(--song-border) transparent;
-}
-
-.legal-table-scroll::-webkit-scrollbar {
-  height: 6px;
-}
-
-.legal-table-scroll::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.legal-table-scroll::-webkit-scrollbar-thumb {
-  background-color: var(--song-border);
-  border-radius: 999px;
-}
-
-.legal-table-scroll:hover::-webkit-scrollbar-thumb,
-.legal-table-scroll:focus-visible::-webkit-scrollbar-thumb {
-  background-color: var(--song-muted);
 }
 
 .legal-table-scroll:focus-visible {
@@ -1708,4 +1686,43 @@ body {
   transform: translate(-50%, 0);
   outline: 2px solid var(--song-text, #f4f8f5);
   outline-offset: 2px;
+}
+
+/* ==========================================================================
+   Scrollbars — themed app-wide
+
+   The browser default renders a bright light-grey bar across every dark
+   surface (modal lists, leaderboard, nav drawer, autocomplete, selectors).
+   scrollbar-color is an inherited property, so setting it once on <html>
+   reaches every scroll container; the ::-webkit-* rules cover engines that
+   do not support the standard properties yet. Purely cosmetic.
+   ========================================================================== */
+
+html {
+  scrollbar-color: var(--song-border) transparent;
+}
+
+*,
+*::before,
+*::after {
+  scrollbar-width: thin;
+}
+
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+*::-webkit-scrollbar-track,
+*::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  background-color: var(--song-border);
+  border-radius: 999px;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background-color: var(--song-muted);
 }

@@ -1,6 +1,7 @@
 'use client';
 import React, { useEffect, useState } from 'react';
 import { useGame } from '../../context/GameContext';
+import { PageHero, HeroPill, HeroPillDivider } from '../../components/PageHero';
 import { AudioPlayer } from '../../components/AudioPlayer';
 import { SpinningAlbumArt } from '../../components/SpinningAlbumArt';
 import { TimeRangeSelector } from '../../components/TimeRangeSelector';
@@ -68,65 +69,37 @@ const SongGuesserPage: React.FC = () => {
 
   return (
     <div className="w-full flex flex-col items-center my-auto">
-      {/* Header Banner */}
-      <div className="mb-3 text-center overflow-visible">
-        <div className="songspot-wordmark px-4 pb-0.5 italic bg-gradient-to-b from-purple-200 via-fuchsia-300 to-indigo-500 bg-clip-text text-transparent">
-          Song Guesser
-        </div>
-        <p className="text-[10px] sm:text-[11px] font-black uppercase tracking-[0.24em] text-purple-300/60 mt-0.5">
-          HEAR LESS. PICK FASTER.
-        </p>
-        <div className="flex flex-wrap items-center justify-center gap-2 mt-2">
-          {/* Live Streak Pill */}
-          <div
-            className="flex items-center gap-2.5 px-3.5 py-1 sm:py-1.5 rounded-full border text-xs font-bold shadow-sm"
-            style={{
-              backgroundColor: 'var(--song-surface)',
-              borderColor: 'var(--song-border)',
-              color: 'var(--song-text)',
-            }}
-          >
+      <PageHero
+        title="Song Guesser"
+        tagline="HEAR LESS. PICK FASTER."
+        gradient="from-purple-200 via-fuchsia-300 to-indigo-500"
+        taglineColor="rgb(216 180 254 / 0.6)"
+      >
+          <HeroPill className="gap-2.5">
             <span className="flex items-center gap-1" title="Current Win Streak">
               <Flame className="w-3.5 h-3.5 text-orange-400" />
               <span>Streak: <strong className="text-orange-400">{streak}</strong></span>
             </span>
-            <span className="opacity-30">|</span>
+            <HeroPillDivider />
             <span className="flex items-center gap-1" title="Best Win Streak">
               <Trophy className="w-3.5 h-3.5 text-amber-400" />
               <span>Best: <strong className="text-amber-400">{bestStreak}</strong></span>
             </span>
-          </div>
+          </HeroPill>
 
-          <span
-            className="text-xs font-bold px-3 py-1 sm:py-1.5 rounded-full border flex items-center gap-1.5 shadow-sm"
-            style={{
-              backgroundColor: '#b57aff',
-              borderColor: '#b57aff',
-              color: '#07110c',
-            }}
-          >
+          <HeroPill tone="accent" accent="#b57aff" color="#07110c">
             <ListChecks className="w-3.5 h-3.5" />
             <span>4 CHOICES</span>
-          </span>
-          <span className="text-xs font-bold px-2.5 py-1 sm:py-1.5 rounded-full border" style={{ backgroundColor: 'var(--song-surface)', borderColor: 'var(--song-border)', color: 'var(--song-muted)' }}>
-            Skipped: {guesserSkipCount}
-          </span>
-          <span
-            className="text-xs font-bold px-2.5 py-1 sm:py-1.5 rounded-full border"
-            style={{
-              backgroundColor: 'var(--song-surface)',
-              borderColor: 'var(--song-border)',
-              color: 'var(--song-accent-text)',
-            }}
-          >
+          </HeroPill>
+          <HeroPill color="var(--song-muted)">Skipped: {guesserSkipCount}</HeroPill>
+          <HeroPill color="var(--song-accent-text)">
             {config.category === 'thai'
               ? '🇹🇭 เพลงไทย'
               : config.category === 'international'
                 ? '🌍 เพลงสากล'
                 : '🔥 รวมไทย & สากล'}
-          </span>
-        </div>
-      </div>
+          </HeroPill>
+      </PageHero>
 
       {/* Difficulty & Time Range Control Bar */}
       <div
@@ -346,7 +319,7 @@ const SongGuesserPage: React.FC = () => {
                           <img
                             src={choice.artworkUrl}
                             alt={choice.title}
-                            className="w-10 h-10 rounded-lg object-cover flex-shrink-0 border"
+                            className="w-10 h-10 rounded-xl object-cover flex-shrink-0 border"
                             style={{ borderColor: 'var(--song-border)' }}
                           />
                         )}
