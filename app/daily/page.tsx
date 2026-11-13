@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { DEFAULT_TIME_STAGES, DIFFICULTY_PRESETS, DifficultyLevel, GameConfig } from '../../types';
 import { shareOrCopy } from '../../lib/shareUtils';
+import { getPreference } from '../../lib/preferenceStorage';
 
 const DailyChallengePage: React.FC = () => {
   const router = useRouter(); const navigate = (p: string) => router.push(p);
@@ -70,8 +71,8 @@ const DailyChallengePage: React.FC = () => {
       let targetCat = config.category;
       let targetDiff = config.difficulty;
       try {
-        const savedCat = localStorage.getItem('songspot:daily-category') as any;
-        const savedDiff = localStorage.getItem('songspot:daily-difficulty') as any;
+        const savedCat = getPreference('songspot:daily-category') as any;
+        const savedDiff = getPreference('songspot:daily-difficulty') as any;
         if (['thai', 'international', 'all'].includes(savedCat)) targetCat = savedCat;
         if (['easy', 'medium', 'hard', 'expert', 'impossible'].includes(savedDiff)) targetDiff = savedDiff;
       } catch {}

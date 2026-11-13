@@ -7,6 +7,7 @@ import {
   ThemeConfig,
   ThemeId,
 } from '../types';
+import { getPreference, setPreference } from '../lib/preferenceStorage';
 
 interface ThemeContextValue {
   themeId: ThemeId;
@@ -29,9 +30,9 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   useEffect(() => {
     try {
-      const saved = localStorage.getItem(STORAGE_THEME_KEY) as ThemeId | null;
+      const saved = getPreference(STORAGE_THEME_KEY) as ThemeId | null;
       if (saved && THEME_PRESETS[saved]) setThemeIdState(saved);
-      const syncSaved = localStorage.getItem(STORAGE_SYNC_DIFF_KEY);
+      const syncSaved = getPreference(STORAGE_SYNC_DIFF_KEY);
       if (syncSaved) setSyncDifficultyAccentState(syncSaved === 'true');
     } catch {}
   }, []);
@@ -41,14 +42,14 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const setThemeId = (id: ThemeId) => {
     setThemeIdState(id);
     try {
-      localStorage.setItem(STORAGE_THEME_KEY, id);
+      setPreference(STORAGE_THEME_KEY, id);
     } catch {}
   };
 
   const setSyncDifficultyAccent = (val: boolean) => {
     setSyncDifficultyAccentState(val);
     try {
-      localStorage.setItem(STORAGE_SYNC_DIFF_KEY, String(val));
+      setPreference(STORAGE_SYNC_DIFF_KEY, String(val));
     } catch {}
   };
 

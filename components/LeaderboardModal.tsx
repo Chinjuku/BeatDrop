@@ -22,6 +22,7 @@ import {
 } from '../types';
 import { useQuery } from '@tanstack/react-query';
 import { QUERY_KEYS, invalidateLeaderboard } from '../lib/queryClient';
+import { getPreference, setPreference } from '../lib/preferenceStorage';
 
 interface LeaderboardModalProps {
   isOpen: boolean;
@@ -85,7 +86,7 @@ export const LeaderboardModal: React.FC<LeaderboardModalProps> = ({
 
   const [playerName, setPlayerName] = useState<string>(() => {
     try {
-      return localStorage.getItem(STORAGE_PLAYER_NAME) || '';
+      return getPreference(STORAGE_PLAYER_NAME) || '';
     } catch {
       return '';
     }
@@ -126,7 +127,7 @@ export const LeaderboardModal: React.FC<LeaderboardModalProps> = ({
     if (!playerName.trim() || submitting || hasSubmitted) return;
     setSubmitting(true);
     try {
-      localStorage.setItem(STORAGE_PLAYER_NAME, playerName.trim());
+      setPreference(STORAGE_PLAYER_NAME, playerName.trim());
     } catch {}
 
     try {

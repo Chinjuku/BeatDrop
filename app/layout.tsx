@@ -5,17 +5,70 @@ import { ThemeProvider } from '../context/ThemeContext';
 import { GameProvider } from '../context/GameContext';
 import { QueryProvider } from '../components/QueryProvider';
 import { AppShell } from '../components/AppShell';
+import { ConsentProvider } from '../context/ConsentContext';
+import { StructuredData } from '../components/StructuredData';
+import {
+  HAS_PUBLIC_ORIGIN,
+  OG_IMAGE,
+  SITE_DESCRIPTION,
+  SITE_KEYWORDS,
+  SITE_NAME,
+  SITE_TITLE,
+  SITE_URL,
+  absoluteUrl,
+} from '../lib/siteConfig';
 
 export const metadata: Metadata = {
-  title: 'BeatDrop • เกมทายเพลงไทย & สากล จากเสี้ยววินาที',
-  description: 'Hear less. Know more. Thai & International Music Guessing Game on Next.js + Supabase.',
-  applicationName: 'BeatDrop',
+  metadataBase: new URL(SITE_URL),
+  title: {
+    default: SITE_TITLE,
+    // Sub-pages supply only their own name; the brand is appended here once.
+    template: `%s • ${SITE_NAME}`,
+  },
+  description: SITE_DESCRIPTION,
+  keywords: SITE_KEYWORDS,
+  applicationName: SITE_NAME,
+  category: 'games',
+  alternates: {
+    canonical: absoluteUrl('/play'),
+  },
+  openGraph: {
+    type: 'website',
+    siteName: SITE_NAME,
+    locale: 'th_TH',
+    alternateLocale: ['en_US'],
+    url: absoluteUrl('/play'),
+    title: SITE_TITLE,
+    description: SITE_DESCRIPTION,
+    images: [OG_IMAGE],
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: SITE_TITLE,
+    description: SITE_DESCRIPTION,
+    images: [OG_IMAGE.url],
+  },
+  // Preview deployments and un-configured origins stay out of the index.
+  robots: HAS_PUBLIC_ORIGIN && process.env.VERCEL_ENV !== 'preview'
+    ? {
+        index: true,
+        follow: true,
+        googleBot: {
+          index: true,
+          follow: true,
+          'max-image-preview': 'large',
+          'max-snippet': -1,
+          'max-video-preview': -1,
+        },
+      }
+    : { index: false, follow: false },
   appleWebApp: {
     capable: true,
-    title: 'BeatDrop',
+    title: SITE_NAME,
     statusBarStyle: 'black-translucent',
   },
   formatDetection: { telephone: false },
+  manifest: '/manifest.webmanifest',
   icons: {
     icon: [
       { url: '/icons/icon-192.png', sizes: '192x192', type: 'image/png' },
@@ -42,6 +95,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           href="https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@400;500;600;700;800&display=swap"
           rel="stylesheet"
         />
+        {/* Audio previews and artwork come from Apple's CDN — warm the connection early. */}
+        <link rel="preconnect" href="https://is1-ssl.mzstatic.com" crossOrigin="anonymous" />
+        <link rel="dns-prefetch" href="https://itunes.apple.com" />
+        <StructuredData />
       </head>
       <body>
         <noscript>
@@ -82,12 +139,17 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             </div>
           </div>
         </noscript>
+        <a href="#beatdrop-main" className="beatdrop-skip-link">
+          ข้ามไปที่เนื้อหาหลัก
+        </a>
         <QueryProvider>
-          <ThemeProvider>
-            <GameProvider>
-              <AppShell>{children}</AppShell>
-            </GameProvider>
-          </ThemeProvider>
+          <ConsentProvider>
+            <ThemeProvider>
+              <GameProvider>
+                <AppShell>{children}</AppShell>
+              </GameProvider>
+            </ThemeProvider>
+          </ConsentProvider>
         </QueryProvider>
       </body>
     </html>

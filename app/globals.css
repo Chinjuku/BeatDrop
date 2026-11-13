@@ -1587,3 +1587,76 @@ body {
   background: #1b3023;
   border-color: #496350;
 }
+
+/* ---------------------------------------------------------------------------
+   Legal / policy document typography (privacy, cookies).
+   --------------------------------------------------------------------------- */
+.legal-prose p,
+.legal-prose li {
+  color: var(--song-muted);
+}
+
+.legal-prose strong {
+  color: var(--song-text);
+  font-weight: 800;
+}
+
+.legal-prose a {
+  color: var(--song-accent-text);
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.legal-prose ul {
+  list-style: disc;
+  padding-inline-start: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.legal-prose table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.75rem;
+}
+
+.legal-prose th,
+.legal-prose td {
+  border: 1px solid var(--song-border);
+  padding: 0.5rem 0.625rem;
+  text-align: start;
+  vertical-align: top;
+  color: var(--song-muted);
+}
+
+.legal-prose th {
+  background-color: var(--song-surface-soft);
+  color: var(--song-text);
+  font-weight: 800;
+}
+
+/* Skip link — keyboard users reach the game without tabbing the whole navbar. */
+.beatdrop-skip-link {
+  position: fixed;
+  top: 0.5rem;
+  left: 50%;
+  transform: translate(-50%, -200%);
+  z-index: 100;
+  padding: 0.625rem 1rem;
+  border-radius: 0.75rem;
+  background-color: var(--song-accent, #19df70);
+  color: var(--song-accent-on, #04160b);
+  font-size: 0.75rem;
+  font-weight: 800;
+  text-decoration: none;
+  transition: transform 0.15s ease-out;
+}
+
+.beatdrop-skip-link:focus-visible,
+.beatdrop-skip-link:focus {
+  transform: translate(-50%, 0);
+  outline: 2px solid var(--song-text, #f4f8f5);
+  outline-offset: 2px;
+}

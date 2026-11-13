@@ -5,6 +5,8 @@ export default function manifest(): MetadataRoute.Manifest {
     id: '/',
     name: 'BeatDrop — Thai & International Music Quiz',
     short_name: 'BeatDrop',
+    lang: 'th-TH',
+    dir: 'ltr',
     description: 'Hear less. Know more. Guess Thai and international songs.',
     start_url: '/play',
     scope: '/',

@@ -8,6 +8,8 @@ import { AddArtistModal } from './AddArtistModal';
 import { LeaderboardModal } from './LeaderboardModal';
 import { ShareTicketModal } from './ShareTicketModal';
 import { PwaManager } from './PwaManager';
+import { CookieConsent } from './CookieConsent';
+import { CookiePreferencesButton } from './CookiePreferencesButton';
 import { BeatDropLogo } from './BeatDropLogo';
 import { useGame } from '../context/GameContext';
 import { invalidateArtists, invalidateSongs } from '../lib/queryClient';
@@ -113,9 +115,11 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
         onSelectQuiz={handleSelectQuiz}
       />
       <PwaManager />
+      <CookieConsent />
 
       {/* Page Content */}
       <main
+        id="beatdrop-main"
         className={`flex-1 w-full mx-auto px-3 py-4 sm:px-6 sm:py-8 flex flex-col relative z-10 ${
           pathname.startsWith('/admin')
             ? 'max-w-[1600px]'
@@ -145,9 +149,22 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
               HEAR LESS. KNOW MORE.
             </span>
           </div>
-          <div className="flex items-center gap-3 text-[11px] opacity-60">
-            <span>🇹🇭 Thai & International Music Challenge</span>
-          </div>
+          <nav
+            aria-label="ลิงก์นโยบายและข้อมูลเว็บไซต์"
+            className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1.5 text-[11px]"
+          >
+            <span className="opacity-60">🇹🇭 Thai &amp; International Music Challenge</span>
+            <span aria-hidden="true" className="opacity-25">
+              •
+            </span>
+            <Link href="/privacy" className="opacity-75 underline-offset-2 transition hover:underline hover:opacity-100">
+              ความเป็นส่วนตัว
+            </Link>
+            <Link href="/cookies" className="opacity-75 underline-offset-2 transition hover:underline hover:opacity-100">
+              คุกกี้
+            </Link>
+            <CookiePreferencesButton variant="link" className="opacity-75 hover:opacity-100" />
+          </nav>
         </div>
       </footer>
 

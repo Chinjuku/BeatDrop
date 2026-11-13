@@ -11,7 +11,7 @@ const PRECACHE_URLS = [
   '/icons/icon-maskable-512.png',
   '/icons/apple-touch-icon.png',
 ];
-const OFFLINE_DOCUMENTS = new Set(['/','/play','/daily','/guesser','/categories']);
+const OFFLINE_DOCUMENTS = new Set(['/','/play','/daily','/guesser','/categories','/privacy','/cookies']);
 let updateApproved = false;
 
 self.addEventListener('install', (event) => {

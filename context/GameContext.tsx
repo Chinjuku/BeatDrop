@@ -37,6 +37,7 @@ import {
   invalidateDaily,
   invalidateSongs,
 } from '../lib/queryClient';
+import { getPreference, removePreference, setPreference } from '../lib/preferenceStorage';
 
 const STORAGE_STREAK_KEY = 'songspot:streak';
 const STORAGE_BEST_STREAK_KEY = 'songspot:best-streak';
@@ -59,7 +60,7 @@ interface PlayedTrackEntry {
 function loadValidPlayedIds(): { ids: string[]; entries: PlayedTrackEntry[] } {
   const now = Date.now();
   try {
-    const raw = localStorage.getItem(STORAGE_PLAYED_IDS_KEY);
+    const raw = getPreference(STORAGE_PLAYED_IDS_KEY);
     if (!raw) return { ids: [], entries: [] };
     const parsed = JSON.parse(raw);
     let rawEntries: PlayedTrackEntry[] = [];
@@ -81,11 +82,11 @@ function loadValidPlayedIds(): { ids: string[]; entries: PlayedTrackEntry[] } {
       .slice(-MAX_PLAYED_HISTORY);
 
     if (validEntries.length === 0) {
-      localStorage.removeItem(STORAGE_PLAYED_IDS_KEY);
+      removePreference(STORAGE_PLAYED_IDS_KEY);
       return { ids: [], entries: [] };
     }
     if (validEntries.length !== rawEntries.length) {
-      localStorage.setItem(STORAGE_PLAYED_IDS_KEY, JSON.stringify(validEntries));
+      setPreference(STORAGE_PLAYED_IDS_KEY, JSON.stringify(validEntries));
     }
     return { ids: validEntries.map((e) => e.id), entries: validEntries };
   } catch {}
@@ -256,7 +257,7 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     playedIdsRef.current = nextIds;
     setPlayedIds(nextIds);
     try {
-      localStorage.setItem(STORAGE_PLAYED_IDS_KEY, JSON.stringify(nextEntries));
+      setPreference(STORAGE_PLAYED_IDS_KEY, JSON.stringify(nextEntries));
     } catch {}
   }, []);
 
@@ -268,9 +269,9 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   // Safe client hydration from localStorage
   useEffect(() => {
     try {
-      const s = Number(localStorage.getItem(STORAGE_STREAK_KEY) || 0);
-      const bs = Number(localStorage.getItem(STORAGE_BEST_STREAK_KEY) || 0);
-      const ft = localStorage.getItem(STORAGE_FASTEST_KEY);
+      const s = Number(getPreference(STORAGE_STREAK_KEY) || 0);
+      const bs = Number(getPreference(STORAGE_BEST_STREAK_KEY) || 0);
+      const ft = getPreference(STORAGE_FASTEST_KEY);
       if (s) setStreak(s);
       if (bs) setBestStreak(bs);
       if (ft) setFastestTime(Number(ft));
@@ -279,9 +280,9 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       playedIdsRef.current = validPlayed;
       setPlayedIds(validPlayed);
 
-      const p = localStorage.getItem(STORAGE_TIME_PRESET_KEY) as TimeRangePresetId | null;
+      const p = getPreference(STORAGE_TIME_PRESET_KEY) as TimeRangePresetId | null;
       let savedStages = DEFAULT_TIME_STAGES;
-      const raw = localStorage.getItem(STORAGE_CUSTOM_STAGES_KEY);
+      const raw = getPreference(STORAGE_CUSTOM_STAGES_KEY);
       if (raw) {
         const parsed = JSON.parse(raw);
         if (Array.isArray(parsed) && parsed.length >= 2) {
@@ -299,8 +300,8 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       }
 
       // Restore last selected Daily Challenge mode (category & difficulty)
-      const savedDailyCat = localStorage.getItem(STORAGE_DAILY_CATEGORY_KEY) as CategoryType | null;
-      const savedDailyDiff = localStorage.getItem(STORAGE_DAILY_DIFFICULTY_KEY) as DifficultyLevel | null;
+      const savedDailyCat = getPreference(STORAGE_DAILY_CATEGORY_KEY) as CategoryType | null;
+      const savedDailyDiff = getPreference(STORAGE_DAILY_DIFFICULTY_KEY) as DifficultyLevel | null;
       const validCategories = new Set<CategoryType>(['thai', 'international', 'all']);
       const validDifficulties = new Set<DifficultyLevel>(['easy', 'medium', 'hard', 'expert', 'impossible']);
       if (
@@ -338,8 +339,8 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     setActiveDifficulty(config.difficulty);
     if (config.mode === 'daily') {
       try {
-        localStorage.setItem(STORAGE_DAILY_DIFFICULTY_KEY, config.difficulty);
-        localStorage.setItem(STORAGE_DAILY_CATEGORY_KEY, config.category);
+        setPreference(STORAGE_DAILY_DIFFICULTY_KEY, config.difficulty);
+        setPreference(STORAGE_DAILY_CATEGORY_KEY, config.category);
       } catch {}
     }
   }, [config.difficulty, config.category, config.mode, setActiveDifficulty]);
@@ -348,10 +349,10 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   useEffect(() => {
     try {
       if (config.timeRangePreset) {
-        localStorage.setItem(STORAGE_TIME_PRESET_KEY, config.timeRangePreset);
+        setPreference(STORAGE_TIME_PRESET_KEY, config.timeRangePreset);
       }
       if (config.customStages && config.customStages.length >= 2) {
-        localStorage.setItem(STORAGE_CUSTOM_STAGES_KEY, JSON.stringify(config.customStages));
+        setPreference(STORAGE_CUSTOM_STAGES_KEY, JSON.stringify(config.customStages));
       }
     } catch {}
   }, [config.timeRangePreset, config.customStages]);
@@ -362,7 +363,7 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     queryFn: async () => {
       let localCustom: Artist[] = [];
       try {
-        const parsed = JSON.parse(localStorage.getItem(STORAGE_LOCAL_ARTISTS_KEY) || '[]');
+        const parsed = JSON.parse(getPreference(STORAGE_LOCAL_ARTISTS_KEY) || '[]');
         if (Array.isArray(parsed)) localCustom = parsed;
       } catch {}
 
@@ -460,7 +461,7 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
         // 0. Persist into localStorage custom artists so background refetches never drop it
         try {
-          const rawLocal = JSON.parse(localStorage.getItem(STORAGE_LOCAL_ARTISTS_KEY) || '[]');
+          const rawLocal = JSON.parse(getPreference(STORAGE_LOCAL_ARTISTS_KEY) || '[]');
           const localList: Artist[] = Array.isArray(rawLocal) ? rawLocal : [];
           const lIdx = localList.findIndex(
             (a) =>
@@ -472,7 +473,7 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           } else {
             localList.unshift(updatedArtist);
           }
-          localStorage.setItem(STORAGE_LOCAL_ARTISTS_KEY, JSON.stringify(localList.slice(0, 100)));
+          setPreference(STORAGE_LOCAL_ARTISTS_KEY, JSON.stringify(localList.slice(0, 100)));
         } catch {}
 
         // 1. Optimistic update: set TanStack Query cache directly (0ms instant UI, no overwrite flicker)
@@ -633,7 +634,7 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
               const activeKey = `${info.dateKey}::${info.category}::${info.difficulty || activeCfg.difficulty}::${info.currentIndex}`;
               const savedMidRound =
                 sessionStorage.getItem(STORAGE_DAILY_ACTIVE_ROUND_KEY) ||
-                localStorage.getItem(STORAGE_DAILY_ACTIVE_ROUND_KEY);
+                getPreference(STORAGE_DAILY_ACTIVE_ROUND_KEY);
               if (savedMidRound) {
                 const parsed = JSON.parse(savedMidRound);
                 if (parsed?.key === activeKey && parsed.roundToken && Array.isArray(parsed.history)) {
@@ -646,14 +647,14 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                   setHistory(parsed.history);
                 } else {
                   sessionStorage.removeItem(STORAGE_DAILY_ACTIVE_ROUND_KEY);
-                  localStorage.removeItem(STORAGE_DAILY_ACTIVE_ROUND_KEY);
+                  removePreference(STORAGE_DAILY_ACTIVE_ROUND_KEY);
                 }
               }
             } catch {}
           } else {
             try {
               sessionStorage.removeItem(STORAGE_DAILY_ACTIVE_ROUND_KEY);
-              localStorage.removeItem(STORAGE_DAILY_ACTIVE_ROUND_KEY);
+              removePreference(STORAGE_DAILY_ACTIVE_ROUND_KEY);
             } catch {}
           }
 
@@ -755,8 +756,8 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           }
         : config;
       if (initialMode === 'daily') {
-        const savedDailyCat = localStorage.getItem(STORAGE_DAILY_CATEGORY_KEY) as CategoryType | null;
-        const savedDailyDiff = localStorage.getItem(STORAGE_DAILY_DIFFICULTY_KEY) as DifficultyLevel | null;
+        const savedDailyCat = getPreference(STORAGE_DAILY_CATEGORY_KEY) as CategoryType | null;
+        const savedDailyDiff = getPreference(STORAGE_DAILY_DIFFICULTY_KEY) as DifficultyLevel | null;
         const validCategories = new Set<CategoryType>(['thai', 'international', 'all']);
         const validDifficulties = new Set<DifficultyLevel>(['easy', 'medium', 'hard', 'expert', 'impossible']);
         initialCfg = {
@@ -886,7 +887,7 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     setDailyTotalAnswerTimeMs((prev) => prev + (data.elapsedTimeMs || 0));
     try {
       sessionStorage.removeItem(STORAGE_DAILY_ACTIVE_ROUND_KEY);
-      localStorage.removeItem(STORAGE_DAILY_ACTIVE_ROUND_KEY);
+      removePreference(STORAGE_DAILY_ACTIVE_ROUND_KEY);
     } catch {}
   };
 
@@ -945,18 +946,18 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           const newStreak = streak + 1;
           setStreak(newStreak);
           try {
-            localStorage.setItem(STORAGE_STREAK_KEY, String(newStreak));
+            setPreference(STORAGE_STREAK_KEY, String(newStreak));
           } catch {}
           if (newStreak > bestStreak) {
             setBestStreak(newStreak);
             try {
-              localStorage.setItem(STORAGE_BEST_STREAK_KEY, String(newStreak));
+              setPreference(STORAGE_BEST_STREAK_KEY, String(newStreak));
             } catch {}
           }
           if (fastestTime === null || activeClipSeconds < fastestTime) {
             setFastestTime(activeClipSeconds);
             try {
-              localStorage.setItem(STORAGE_FASTEST_KEY, String(activeClipSeconds));
+              setPreference(STORAGE_FASTEST_KEY, String(activeClipSeconds));
             } catch {}
           }
 
@@ -979,7 +980,7 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           recordPlayedTrack(data.reveal.id);
           setStreak(0);
           try {
-            localStorage.setItem(STORAGE_STREAK_KEY, '0');
+            setPreference(STORAGE_STREAK_KEY, '0');
           } catch {}
           if (config.mode === 'daily') applyDailyResult(data);
         } else if (data.outcome === 'active' && data.roundToken) {
@@ -1027,7 +1028,7 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                   ],
                 });
                 sessionStorage.setItem(STORAGE_DAILY_ACTIVE_ROUND_KEY, payload);
-                localStorage.setItem(STORAGE_DAILY_ACTIVE_ROUND_KEY, payload);
+                setPreference(STORAGE_DAILY_ACTIVE_ROUND_KEY, payload);
               } catch {}
             }
             return nextRound;
@@ -1098,7 +1099,7 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           if (resultStatus !== 'correct') {
             setStreak(0);
             try {
-              localStorage.setItem(STORAGE_STREAK_KEY, '0');
+              setPreference(STORAGE_STREAK_KEY, '0');
             } catch {}
           }
           if (config.mode === 'daily') applyDailyResult(data);
@@ -1144,7 +1145,7 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                   ],
                 });
                 sessionStorage.setItem(STORAGE_DAILY_ACTIVE_ROUND_KEY, payload);
-                localStorage.setItem(STORAGE_DAILY_ACTIVE_ROUND_KEY, payload);
+                setPreference(STORAGE_DAILY_ACTIVE_ROUND_KEY, payload);
               } catch {}
             }
             return nextRound;

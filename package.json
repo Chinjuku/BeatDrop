@@ -10,6 +10,7 @@
     "start": "next start",
     "typecheck": "tsc --noEmit",
     "test:pwa": "tsx scripts/verify-pwa.ts",
+    "test:consent": "node --import tsx/esm scripts/verify-consent.ts",
     "test:daily": "node --import tsx/esm scripts/verify-daily-challenge.ts",
     "test:daily-client": "node --import tsx/esm scripts/verify-daily-client.ts",
     "test:guesser": "node --import tsx/esm scripts/verify-guesser.ts",
