@@ -3,9 +3,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useGame } from '../../context/GameContext';
-import { PageHero, HeroPill } from '../../components/PageHero';
+import { PageHero } from '../../components/PageHero';
 import {
-  Compass,
   Play,
   ListChecks,
   Calendar,
@@ -117,26 +116,18 @@ const MusicCategoriesPage: React.FC = () => {
         title="Music Categories"
         tagline="EXPLORE GENRES • ERAS • ARTISTS"
         gradient="from-white via-neutral-200 to-neutral-400"
-      >
-          <HeroPill
-            tone="accent"
-            accent="color-mix(in srgb, var(--song-accent) 15%, transparent)"
-            borderColor="var(--song-accent)"
-            color="var(--song-accent-text)"
-          >
-            <Compass className="w-3.5 h-3.5" />
-            <span>สำรวจแนวเพลง ยุคสมัย และศิลปิน</span>
-          </HeroPill>
-      </PageHero>
+      />
       <p
-        className="text-xs sm:text-sm mb-5 sm:mb-6 px-2 text-center opacity-70 max-w-lg mx-auto leading-relaxed"
+        className="text-xs sm:text-sm mb-4 sm:mb-5 px-2 text-center opacity-70 max-w-lg mx-auto leading-relaxed"
         style={{ color: 'var(--song-muted)' }}
       >
         ท้าทายความจำด้วยการฟังเสี้ยววินาที หรือตอบแบบ 4 ตัวเลือก ในแนวเพลง ยุคสมัย หรือศิลปินที่คุณชื่นชอบ
       </p>
 
-      {/* Segmented Filter Switcher (Equal-width 3-tab layout that never breaks to 2 lines) */}
+      {/* Segmented Filter Switcher (equal-width 3-tab layout; labels must never clip) */}
       <div
+        role="tablist"
+        aria-label="เลือกวิธีสำรวจเพลง"
         className="w-full max-w-md grid grid-cols-3 gap-1 p-1 sm:p-1.5 rounded-2xl border mb-4 sm:mb-6"
         style={{
           backgroundColor: 'var(--song-surface)',
@@ -146,7 +137,9 @@ const MusicCategoriesPage: React.FC = () => {
         <button
           type="button"
           onClick={() => setSelectedTab('artists')}
-          className="w-full py-2 px-1 sm:px-3 rounded-xl text-xs sm:text-sm font-extrabold flex items-center justify-center gap-1 sm:gap-2 transition truncate"
+          role="tab"
+          aria-selected={selectedTab === 'artists'}
+          className="w-full min-h-11 py-2 px-1 sm:px-3 rounded-xl text-xs sm:text-sm font-extrabold flex items-center justify-center gap-1 sm:gap-2 transition"
           style={
             selectedTab === 'artists'
               ? {
@@ -159,15 +152,15 @@ const MusicCategoriesPage: React.FC = () => {
           }
         >
           <Mic2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
-          <span className="truncate">
-            ศิลปิน <span className="hidden sm:inline">(Artists)</span>
-          </span>
+          <span>ศิลปิน</span>
         </button>
 
         <button
           type="button"
           onClick={() => setSelectedTab('genres')}
-          className="w-full py-2 px-1 sm:px-3 rounded-xl text-xs sm:text-sm font-extrabold flex items-center justify-center gap-1 sm:gap-2 transition truncate"
+          role="tab"
+          aria-selected={selectedTab === 'genres'}
+          className="w-full min-h-11 py-2 px-1 sm:px-3 rounded-xl text-xs sm:text-sm font-extrabold flex items-center justify-center gap-1 sm:gap-2 transition"
           style={
             selectedTab === 'genres'
               ? {
@@ -180,15 +173,15 @@ const MusicCategoriesPage: React.FC = () => {
           }
         >
           <Radio className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
-          <span className="truncate">
-            แนวเพลง <span className="hidden sm:inline">(Genres)</span>
-          </span>
+          <span>แนวเพลง</span>
         </button>
 
         <button
           type="button"
           onClick={() => setSelectedTab('eras')}
-          className="w-full py-2 px-1 sm:px-3 rounded-xl text-xs sm:text-sm font-extrabold flex items-center justify-center gap-1 sm:gap-2 transition truncate"
+          role="tab"
+          aria-selected={selectedTab === 'eras'}
+          className="w-full min-h-11 py-2 px-1 sm:px-3 rounded-xl text-xs sm:text-sm font-extrabold flex items-center justify-center gap-1 sm:gap-2 transition"
           style={
             selectedTab === 'eras'
               ? {
@@ -201,9 +194,7 @@ const MusicCategoriesPage: React.FC = () => {
           }
         >
           <Calendar className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
-          <span className="truncate">
-            ยุคสมัย <span className="hidden sm:inline">(Decades)</span>
-          </span>
+          <span>ยุคสมัย</span>
         </button>
       </div>
 
