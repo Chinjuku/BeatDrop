@@ -164,3 +164,22 @@ export function writeConsentCookie(choices: ConsentChoices): ConsentRecord | nul
   }
   return parseConsent(payload);
 }
+
+/**
+ * Routes where the blocking consent gate stands down.
+ *
+ * The gate's own copy links to these pages, so blocking them would turn those links
+ * into dead ends — the user could never read what they are consenting to. The decision
+ * is still required on every route where the game is actually playable.
+ */
+export const CONSENT_GATE_EXEMPT_ROUTES: ReadonlySet<string> = new Set(['/privacy', '/cookies']);
+
+/** Single source of truth for "must the user decide before continuing?". */
+export function shouldBlockForConsent(
+  pathname: string | null | undefined,
+  hasStoredDecision: boolean
+): boolean {
+  if (hasStoredDecision) return false;
+  if (!pathname) return true;
+  return !CONSENT_GATE_EXEMPT_ROUTES.has(pathname);
+}

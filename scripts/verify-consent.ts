@@ -15,6 +15,7 @@ import {
   purgePreferenceStorage,
   readConsentCookie,
   serializeConsent,
+  shouldBlockForConsent,
   writeConsentCookie,
 } from '../lib/consent';
 
@@ -154,6 +155,26 @@ assert.equal(getPreference(KEY), 'songspot', 'read/write allowed with consent');
 setPreference('beatdrop_admin_key', 'nope');
 assert.notEqual(storage.getItem('beatdrop_admin_key'), 'nope', 'unprefixed key refused by the facade');
 
+// --- blocking gate rule --------------------------------------------------------
+// With no stored decision the gate blocks everywhere the game is playable...
+for (const route of ['/play', '/daily', '/guesser', '/categories', '/', '/admin']) {
+  assert.equal(shouldBlockForConsent(route, false), true, `gate blocks ${route} before a decision`);
+}
+// ...but never on the policy pages the gate itself links to, or those links dead-end.
+assert.equal(shouldBlockForConsent('/privacy', false), false, 'privacy page readable before deciding');
+assert.equal(shouldBlockForConsent('/cookies', false), false, 'cookie policy readable before deciding');
+// A stored decision releases the gate everywhere.
+for (const route of ['/play', '/privacy', '/cookies', '/daily']) {
+  assert.equal(shouldBlockForConsent(route, true), false, `gate released on ${route} after deciding`);
+}
+// Unknown pathname must fail closed (block), never fail open.
+assert.equal(shouldBlockForConsent(null, false), true, 'null pathname fails closed');
+assert.equal(shouldBlockForConsent(undefined, false), true, 'undefined pathname fails closed');
+// Near-miss paths must not be treated as exempt.
+for (const route of ['/privacy/', '/cookies/x', '/Privacy', '/cookie']) {
+  assert.equal(shouldBlockForConsent(route, false), true, `${route} is not exempt`);
+}
+
 // --- category metadata ------------------------------------------------------
 const ids = CONSENT_CATEGORIES.map((category) => category.id);
 assert.deepEqual(ids, ['necessary', 'preferences', 'analytics'], 'category order is stable');
@@ -170,5 +191,6 @@ assert.equal(
 
 console.log(
   'Consent checks passed: untrusted-input validation, expiry re-prompt, boolean coercion, ' +
-    'cookie round trip, preference purge scoped to songspot:, and consent-gated storage reads/writes.'
+    'cookie round trip, preference purge scoped to songspot:, consent-gated storage reads/writes, ' +
+    'and blocking-gate route rules.'
 );

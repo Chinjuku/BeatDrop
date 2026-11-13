@@ -13,6 +13,12 @@ type ModalProps = {
   panelClassName?: string;
   placement?: 'center' | 'bottom' | 'right' | 'fullscreen';
   dismissOnBackdrop?: boolean;
+  /**
+   * Set false for a blocking dialog that must be resolved by an explicit choice
+   * (e.g. the cookie consent gate). Combine with dismissOnBackdrop={false} and
+   * omit any close affordance, otherwise keyboard users get trapped with no exit.
+   */
+  dismissOnEscape?: boolean;
   labelledBy?: string;
 };
 
@@ -38,6 +44,7 @@ export function Modal({
   panelClassName = '',
   placement = 'center',
   dismissOnBackdrop = true,
+  dismissOnEscape = true,
   labelledBy,
 }: ModalProps) {
   const generatedId = useId();
@@ -46,10 +53,12 @@ export function Modal({
   const panelRef = useRef<HTMLDivElement>(null);
   const previousFocusRef = useRef<HTMLElement | null>(null);
   const onCloseRef = useRef(onClose);
+  const dismissOnEscapeRef = useRef(dismissOnEscape);
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => setMounted(true), []);
   useEffect(() => { onCloseRef.current = onClose; }, [onClose]);
+  useEffect(() => { dismissOnEscapeRef.current = dismissOnEscape; }, [dismissOnEscape]);
 
   useEffect(() => {
     if (!open || !mounted) return;
@@ -66,8 +75,10 @@ export function Modal({
 
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
+        // Always swallow the key so it cannot bubble to another handler, but only
+        // close when this dialog is dismissible.
         event.preventDefault();
-        onCloseRef.current();
+        if (dismissOnEscapeRef.current) onCloseRef.current();
       } else if (event.key === 'Tab') {
         const elements = focusables();
         if (!elements.length) {
