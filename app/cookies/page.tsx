@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { LegalPage, LegalSection } from '../../components/LegalPage';
+import { LegalPage, LegalSection, LegalTable } from '../../components/LegalPage';
 import { CookiePreferencesButton } from '../../components/CookiePreferencesButton';
 import { CONTACT_EMAIL, SITE_NAME, absoluteUrl } from '../../lib/siteConfig';
 
@@ -37,104 +37,108 @@ export default function CookiePolicyPage() {
       </LegalSection>
 
       <LegalSection id="necessary" heading="2. จำเป็นต่อการใช้งาน (ปิดไม่ได้)">
-        <table>
-          <caption className="sr-only">รายการที่จัดเก็บซึ่งจำเป็นต่อการใช้งาน</caption>
-          <thead>
-            <tr>
-              <th scope="col">ชื่อ</th>
-              <th scope="col">ชนิด</th>
-              <th scope="col">วัตถุประสงค์</th>
-              <th scope="col">อายุ</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td>
-                <code>beatdrop_consent</code>
-              </td>
-              <td>คุกกี้ (first-party)</td>
-              <td>จำว่าคุณอนุญาตหรือปฏิเสธคุกกี้หมวดที่เป็นทางเลือก</td>
-              <td>180 วัน</td>
-            </tr>
-            <tr>
-              <td>
-                <code>beatdrop_admin_key</code>
-              </td>
-              <td>sessionStorage</td>
-              <td>เก็บคีย์ผู้ดูแลระบบระหว่างเซสชัน เฉพาะผู้ที่เข้าหน้าผู้ดูแลเท่านั้น</td>
-              <td>ปิดแท็บแล้วหาย</td>
-            </tr>
-            <tr>
-              <td>
-                <code>beatdrop_lb_sub_*</code>
-              </td>
-              <td>sessionStorage</td>
-              <td>ป้องกันการส่งคะแนนขึ้นลีดเดอร์บอร์ดซ้ำในเซสชันเดียวกัน</td>
-              <td>ปิดแท็บแล้วหาย</td>
-            </tr>
-          </tbody>
-        </table>
+        <LegalTable label="รายการที่จัดเก็บซึ่งจำเป็นต่อการใช้งาน">
+          <table>
+            <caption className="sr-only">รายการที่จัดเก็บซึ่งจำเป็นต่อการใช้งาน</caption>
+            <thead>
+              <tr>
+                <th scope="col">ชื่อ</th>
+                <th scope="col">ชนิด</th>
+                <th scope="col">วัตถุประสงค์</th>
+                <th scope="col">อายุ</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>
+                  <code>beatdrop_consent</code>
+                </td>
+                <td>คุกกี้ (first-party)</td>
+                <td>จำว่าคุณอนุญาตหรือปฏิเสธคุกกี้หมวดที่เป็นทางเลือก</td>
+                <td>180 วัน</td>
+              </tr>
+              <tr>
+                <td>
+                  <code>beatdrop_admin_key</code>
+                </td>
+                <td>sessionStorage</td>
+                <td>เก็บคีย์ผู้ดูแลระบบระหว่างเซสชัน เฉพาะผู้ที่เข้าหน้าผู้ดูแลเท่านั้น</td>
+                <td>ปิดแท็บแล้วหาย</td>
+              </tr>
+              <tr>
+                <td>
+                  <code>beatdrop_lb_sub_*</code>
+                </td>
+                <td>sessionStorage</td>
+                <td>ป้องกันการส่งคะแนนขึ้นลีดเดอร์บอร์ดซ้ำในเซสชันเดียวกัน</td>
+                <td>ปิดแท็บแล้วหาย</td>
+              </tr>
+            </tbody>
+          </table>
+        </LegalTable>
       </LegalSection>
 
       <LegalSection id="preferences" heading="3. การตั้งค่าและความชอบ (ต้องได้รับความยินยอม)">
         <p>
           ทุกรายการใช้คำนำหน้า <code>songspot:</code> ใน localStorage และถูกลบทั้งหมดทันทีเมื่อคุณปิดหมวดนี้
         </p>
-        <table>
-          <caption className="sr-only">รายการที่จัดเก็บสำหรับการตั้งค่าและความชอบ</caption>
-          <thead>
-            <tr>
-              <th scope="col">ชื่อ</th>
-              <th scope="col">วัตถุประสงค์</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td>
-                <code>songspot:theme-id</code>, <code>songspot:sync-difficulty-accent</code>
-              </td>
-              <td>ธีมสีที่เลือกและการซิงก์สีตามระดับความยาก</td>
-            </tr>
-            <tr>
-              <td>
-                <code>songspot:time-range-preset</code>, <code>songspot:custom-stages</code>
-              </td>
-              <td>พรีเซ็ตความยาวสนิปเพ็ตและค่าที่คุณตั้งเอง</td>
-            </tr>
-            <tr>
-              <td>
-                <code>songspot:streak</code>, <code>songspot:best-streak</code>,{' '}
-                <code>songspot:fastest-time</code>
-              </td>
-              <td>สถิติส่วนตัวของคุณ</td>
-            </tr>
-            <tr>
-              <td>
-                <code>songspot:played-ids</code>
-              </td>
-              <td>รายการเพลงที่เพิ่งเล่น เพื่อลดการสุ่มซ้ำ</td>
-            </tr>
-            <tr>
-              <td>
-                <code>songspot:daily-category</code>, <code>songspot:daily-difficulty</code>,{' '}
-                <code>songspot:daily-active-round</code>
-              </td>
-              <td>ตัวเลือกและความคืบหน้าของ Daily Challenge บนอุปกรณ์นี้</td>
-            </tr>
-            <tr>
-              <td>
-                <code>songspot:custom-artists</code>
-              </td>
-              <td>ศิลปินที่คุณเพิ่มไว้เองในเครื่อง</td>
-            </tr>
-            <tr>
-              <td>
-                <code>songspot:player-name</code>
-              </td>
-              <td>ชื่อที่คุณใช้ส่งคะแนน เพื่อไม่ต้องพิมพ์ใหม่ทุกครั้ง</td>
-            </tr>
-          </tbody>
-        </table>
+        <LegalTable label="รายการที่จัดเก็บสำหรับการตั้งค่าและความชอบ">
+          <table>
+            <caption className="sr-only">รายการที่จัดเก็บสำหรับการตั้งค่าและความชอบ</caption>
+            <thead>
+              <tr>
+                <th scope="col">ชื่อ</th>
+                <th scope="col">วัตถุประสงค์</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>
+                  <code>songspot:theme-id</code>, <code>songspot:sync-difficulty-accent</code>
+                </td>
+                <td>ธีมสีที่เลือกและการซิงก์สีตามระดับความยาก</td>
+              </tr>
+              <tr>
+                <td>
+                  <code>songspot:time-range-preset</code>, <code>songspot:custom-stages</code>
+                </td>
+                <td>พรีเซ็ตความยาวสนิปเพ็ตและค่าที่คุณตั้งเอง</td>
+              </tr>
+              <tr>
+                <td>
+                  <code>songspot:streak</code>, <code>songspot:best-streak</code>,{' '}
+                  <code>songspot:fastest-time</code>
+                </td>
+                <td>สถิติส่วนตัวของคุณ</td>
+              </tr>
+              <tr>
+                <td>
+                  <code>songspot:played-ids</code>
+                </td>
+                <td>รายการเพลงที่เพิ่งเล่น เพื่อลดการสุ่มซ้ำ</td>
+              </tr>
+              <tr>
+                <td>
+                  <code>songspot:daily-category</code>, <code>songspot:daily-difficulty</code>,{' '}
+                  <code>songspot:daily-active-round</code>
+                </td>
+                <td>ตัวเลือกและความคืบหน้าของ Daily Challenge บนอุปกรณ์นี้</td>
+              </tr>
+              <tr>
+                <td>
+                  <code>songspot:custom-artists</code>
+                </td>
+                <td>ศิลปินที่คุณเพิ่มไว้เองในเครื่อง</td>
+              </tr>
+              <tr>
+                <td>
+                  <code>songspot:player-name</code>
+                </td>
+                <td>ชื่อที่คุณใช้ส่งคะแนน เพื่อไม่ต้องพิมพ์ใหม่ทุกครั้ง</td>
+              </tr>
+            </tbody>
+          </table>
+        </LegalTable>
         <p>
           <strong>หมายเหตุ:</strong> การปิดหมวดนี้ไม่ลบคะแนนที่คุณ<em>ส่งขึ้นลีดเดอร์บอร์ดแล้ว</em>{' '}
           เพราะคะแนนนั้นอยู่ในฐานข้อมูลของเรา หากต้องการให้ลบ โปรดดู{' '}
@@ -177,11 +181,11 @@ export default function CookiePolicyPage() {
             และเราจะถามความยินยอมใหม่ทุกครั้งที่เข้าเว็บ
           </li>
         </ul>
-        <div className="flex flex-wrap gap-2 pt-1">
+        <div className="flex flex-col gap-2 pt-1 sm:flex-row sm:flex-wrap">
           <CookiePreferencesButton />
           <Link
             href="/privacy"
-            className="rounded-xl border px-4 py-2.5 text-xs font-extrabold no-underline transition hover:bg-white/5"
+            className="inline-flex min-h-11 items-center justify-center rounded-xl border px-4 py-2.5 text-xs font-extrabold no-underline transition hover:bg-white/5"
             style={{ borderColor: 'var(--song-border)', color: 'var(--song-text)' }}
           >
             อ่านนโยบายความเป็นส่วนตัว

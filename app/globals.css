@@ -1618,6 +1618,9 @@ body {
 
 .legal-prose table {
   width: 100%;
+  /* Narrow screens scroll the table inside .legal-table-scroll rather than
+     squashing Thai prose into one-word-per-line columns. */
+  min-width: 34rem;
   border-collapse: collapse;
   font-size: 0.75rem;
 }
@@ -1635,6 +1638,32 @@ body {
   background-color: var(--song-surface-soft);
   color: var(--song-text);
   font-weight: 800;
+}
+
+/* Long storage keys must not widen the layout. */
+.legal-prose code {
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+.legal-table-scroll {
+  /* Visible edge fade hints that there is more table to the right. */
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
+  scrollbar-width: thin;
+  padding-bottom: 0.25rem;
+}
+
+.legal-table-scroll:focus-visible {
+  outline: 2px solid var(--song-accent, #19df70);
+  outline-offset: 2px;
+  border-radius: 0.5rem;
+}
+
+@media (min-width: 640px) {
+  .legal-prose table {
+    min-width: 0;
+  }
 }
 
 /* Skip link — keyboard users reach the game without tabbing the whole navbar. */

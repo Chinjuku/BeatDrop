@@ -34,7 +34,7 @@ export const CookiePreferencesButton: React.FC<Props> = ({
     <button
       type="button"
       onClick={openPreferences}
-      className={`inline-flex items-center gap-1.5 rounded-xl px-4 py-2.5 text-xs font-extrabold shadow-lg transition hover:brightness-110 ${className}`}
+      className={`inline-flex min-h-11 items-center justify-center gap-1.5 rounded-xl px-4 py-2.5 text-xs font-extrabold shadow-lg transition hover:brightness-110 ${className}`}
       style={{ backgroundColor: 'var(--song-accent)', color: 'var(--song-accent-on)' }}
     >
       <SlidersHorizontal aria-hidden="true" className="h-3.5 w-3.5" />

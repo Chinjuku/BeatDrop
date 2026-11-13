@@ -71,3 +71,26 @@ export function LegalSection({
     </section>
   );
 }
+
+/**
+ * Keeps wide policy tables usable on narrow screens: the table scrolls inside its
+ * own focusable region instead of forcing the whole page to scroll sideways.
+ */
+export function LegalTable({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div
+      role="region"
+      aria-label={label}
+      tabIndex={0}
+      className="legal-table-scroll -mx-3 overflow-x-auto px-3 sm:mx-0 sm:px-0"
+    >
+      {children}
+    </div>
+  );
+}

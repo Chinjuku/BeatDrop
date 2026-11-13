@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { LegalPage, LegalSection } from '../../components/LegalPage';
+import { LegalPage, LegalSection, LegalTable } from '../../components/LegalPage';
 import { CookiePreferencesButton } from '../../components/CookiePreferencesButton';
 import { CONTACT_EMAIL, SITE_NAME, absoluteUrl } from '../../lib/siteConfig';
 
@@ -38,55 +38,57 @@ export default function PrivacyPolicyPage() {
       </LegalSection>
 
       <LegalSection id="data" heading="2. ข้อมูลที่เราเก็บ">
-        <table>
-          <caption className="sr-only">ประเภทข้อมูล วัตถุประสงค์ ที่จัดเก็บ และระยะเวลา</caption>
-          <thead>
-            <tr>
-              <th scope="col">ข้อมูล</th>
-              <th scope="col">วัตถุประสงค์</th>
-              <th scope="col">จัดเก็บที่</th>
-              <th scope="col">ระยะเวลา</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td>การตั้งค่าเกม (ธีม ความยาวสนิปเพ็ต โหมด หมวดหมู่ ระดับความยาก)</td>
-              <td>จำค่าที่คุณเลือกไว้เมื่อกลับมาเล่นอีกครั้ง</td>
-              <td>localStorage ในอุปกรณ์ของคุณ</td>
-              <td>จนกว่าคุณจะลบ หรือถอนความยินยอมหมวด &ldquo;การตั้งค่า&rdquo;</td>
-            </tr>
-            <tr>
-              <td>สถิติส่วนตัว (สตรีค สตรีคสูงสุด เวลาที่เร็วที่สุด เพลงที่เคยเล่น)</td>
-              <td>แสดงความคืบหน้าและเลี่ยงการสุ่มเพลงซ้ำ</td>
-              <td>localStorage ในอุปกรณ์ของคุณ</td>
-              <td>เช่นเดียวกับข้างต้น</td>
-            </tr>
-            <tr>
-              <td>ชื่อผู้เล่นที่คุณพิมพ์เอง และคะแนน Daily Challenge</td>
-              <td>แสดงบนลีดเดอร์บอร์ดสาธารณะ</td>
-              <td>ฐานข้อมูลของเรา (Supabase, PostgreSQL)</td>
-              <td>เก็บเป็นสถิติการแข่งขัน จนกว่าคุณจะขอให้ลบ</td>
-            </tr>
-            <tr>
-              <td>Round token (ลายเซ็น HMAC ของรอบเกม)</td>
-              <td>ตรวจสอบคำตอบและเวลาที่ฝั่งเซิร์ฟเวอร์ เพื่อกันการโกง</td>
-              <td>ส่งไปกลับระหว่างเบราว์เซอร์กับ API</td>
-              <td>หมดอายุเมื่อจบรอบ</td>
-            </tr>
-            <tr>
-              <td>ตัวเลือกความยินยอมคุกกี้</td>
-              <td>จำว่าคุณอนุญาตหรือปฏิเสธหมวดใด</td>
-              <td>คุกกี้ <code>beatdrop_consent</code> (first-party)</td>
-              <td>180 วัน</td>
-            </tr>
-            <tr>
-              <td>ข้อมูลคำขอทางเทคนิค (IP, User-Agent, เส้นทาง, เวลา)</td>
-              <td>ความปลอดภัย การจำกัดอัตราการเรียก (rate limiting) และแก้ไขข้อผิดพลาด</td>
-              <td>ล็อกของผู้ให้บริการโฮสต์ (Vercel) และ Upstash Redis</td>
-              <td>ตามรอบการเก็บล็อกของผู้ให้บริการ โดยทั่วไปไม่เกิน 30 วัน</td>
-            </tr>
-          </tbody>
-        </table>
+        <LegalTable label="ประเภทข้อมูล วัตถุประสงค์ ที่จัดเก็บ และระยะเวลา">
+          <table>
+            <caption className="sr-only">ประเภทข้อมูล วัตถุประสงค์ ที่จัดเก็บ และระยะเวลา</caption>
+            <thead>
+              <tr>
+                <th scope="col">ข้อมูล</th>
+                <th scope="col">วัตถุประสงค์</th>
+                <th scope="col">จัดเก็บที่</th>
+                <th scope="col">ระยะเวลา</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>การตั้งค่าเกม (ธีม ความยาวสนิปเพ็ต โหมด หมวดหมู่ ระดับความยาก)</td>
+                <td>จำค่าที่คุณเลือกไว้เมื่อกลับมาเล่นอีกครั้ง</td>
+                <td>localStorage ในอุปกรณ์ของคุณ</td>
+                <td>จนกว่าคุณจะลบ หรือถอนความยินยอมหมวด &ldquo;การตั้งค่า&rdquo;</td>
+              </tr>
+              <tr>
+                <td>สถิติส่วนตัว (สตรีค สตรีคสูงสุด เวลาที่เร็วที่สุด เพลงที่เคยเล่น)</td>
+                <td>แสดงความคืบหน้าและเลี่ยงการสุ่มเพลงซ้ำ</td>
+                <td>localStorage ในอุปกรณ์ของคุณ</td>
+                <td>เช่นเดียวกับข้างต้น</td>
+              </tr>
+              <tr>
+                <td>ชื่อผู้เล่นที่คุณพิมพ์เอง และคะแนน Daily Challenge</td>
+                <td>แสดงบนลีดเดอร์บอร์ดสาธารณะ</td>
+                <td>ฐานข้อมูลของเรา (Supabase, PostgreSQL)</td>
+                <td>เก็บเป็นสถิติการแข่งขัน จนกว่าคุณจะขอให้ลบ</td>
+              </tr>
+              <tr>
+                <td>Round token (ลายเซ็น HMAC ของรอบเกม)</td>
+                <td>ตรวจสอบคำตอบและเวลาที่ฝั่งเซิร์ฟเวอร์ เพื่อกันการโกง</td>
+                <td>ส่งไปกลับระหว่างเบราว์เซอร์กับ API</td>
+                <td>หมดอายุเมื่อจบรอบ</td>
+              </tr>
+              <tr>
+                <td>ตัวเลือกความยินยอมคุกกี้</td>
+                <td>จำว่าคุณอนุญาตหรือปฏิเสธหมวดใด</td>
+                <td>คุกกี้ <code>beatdrop_consent</code> (first-party)</td>
+                <td>180 วัน</td>
+              </tr>
+              <tr>
+                <td>ข้อมูลคำขอทางเทคนิค (IP, User-Agent, เส้นทาง, เวลา)</td>
+                <td>ความปลอดภัย การจำกัดอัตราการเรียก (rate limiting) และแก้ไขข้อผิดพลาด</td>
+                <td>ล็อกของผู้ให้บริการโฮสต์ (Vercel) และ Upstash Redis</td>
+                <td>ตามรอบการเก็บล็อกของผู้ให้บริการ โดยทั่วไปไม่เกิน 30 วัน</td>
+              </tr>
+            </tbody>
+          </table>
+        </LegalTable>
         <p>
           <strong>เราไม่เก็บ</strong> ข้อมูลการชำระเงิน ข้อมูลตำแหน่งที่แม่นยำ รายชื่อผู้ติดต่อ
           เสียงจากไมโครโฟน หรือข้อมูลอ่อนไหวตามกฎหมาย และเราไม่ขายข้อมูลของคุณให้ใคร
@@ -172,11 +174,11 @@ export default function PrivacyPolicyPage() {
         <p>
           เปิดแผงตั้งค่าได้ที่นี่ หรือจากลิงก์ &ldquo;การตั้งค่าคุกกี้&rdquo; ที่ด้านล่างของทุกหน้า
         </p>
-        <div className="flex flex-wrap gap-2 pt-1">
+        <div className="flex flex-col gap-2 pt-1 sm:flex-row sm:flex-wrap">
           <CookiePreferencesButton />
           <Link
             href="/cookies"
-            className="rounded-xl border px-4 py-2.5 text-xs font-extrabold no-underline transition hover:bg-white/5"
+            className="inline-flex min-h-11 items-center justify-center rounded-xl border px-4 py-2.5 text-xs font-extrabold no-underline transition hover:bg-white/5"
             style={{ borderColor: 'var(--song-border)', color: 'var(--song-text)' }}
           >
             อ่านนโยบายคุกกี้
