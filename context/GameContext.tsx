@@ -602,9 +602,6 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             category: activeCfg.category,
             difficulty: activeCfg.difficulty,
           });
-          if (stagesParam) {
-            dailyParams.set('customStages', stagesParam);
-          }
           dailyRequestTimeoutId = window.setTimeout(() => {
             dailyRequestTimedOut = true;
             controller.abort();
@@ -1094,7 +1091,7 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           recordPlayedTrack(data.reveal.id);
           if (config.mode === 'guesser' && resultStatus === 'skipped') {
             setGuesserSkipCount((count) => count + 1);
-            setGuesserFeedback('Skipped · no points awarded');
+            setGuesserFeedback('ข้ามแล้ว · ไม่ได้คะแนน');
           }
           if (resultStatus !== 'correct') {
             setStreak(0);
@@ -1108,7 +1105,7 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             ...prev,
             {
               trackId: 'skipped',
-              title: 'ข้าม (Skipped)',
+              title: 'ข้าม',
               artistName: '—',
               stageIndex: currentStage,
               clipSeconds: activeClipSeconds,
@@ -1136,7 +1133,7 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                     ...history,
                     {
                       trackId: 'skipped',
-                      title: 'ข้าม (Skipped)',
+                      title: 'ข้าม',
                       artistName: '—',
                       stageIndex: currentStage,
                       clipSeconds: activeClipSeconds,
@@ -1213,7 +1210,6 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
               roundIndex: nextIdx,
               category: dailyInfo.category,
               difficulty: config.difficulty,
-              customStages: config.customStages,
               dateKey: dailyInfo.dateKey,
             }),
           });

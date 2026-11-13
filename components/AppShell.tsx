@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { Navbar } from './Navbar';
@@ -30,6 +30,7 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
     bestStreak,
     fastestTime,
     dailyInfo,
+    dailyIndex,
     dailyScore,
     addArtistOpen,
     setAddArtistOpen,
@@ -43,6 +44,12 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
     stages,
     history,
   } = useGame();
+
+  // The install offer waits until the player has finished at least one round this visit.
+  const [hasFinishedRound, setHasFinishedRound] = useState(false);
+  useEffect(() => {
+    if (outcome) setHasFinishedRound(true);
+  }, [outcome]);
 
   const handleToggleDailyMode = () => {
     if (pathname === '/daily') {
@@ -114,7 +121,7 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
         currentMode={config.mode}
         onSelectQuiz={handleSelectQuiz}
       />
-      <PwaManager />
+      <PwaManager canOfferInstall={hasFinishedRound} />
       <CookieConsent />
 
       {/* Page Content */}
@@ -205,6 +212,8 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
         dailyScore={pathname === '/daily' || config.mode === 'daily' ? dailyScore : null}
         isDailyMode={pathname === '/daily' || config.mode === 'daily'}
         dateKey={dailyInfo?.dateKey}
+        dailyRoundsPlayed={dailyInfo ? Math.min(dailyIndex, dailyInfo.rounds.length) : 0}
+        dailyRoundsTotal={dailyInfo?.rounds.length ?? 0}
       />
 
       <ShareTicketModal

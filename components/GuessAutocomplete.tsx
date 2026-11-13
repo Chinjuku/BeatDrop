@@ -35,6 +35,24 @@ export const GuessAutocomplete: React.FC<GuessAutocompleteProps> = ({
   const [networkError, setNetworkError] = useState<string | null>(null);
   // Songspot-style fullscreen search sheet on phones
   const [mobileOpen, setMobileOpen] = useState(false);
+  // Giving up ends the round (and the streak), so it takes a second tap within 3s.
+  const [confirmGiveUp, setConfirmGiveUp] = useState(false);
+  useEffect(() => {
+    if (!confirmGiveUp) return;
+    const timer = window.setTimeout(() => setConfirmGiveUp(false), 3000);
+    return () => window.clearTimeout(timer);
+  }, [confirmGiveUp]);
+  useEffect(() => {
+    if (disabled || submitting) setConfirmGiveUp(false);
+  }, [disabled, submitting]);
+  const handleGiveUpClick = () => {
+    if (!confirmGiveUp) {
+      setConfirmGiveUp(true);
+      return;
+    }
+    setConfirmGiveUp(false);
+    onGiveUp?.();
+  };
 
   // Auto-close mobile sheet if rotated/resized to desktop width
   useEffect(() => {
@@ -433,7 +451,7 @@ export const GuessAutocomplete: React.FC<GuessAutocompleteProps> = ({
             type="button"
             onClick={onSkip}
             disabled={disabled || submitting}
-            className="flex-1 sm:flex-none px-3.5 sm:px-4 py-2.5 min-h-[42px] rounded-xl border text-xs sm:text-sm font-extrabold flex items-center justify-center gap-1.5 transition hover:brightness-110 flex-shrink-0 active:scale-95 disabled:opacity-50 disabled:pointer-events-none"
+            className="flex-1 sm:flex-none px-3.5 sm:px-4 py-2.5 min-h-[44px] rounded-xl border text-xs sm:text-sm font-extrabold flex items-center justify-center gap-1.5 transition hover:brightness-110 flex-shrink-0 active:scale-95 disabled:opacity-50 disabled:pointer-events-none"
             style={{
               backgroundColor: 'var(--song-surface-soft)',
               borderColor: 'var(--song-border)',
@@ -458,18 +476,22 @@ export const GuessAutocomplete: React.FC<GuessAutocompleteProps> = ({
           {onGiveUp && (
             <button
               type="button"
-              onClick={onGiveUp}
+              onClick={handleGiveUpClick}
               disabled={disabled || submitting}
-              className="px-3 sm:px-3.5 py-2.5 min-h-[42px] rounded-xl border text-xs sm:text-sm font-bold flex items-center justify-center gap-1.5 transition hover:brightness-110 flex-shrink-0 active:scale-95 disabled:opacity-50 disabled:pointer-events-none"
-              style={{
-                backgroundColor: 'rgba(239, 68, 68, 0.1)',
-                borderColor: 'rgba(239, 68, 68, 0.35)',
-                color: '#f87171',
-              }}
-              title="ยอมแพ้เพื่อเฉลยเพลงทันที"
+              className="px-3 sm:px-3.5 py-2.5 min-h-[44px] rounded-xl border text-xs sm:text-sm font-bold flex items-center justify-center gap-1.5 transition hover:brightness-110 flex-shrink-0 active:scale-95 disabled:opacity-50 disabled:pointer-events-none"
+              style={
+                confirmGiveUp
+                  ? { backgroundColor: '#ef4444', borderColor: '#ef4444', color: '#ffffff' }
+                  : {
+                      backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                      borderColor: 'rgba(239, 68, 68, 0.35)',
+                      color: '#f87171',
+                    }
+              }
+              title="ยอมแพ้และเฉลยเพลงทันที (streak จะถูกรีเซ็ต)"
             >
-              <Flag className="w-3.5 h-3.5 text-red-400" />
-              <span>ยอมแพ้</span>
+              <Flag className={`w-3.5 h-3.5 ${confirmGiveUp ? 'text-white' : 'text-red-400'}`} aria-hidden="true" />
+              <span aria-live="polite">{confirmGiveUp ? 'แตะอีกครั้งเพื่อยืนยัน' : 'ยอมแพ้'}</span>
             </button>
           )}
         </div>

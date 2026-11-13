@@ -107,6 +107,10 @@ export const TIME_RANGE_PRESETS: Record<Exclude<TimeRangePresetId, 'custom'>, Ti
   },
 };
 
+// Daily Challenge clip stages are fixed for every player (Standard, 0.5s -> 15s) and
+// are never taken from the client, so the same date always means the same rules.
+export const DAILY_TIME_STAGES: readonly number[] = TIME_RANGE_PRESETS.standard.stages;
+
 // Daily rounds use the complete Songspot clip progression as their answer window.
 // This derived constant keeps client and server timing in sync with that preset.
 export const SONGSPOT_STAGES = TIME_RANGE_PRESETS.songspot.stages;

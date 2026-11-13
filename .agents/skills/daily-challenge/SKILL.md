@@ -12,7 +12,7 @@ description: Use when changing Daily Challenge generation, timing, scoring, lead
 - Preserve historical challenge and leaderboard data.
 
 ## Timing
-- Daily Challenge inherits the canonical Songspot timing configuration.
+- Daily Challenge clip stages come from `DAILY_TIME_STAGES` (Standard preset), fixed server-side; client customStages are ignored.
 - Do not duplicate timing constants in Daily Challenge UI/API.
 - Verify server and client use the same versioned configuration.
 

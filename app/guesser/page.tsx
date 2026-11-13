@@ -5,6 +5,7 @@ import { PageHero, HeroPill, HeroPillDivider } from '../../components/PageHero';
 import { AudioPlayer } from '../../components/AudioPlayer';
 import { SpinningAlbumArt } from '../../components/SpinningAlbumArt';
 import { TimeRangeSelector } from '../../components/TimeRangeSelector';
+import { SetupDisclosure, describeSetup } from '../../components/SetupDisclosure';
 import { DEFAULT_TIME_STAGES, DIFFICULTY_PRESETS, DifficultyLevel, GameConfig } from '../../types';
 import { Flag, Flame, ListChecks, Loader2, SkipForward, Trophy } from 'lucide-react';
 
@@ -91,7 +92,7 @@ const SongGuesserPage: React.FC = () => {
             <ListChecks className="w-3.5 h-3.5" />
             <span>4 CHOICES</span>
           </HeroPill>
-          <HeroPill color="var(--song-muted)">Skipped: {guesserSkipCount}</HeroPill>
+          <HeroPill color="var(--song-muted)">ข้าม: {guesserSkipCount}</HeroPill>
           <HeroPill color="var(--song-accent-text)">
             {config.category === 'thai'
               ? '🇹🇭 เพลงไทย'
@@ -101,9 +102,13 @@ const SongGuesserPage: React.FC = () => {
           </HeroPill>
       </PageHero>
 
-      {/* Difficulty & Time Range Control Bar */}
+      {/* Difficulty & Time Range Control Bar (collapsed on phones) */}
+      <SetupDisclosure
+        className="max-w-xl mb-3"
+        summary={describeSetup({ difficulty: config.difficulty, timeRangePreset: config.timeRangePreset })}
+      >
       <div
-        className="w-full max-w-xl p-3 rounded-2xl border flex flex-col items-center justify-center gap-2.5 mb-3"
+        className="w-full max-w-xl p-3 rounded-2xl border flex flex-col items-center justify-center gap-2.5 sm:mb-3"
         style={{
           backgroundColor: 'var(--song-surface)',
           borderColor: 'var(--song-border)',
@@ -159,6 +164,7 @@ const SongGuesserPage: React.FC = () => {
           />
         </div>
       </div>
+      </SetupDisclosure>
 
       {/* Game Arena Card */}
       <div
@@ -197,7 +203,7 @@ const SongGuesserPage: React.FC = () => {
             {outcome === 'correct'
               ? 'Correct choice · points recorded through your streak'
               : history.at(-1)?.status === 'skipped'
-                ? 'Skipped · no points awarded'
+                ? 'ข้ามแล้ว · ไม่ได้คะแนน'
                 : `Incorrect choice${history.at(-1)?.title ? `: ${history.at(-1)?.title} — ${history.at(-1)?.artistName || ''}` : ''}`}
           </div>
           <SpinningAlbumArt
@@ -245,9 +251,6 @@ const SongGuesserPage: React.FC = () => {
                   <span className="uppercase tracking-wider flex items-center gap-1.5" style={{ color: '#b57aff' }}>
                     <ListChecks className="w-4 h-4" />
                     <span>เลือกคำตอบจาก 4 ตัวเลือก</span>
-                  </span>
-                  <span className="text-[11px]" style={{ color: 'var(--song-muted)' }}>
-                    Hear it. Pick it.
                   </span>
                 </div>
 

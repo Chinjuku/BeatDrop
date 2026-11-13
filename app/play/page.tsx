@@ -58,7 +58,7 @@ const PlayPage: React.FC = () => {
         gradient="from-white via-neutral-200 to-neutral-400"
       >
           <HeroPill className="gap-1.5 sm:gap-2.5">
-            <span className="flex items-center gap-1" title="ชนะติดต่อกันรอบปัจจุบัน (Current Streak)">
+            <span className="flex items-center gap-1" title="ชนะติดต่อกันรอบปัจจุบัน">
               <Flame className="w-3.5 h-3.5 text-orange-400" />
               <span>
                 Streak:{' '}
@@ -68,7 +68,7 @@ const PlayPage: React.FC = () => {
               </span>
             </span>
             <span className="opacity-30">|</span>
-            <span className="flex items-center gap-1" title="สถิติชนะติดต่อกันสูงสุด (Best Streak)">
+            <span className="flex items-center gap-1" title="สถิติชนะติดต่อกันสูงสุด">
               <Trophy className="w-3.5 h-3.5 text-amber-400" />
               <span>
                 Best:{' '}
@@ -80,7 +80,7 @@ const PlayPage: React.FC = () => {
             {fastestTime !== null && (
               <>
                 <span className="opacity-30">|</span>
-                <span className="flex items-center gap-1" title="เวลาทายถูกเร็วที่สุด (Fastest Guess)">
+                <span className="flex items-center gap-1" title="เวลาทายถูกเร็วที่สุด">
                   <Zap className="w-3.5 h-3.5 text-emerald-400" />
                   <span>
                     Fastest:{' '}

@@ -1,5 +1,5 @@
 'use client';
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   Check,
   Copy,
@@ -71,6 +71,17 @@ export const SpinningAlbumArt: React.FC<SpinningAlbumArtProps> = ({
   const [copied, setCopied] = useState(false);
   const isPlaying = audioState === 'playing';
   const isWon = outcome === 'correct';
+  const nextSongRef = useRef<HTMLButtonElement>(null);
+
+  // Bring the primary action into view (and focus it, so Enter continues) when the
+  // reveal appears; otherwise "next song" can sit below the fold on short screens.
+  useEffect(() => {
+    const button = nextSongRef.current;
+    if (!button) return;
+    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    button.focus({ preventScroll: true });
+    button.scrollIntoView({ block: 'nearest', behavior: reduceMotion ? 'auto' : 'smooth' });
+  }, [song.id]);
 
   // Build Emoji Summary Grid (🟩 / 🟨 / 🟥 / ⬜)
   const emojiBoxes = stages.map((_, idx) => {
@@ -129,7 +140,7 @@ export const SpinningAlbumArt: React.FC<SpinningAlbumArtProps> = ({
         <div
           onClick={onToggleFullPlay}
           title={isPlaying ? 'คลิกเพื่อหยุดชั่วคราว' : 'คลิกเพื่อเล่นต่อ'}
-          className={`relative w-44 h-44 sm:w-56 md:w-60 sm:h-56 md:h-60 rounded-full shadow-2xl cursor-pointer flex items-center justify-center border-4 border-black/80 vinyl-grooves vinyl-record-spin ${
+          className={`reveal-vinyl relative w-44 h-44 sm:w-56 md:w-60 sm:h-56 md:h-60 rounded-full shadow-2xl cursor-pointer flex items-center justify-center border-4 border-black/80 vinyl-grooves vinyl-record-spin ${
             isPlaying ? '' : 'is-paused'
           }`}
         >
@@ -143,7 +154,7 @@ export const SpinningAlbumArt: React.FC<SpinningAlbumArtProps> = ({
           />
 
           {/* Album Cover Art (Large Vinyl Center Label) */}
-          <div className="relative w-28 h-28 sm:w-36 sm:h-36 rounded-full overflow-hidden border-4 border-neutral-900 shadow-inner">
+          <div className="reveal-vinyl-label relative w-28 h-28 sm:w-36 sm:h-36 rounded-full overflow-hidden border-4 border-neutral-900 shadow-inner">
             <img
               src={song.artworkUrl}
               alt={`${song.title} album art`}
@@ -169,7 +180,7 @@ export const SpinningAlbumArt: React.FC<SpinningAlbumArtProps> = ({
           }}
         >
           <Disc3 className={`w-3.5 h-3.5 ${isPlaying ? 'animate-spin' : ''}`} />
-          <span>{isPlaying ? 'SPINNING 30s' : 'PAUSED'}</span>
+          <span>{isPlaying ? 'กำลังเล่น 30 วิ' : 'หยุดชั่วคราว'}</span>
         </div>
       </div>
 
@@ -178,7 +189,7 @@ export const SpinningAlbumArt: React.FC<SpinningAlbumArtProps> = ({
         className="text-[11px] font-mono font-extrabold uppercase tracking-[0.18em] mt-4"
         style={{ color: isWon ? 'var(--song-accent-text)' : '#ff746d' }}
       >
-        {isWon ? `GOT IT IN ${guessedAtSeconds}S!` : 'THE SONG WAS'}
+        {isWon ? `ทายถูกใน ${guessedAtSeconds} วินาที!` : 'เพลงนี้คือ'}
       </span>
 
       <div className="relative inline-block max-w-full px-6 mt-1.5">
@@ -194,7 +205,7 @@ export const SpinningAlbumArt: React.FC<SpinningAlbumArtProps> = ({
             right: '-58px',
           }}
         >
-          {isWon ? 'NICE!' : 'LOST'}
+          {isWon ? 'เยี่ยม!' : 'พลาด'}
         </strong>
       </div>
 
@@ -339,19 +350,20 @@ export const SpinningAlbumArt: React.FC<SpinningAlbumArtProps> = ({
             }}
           >
             <Ticket className="w-4 h-4" />
-            <span>ดู Music Ticket / แชร์การ์ด</span>
+            <span>แชร์การ์ดเพลง</span>
           </button>
 
           <button
+            ref={nextSongRef}
             type="button"
             onClick={onNextSong}
-            className="py-3.5 px-5 rounded-2xl font-extrabold text-xs sm:text-sm flex items-center justify-center gap-2 transition hover:brightness-110 shadow-lg"
+            className="order-first sm:order-last min-h-[44px] py-3.5 px-5 rounded-2xl font-extrabold text-xs sm:text-sm flex items-center justify-center gap-2 transition hover:brightness-110 shadow-lg"
             style={{
               backgroundColor: 'var(--song-accent)',
               color: 'var(--song-accent-on)',
             }}
           >
-            <span>เพลงถัดไป (Next Song)</span>
+            <span>เพลงถัดไป</span>
             <SkipForward className="w-4 h-4" />
           </button>
         </div>
@@ -363,7 +375,7 @@ export const SpinningAlbumArt: React.FC<SpinningAlbumArtProps> = ({
           style={{ color: 'var(--song-muted)' }}
         >
           {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-          <span>{copied ? 'คัดลอกข้อความผลลัพธ์แล้ว!' : 'คัดลอกผลลัพธ์เป็นข้อความ (Text)'}</span>
+          <span>{copied ? 'คัดลอกข้อความผลลัพธ์แล้ว!' : 'คัดลอกผลลัพธ์เป็นข้อความ'}</span>
         </button>
       </div>
     </section>

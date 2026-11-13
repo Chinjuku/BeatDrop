@@ -6,7 +6,7 @@ import { PageHero, HeroPill, HeroPillButton, HeroPillDivider } from '../../compo
 import { AudioPlayer } from '../../components/AudioPlayer';
 import { GuessAutocomplete } from '../../components/GuessAutocomplete';
 import { SpinningAlbumArt } from '../../components/SpinningAlbumArt';
-import { TimeRangeSelector } from '../../components/TimeRangeSelector';
+import { SetupDisclosure, describeSetup } from '../../components/SetupDisclosure';
 import {
   CalendarDays,
   Trophy,
@@ -14,8 +14,9 @@ import {
   Play,
   Share2,
   Check,
+  Clock,
 } from 'lucide-react';
-import { DEFAULT_TIME_STAGES, DIFFICULTY_PRESETS, DifficultyLevel, GameConfig } from '../../types';
+import { DAILY_TIME_STAGES, DIFFICULTY_PRESETS, DifficultyLevel } from '../../types';
 import { shareOrCopy } from '../../lib/shareUtils';
 import { getPreference } from '../../lib/preferenceStorage';
 
@@ -234,6 +235,8 @@ const DailyChallengePage: React.FC = () => {
 
         <div className="w-full h-px opacity-30 my-0.5" style={{ backgroundColor: 'var(--song-border)' }} />
 
+        <SetupDisclosure summary={describeSetup({ difficulty: config.difficulty, extras: [`${DAILY_TIME_STAGES[0]} → ${DAILY_TIME_STAGES[DAILY_TIME_STAGES.length - 1]} วินาที`] })}>
+        <div className="w-full flex flex-col items-center gap-2.5">
         {/* Row 2: Difficulty Tabs */}
         <div className="songspot-difficulty-tabs w-full justify-center">
           {(['easy', 'medium', 'hard', 'expert', 'impossible'] as DifficultyLevel[]).map(
@@ -265,21 +268,18 @@ const DailyChallengePage: React.FC = () => {
 
         <div className="w-full h-px opacity-30 my-0.5" style={{ backgroundColor: 'var(--song-border)' }} />
 
-        {/* Row 3: Time Range (Centered) */}
-        <div className="w-full flex items-center justify-center">
-          <TimeRangeSelector
-            currentPreset={config.timeRangePreset}
-            stages={config.customStages}
-            onChangePreset={(presetId, nextStages) => {
-              const nextCfg: GameConfig = {
-                ...config,
-                timeRangePreset: presetId,
-                customStages: nextStages,
-              };
-              handleConfigChange(nextCfg, true);
-            }}
-          />
+        {/* Row 3: Fixed Daily timing (same for every player, set by the server) */}
+        <p
+          className="w-full flex items-center justify-center gap-1.5 text-[11px] font-bold"
+          style={{ color: 'var(--song-muted)' }}
+        >
+          <Clock className="w-3.5 h-3.5" style={{ color: 'var(--song-accent-text)' }} aria-hidden="true" />
+          <span>
+            ช่วงเวลาคลิป {DAILY_TIME_STAGES[0]} → {DAILY_TIME_STAGES[DAILY_TIME_STAGES.length - 1]} วินาที · เท่ากันทุกคน
+          </span>
+        </p>
         </div>
+        </SetupDisclosure>
       </div>
 
       {/* 3. Game Arena Card (Identical structure to PlayPage) */}

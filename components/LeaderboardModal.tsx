@@ -35,6 +35,9 @@ interface LeaderboardModalProps {
   dailyScore?: number | null;
   isDailyMode?: boolean;
   dateKey?: string;
+  /** Daily rounds already finished; submission unlocks once all rounds are done. */
+  dailyRoundsPlayed?: number;
+  dailyRoundsTotal?: number;
 }
 
 const STORAGE_PLAYER_NAME = 'songspot:player-name';
@@ -58,6 +61,8 @@ export const LeaderboardModal: React.FC<LeaderboardModalProps> = ({
   dailyScore,
   isDailyMode = false,
   dateKey,
+  dailyRoundsPlayed = 0,
+  dailyRoundsTotal = 0,
 }) => {
   const [diffFilter, setDiffFilter] = useState<DifficultyLevel | 'all'>(currentDifficulty);
   const [catFilter, setCatFilter] = useState<CategoryType>(category);
@@ -99,6 +104,15 @@ export const LeaderboardModal: React.FC<LeaderboardModalProps> = ({
       ? dailyScore
       : Math.max(100, bestStreak * 85 + (fastestTime ? Math.round((15 - fastestTime) * 15) : 0));
 
+  // Only offer submission once there is a real result to submit: a finished Daily run,
+  // or at least one won round in the other modes. The server re-validates either way.
+  const canSubmit = isDailyMode
+    ? dailyRoundsTotal > 0 && dailyRoundsPlayed >= dailyRoundsTotal
+    : bestStreak > 0;
+  const submitLockedHint = isDailyMode
+    ? `เล่นให้ครบ ${dailyRoundsTotal || 5} เพลงก่อนจึงจะส่งคะแนนได้ (ตอนนี้ ${dailyRoundsPlayed}/${dailyRoundsTotal || 5})`
+    : 'ทายถูกอย่างน้อย 1 เพลงก่อนจึงจะส่งคะแนนได้';
+
   // Unique session key for current score to prevent duplicate submissions
   const scoreSessionKey = `beatdrop_lb_sub_${category}_${isDailyMode ? `${dateKey}_${currentDifficulty}` : currentDifficulty}_${calculatedScore}`;
 
@@ -124,7 +138,7 @@ export const LeaderboardModal: React.FC<LeaderboardModalProps> = ({
 
   const handleSubmitScore = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!playerName.trim() || submitting || hasSubmitted) return;
+    if (!canSubmit || !playerName.trim() || submitting || hasSubmitted) return;
     setSubmitting(true);
     try {
       setPreference(STORAGE_PLAYER_NAME, playerName.trim());
@@ -300,6 +314,13 @@ export const LeaderboardModal: React.FC<LeaderboardModalProps> = ({
               {isDailyMode ? `Daily Challenge · ${dateKey || ''}` : `ระดับ: ${DIFFICULTY_PRESETS[currentDifficulty]?.label || currentDifficulty}`}
             </span>
           </div>
+        ) : !canSubmit ? (
+          <p
+            className="px-4 py-3 sm:px-6 border-b text-xs font-semibold"
+            style={{ borderColor: 'var(--song-border)', color: 'var(--song-muted)' }}
+          >
+            {submitLockedHint}
+          </p>
         ) : (
           <form
             onSubmit={handleSubmitScore}
@@ -311,7 +332,9 @@ export const LeaderboardModal: React.FC<LeaderboardModalProps> = ({
                 type="text"
                 value={playerName}
                 onChange={(e) => setPlayerName(e.target.value)}
-                placeholder="กรอกชื่อของคุณเพื่อส่งคะแนน..."
+                placeholder="ชื่อที่จะแสดงในอันดับ"
+                aria-label="ชื่อที่จะแสดงในตารางอันดับ"
+                autoComplete="nickname"
                 maxLength={24}
                 disabled={submitting}
                 className="flex-1 px-3 py-2 rounded-xl border text-base sm:text-xs font-semibold focus:outline-none"
@@ -460,7 +483,7 @@ export const LeaderboardModal: React.FC<LeaderboardModalProps> = ({
                       >
                         {isDailyMode ? (
                           <span>
-                            Correct: {entry.correctCount || 0} · Skipped: {entry.skipCount || 0} · Time: {((entry.totalAnswerTimeMs || 0) / 1000).toFixed(1)}s
+                            ถูก {entry.correctCount || 0} · ข้าม {entry.skipCount || 0} · เวลา {((entry.totalAnswerTimeMs || 0) / 1000).toFixed(1)} วิ
                           </span>
                         ) : (
                           <>

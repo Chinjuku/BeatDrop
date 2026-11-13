@@ -82,6 +82,17 @@ assert.deepEqual(
   secondDailyBody.data.rounds.map((round) => round.audioUrl),
   'all players must receive the same persisted track order'
 );
+const tamperedStagesResponse = mockResponse();
+await handleDaily(
+  { query: { category: 'all', customStages: '3,5,10,15' }, headers: {} } as never,
+  tamperedStagesResponse as never
+);
+assert.deepEqual(
+  (tamperedStagesResponse.body as typeof firstDailyBody).data.rounds[0].stages,
+  [...types.DAILY_TIME_STAGES],
+  'Daily Challenge must ignore client customStages so every player gets the same clip timing'
+);
+assert.deepEqual([...types.DAILY_TIME_STAGES], types.TIME_RANGE_PRESETS.standard.stages);
 const samePlayerRefresh = mockResponse();
 await handleDaily({ query: { category: 'all' }, headers: { cookie: playerCookie } } as never, samePlayerRefresh as never);
 assert.equal((samePlayerRefresh.body as typeof firstDailyBody).data.currentIndex, 0);

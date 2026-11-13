@@ -127,7 +127,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   const categories: Array<{ id: CategoryType; label: string; badge: string }> = [
     { id: 'thai', label: 'เพลงไทย', badge: '🇹🇭' },
     { id: 'international', label: 'เพลงสากล', badge: '🌍' },
-    { id: 'all', label: 'Mixed รวมฮิต', badge: '🔥' },
+    { id: 'all', label: 'รวมไทย & สากล', badge: '🔥' },
   ];
 
   const currentCategoryObj =
@@ -193,7 +193,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           href="/play"
           onClick={() => setActiveMenu(null)}
           className="songspot-site-brand group"
-          title="BeatDrop — Play (Home)"
+          title="BeatDrop — หน้าแรก"
         >
           <div
             className="w-8 h-8 rounded-xl flex items-center justify-center p-1 transition group-hover:scale-105"
@@ -212,7 +212,7 @@ export const Navbar: React.FC<NavbarProps> = ({
         </Link>
 
         {/* Center: Desktop Navigation Tabs & Mega Menus (Exact Songspot Style) */}
-        <nav className="songspot-site-desktop-nav" aria-label="Songspot navigation">
+        <nav className="songspot-site-desktop-nav" aria-label="เมนูหลัก">
           {/* 1. Play (Default Clip Mode) */}
           <Link
             href="/play"
@@ -221,7 +221,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             data-section={isPlayActive ? 'active' : undefined}
             onClick={() => setActiveMenu(null)}
           >
-            Play
+            เล่น
           </Link>
 
           {/* 2. Music Categories (Unified Pill with Dropdown) */}
@@ -234,7 +234,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               data-section={isCategoriesActive || activeMenu === 'clip' ? 'active' : undefined}
               onClick={() => setActiveMenu(activeMenu === 'clip' ? null : 'clip')}
             >
-              <span>Music Categories</span>
+              <span>หมวดหมู่เพลง</span>
               <ChevronDown
                 className={`w-3.5 h-3.5 opacity-60 transition-transform duration-200 ${
                   activeMenu === 'clip' ? 'rotate-180' : ''
@@ -250,11 +250,11 @@ export const Navbar: React.FC<NavbarProps> = ({
             >
               {/* Left Column: Interactive Mode Card */}
               <div className="songspot-menu-mode">
-                <span className="songspot-menu-mode-badge">CLIP CHALLENGE</span>
-                <p className="songspot-menu-mode-title">Name that song.</p>
+                <span className="songspot-menu-mode-badge">ทายจากคลิป</span>
+                <p className="songspot-menu-mode-title">ฟังแล้วทายชื่อเพลง</p>
                 <p className="songspot-menu-mode-description">
-                  <span>Start with 0.1 seconds.</span>
-                  <span>Search the title to answer.</span>
+                  <span>เริ่มจากคลิปสั้นไม่ถึงวินาที</span>
+                  <span>พิมพ์ค้นชื่อเพลงเพื่อตอบ</span>
                 </p>
 
                 {/* Waveform & Stages Demo */}
@@ -285,7 +285,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   </div>
                   <div className="songspot-menu-search-demo">
                     <Search className="w-4 h-4" />
-                    <span>Search for a song…</span>
+                    <span>ค้นหาชื่อเพลง…</span>
                   </div>
                 </div>
 
@@ -294,7 +294,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   onClick={handlePlayClipChallenge}
                   className="songspot-menu-play"
                 >
-                  <span>Play Clip Challenge</span>
+                  <span>เริ่มเล่นทายจากคลิป</span>
                   <ArrowRight className="w-4 h-4" />
                 </button>
               </div>
@@ -303,7 +303,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               <div className="songspot-site-quiz-directory">
                 <div className="songspot-site-quiz-groups">
                   <div>
-                    <p>Genres</p>
+                    <p>แนวเพลง</p>
                     {topGenres.slice(0, 5).map((g) => (
                       <button
                         key={g}
@@ -316,7 +316,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   </div>
 
                   <div>
-                    <p>Decades</p>
+                    <p>ยุคสมัย</p>
                     {topEras.slice(0, 5).map((e) => (
                       <button
                         key={e.value}
@@ -329,7 +329,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   </div>
 
                   <div>
-                    <p>Artists</p>
+                    <p>ศิลปิน</p>
                     {topArtists.slice(0, 5).map((a) => (
                       <button
                         key={a}
@@ -347,7 +347,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   onClick={() => setActiveMenu(null)}
                   className="songspot-site-browse-all"
                 >
-                  <span>Browse all categories (เลือกหมวดหมู่เพลง)</span>
+                  <span>ดูหมวดหมู่ทั้งหมด</span>
                   <ArrowRight className="w-4 h-4" />
                 </Link>
               </div>
@@ -391,11 +391,11 @@ export const Navbar: React.FC<NavbarProps> = ({
             >
               {/* Left Column: Mode Card */}
               <div className="songspot-menu-mode">
-                <span className="songspot-menu-mode-badge">MULTIPLE CHOICE</span>
-                <p className="songspot-menu-mode-title">Hear it. Pick it.</p>
+                <span className="songspot-menu-mode-badge">4 ตัวเลือก</span>
+                <p className="songspot-menu-mode-title">ฟังแล้วเลือกคำตอบ</p>
                 <p className="songspot-menu-mode-description">
-                  <span>Listen to the clip.</span>
-                  <span>Choose from four answers.</span>
+                  <span>ฟังคลิปสั้น ๆ</span>
+                  <span>เลือกคำตอบจาก 4 ตัวเลือก</span>
                 </p>
 
                 {/* Multiple Choice Demo Preview */}
@@ -425,7 +425,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   onClick={handlePlayMultipleChoice}
                   className="songspot-menu-play"
                 >
-                  <span>Play Multiple Choice</span>
+                  <span>เริ่มเล่นแบบ 4 ตัวเลือก</span>
                   <ArrowRight className="w-4 h-4" />
                 </button>
               </div>
@@ -434,7 +434,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               <div className="songspot-site-quiz-directory">
                 <div className="songspot-site-quiz-groups">
                   <div>
-                    <p>Genres</p>
+                    <p>แนวเพลง</p>
                     {topGenres.slice(0, 5).map((g) => (
                       <button
                         key={g}
@@ -447,7 +447,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   </div>
 
                   <div>
-                    <p>Decades</p>
+                    <p>ยุคสมัย</p>
                     {topEras.slice(0, 5).map((e) => (
                       <button
                         key={e.value}
@@ -460,7 +460,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   </div>
 
                   <div>
-                    <p>Artists</p>
+                    <p>ศิลปิน</p>
                     {topArtists.slice(0, 5).map((a) => (
                       <button
                         key={a}
@@ -478,7 +478,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   onClick={() => setActiveMenu(null)}
                   className="songspot-site-browse-all"
                 >
-                  <span>Browse all multiple-choice quizzes</span>
+                  <span>ดูหมวดหมู่ทั้งหมด</span>
                   <ArrowRight className="w-4 h-4" />
                 </Link>
               </div>
@@ -488,15 +488,17 @@ export const Navbar: React.FC<NavbarProps> = ({
 
         {/* Right: Actions (Language/Locale, Stats, Leaderboard, Artists, Theme, Mobile Trigger) */}
         <div className="songspot-site-header-actions">
-          {/* Songspot-style Language / Catalog Switcher Dropdown */}
-          <div className="relative shrink-0">
+          {/* Songspot-style Language / Catalog Switcher Dropdown (in the drawer on phones) */}
+          <div className="relative shrink-0 max-sm:hidden">
             <button
               type="button"
               className="songspot-header-locale"
               onClick={() =>
                 setActiveMenu(activeMenu === 'locale' ? null : 'locale')
               }
-              title="สลับแคตตาล็อกเพลง (Song Catalog)"
+              title="สลับแคตตาล็อกเพลง"
+              aria-label={`แคตตาล็อกเพลง: ${currentCategoryObj.label}`}
+              aria-expanded={activeMenu === 'locale'}
             >
               <Globe className="w-3.5 h-3.5" style={{ color: 'var(--song-accent-text)' }} />
               <span className="hidden xl:inline font-bold">
@@ -519,7 +521,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   className="px-3 py-1.5 text-[10px] font-extrabold uppercase tracking-wider"
                   style={{ color: 'var(--song-muted)' }}
                 >
-                  เลือกแคตตาล็อกเพลง (Catalog)
+                  เลือกแคตตาล็อกเพลง
                 </div>
                 {categories.map((cat) => {
                   const isSelected = category === cat.id;
@@ -555,8 +557,8 @@ export const Navbar: React.FC<NavbarProps> = ({
             )}
           </div>
 
-          {/* Unified Settings Dropdown: จัดการศิลปิน & เลือกสีธีม */}
-          <div className="relative shrink-0">
+          {/* Unified Settings Dropdown: จัดการศิลปิน & เลือกสีธีม (in the drawer on phones) */}
+          <div className="relative shrink-0 max-sm:hidden">
             <button
               type="button"
               onClick={() =>
@@ -572,7 +574,8 @@ export const Navbar: React.FC<NavbarProps> = ({
                 color: 'var(--song-text)',
               }}
               title="ตั้งค่า (จัดการศิลปิน & เลือกสีธีม)"
-              aria-label="Settings and themes"
+              aria-label="ตั้งค่าและธีม"
+              aria-expanded={activeMenu === 'settings'}
             >
               <Settings className="w-3.5 h-3.5" style={{ color: 'var(--song-accent-text)' }} />
               <span className="hidden sm:inline">ตั้งค่า</span>
@@ -593,7 +596,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   className="px-3 py-1 text-[10px] font-extrabold uppercase tracking-wider"
                   style={{ color: 'var(--song-muted)' }}
                 >
-                  คลังศิลปิน (Artists)
+                  คลังศิลปิน
                 </div>
 
                 <button
@@ -642,7 +645,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   className="px-3 py-1.5 text-[10px] font-extrabold uppercase tracking-wider border-t mt-2 pt-2 flex items-center justify-between"
                   style={{ borderColor: 'var(--song-border)', color: 'var(--song-muted)' }}
                 >
-                  <span>ธีมสีสัน (Themes)</span>
+                  <span>ธีมสี</span>
                   <Palette className="w-3.5 h-3.5" />
                 </div>
 
@@ -689,7 +692,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                     className="mt-2 pt-2 border-t px-3 py-1.5 flex items-center justify-between text-[11px] cursor-pointer"
                     style={{ borderColor: 'var(--song-border)', color: 'var(--song-muted)' }}
                   >
-                    <span>เปลี่ยนสีไฟตามความยาก (Songspot GI)</span>
+                    <span>เปลี่ยนสีไฟตามระดับความยาก</span>
                     <input
                       type="checkbox"
                       checked={syncDifficultyAccent}
@@ -714,7 +717,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                       <Shield className="w-3.5 h-3.5 text-emerald-400" />
                       <span>Admin Console</span>
                     </div>
-                    <span className="text-[10px] text-emerald-400 font-mono font-bold">Key Locked</span>
+                    <span className="text-[10px] text-emerald-400 font-bold">ต้องใช้คีย์</span>
                   </Link>
                 </div>
               </div>
@@ -728,7 +731,8 @@ export const Navbar: React.FC<NavbarProps> = ({
             onClick={() =>
               setActiveMenu(activeMenu === 'mobile' ? null : 'mobile')
             }
-            aria-label="Toggle mobile menu"
+            aria-label={activeMenu === 'mobile' ? 'ปิดเมนู' : 'เปิดเมนู'}
+            aria-expanded={activeMenu === 'mobile'}
           >
             {activeMenu === 'mobile' ? (
               <X className="w-5 h-5" />
@@ -743,7 +747,7 @@ export const Navbar: React.FC<NavbarProps> = ({
       <Modal
         open={mounted && activeMenu === 'mobile'}
         onClose={() => setActiveMenu(null)}
-        title="Navigation menu"
+        title="เมนู"
         placement="right"
         className="max-[1140px]:flex min-[1141px]:hidden"
         panelClassName="!p-4 sm:!p-5 !pt-[calc(1rem+env(safe-area-inset-top,0px))] !pb-[calc(1rem+env(safe-area-inset-bottom,0px))] !overflow-y-auto !border-l !rounded-l-3xl"
@@ -755,14 +759,14 @@ export const Navbar: React.FC<NavbarProps> = ({
             >
               <div className="flex items-center justify-between pb-3 border-b border-[var(--song-border)]">
                 <span className="text-xs font-extrabold uppercase tracking-wider" style={{ color: 'var(--song-muted)' }}>
-                  เมนูหลัก (Navigation)
+                  เมนูหลัก
                 </span>
                 <button
                   type="button"
                   onClick={() => setActiveMenu(null)}
                   className="p-1.5 rounded-xl border hover:bg-white/10 transition"
                   style={{ backgroundColor: 'var(--song-surface-soft)', borderColor: 'var(--song-border)' }}
-                  aria-label="Close menu"
+                  aria-label="ปิดเมนู"
                 >
                   <X className="w-4 h-4" />
                 </button>
@@ -788,7 +792,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 >
                   <span className="flex items-center gap-2">
                     <Play className="w-4 h-4" />
-                    <span>Play (Clip Challenge)</span>
+                    <span>เล่น (ทายจากคลิป)</span>
                   </span>
                   <ArrowRight className="w-4 h-4 opacity-70" />
                 </Link>
@@ -857,7 +861,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 >
                   <span className="flex items-center gap-2">
                     <Compass className="w-4 h-4" />
-                    <span>Music Categories (เลือกหมวดหมู่เพลง)</span>
+                    <span>หมวดหมู่เพลง</span>
                   </span>
                   <ArrowRight className="w-4 h-4 opacity-70" />
                 </Link>
@@ -866,13 +870,13 @@ export const Navbar: React.FC<NavbarProps> = ({
               {/* Accordion Topics for Clip Quizzes */}
               <details className="border-t border-[var(--song-border)] pt-2 group">
                 <summary className="flex items-center justify-between py-2 text-xs font-bold cursor-pointer select-none">
-                  <span>Music Categories topics</span>
+                  <span>เลือกเล่นตามหัวข้อ</span>
                   <ChevronDown className="w-4 h-4 transition-transform group-open:rotate-180" />
                 </summary>
                 <div className="py-2 space-y-3">
                   <div>
                     <div className="text-[10px] font-bold uppercase tracking-wider mb-1" style={{ color: 'var(--song-muted)' }}>
-                      Genres
+                      แนวเพลง
                     </div>
                     <div className="flex flex-wrap gap-1">
                       {topGenres.map((g) => (
@@ -891,7 +895,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
                   <div>
                     <div className="text-[10px] font-bold uppercase tracking-wider mb-1" style={{ color: 'var(--song-muted)' }}>
-                      Decades
+                      ยุคสมัย
                     </div>
                     <div className="flex flex-wrap gap-1">
                       {topEras.map((e) => (
@@ -910,7 +914,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
                   <div>
                     <div className="text-[10px] font-bold uppercase tracking-wider mb-1" style={{ color: 'var(--song-muted)' }}>
-                      Artists
+                      ศิลปิน
                     </div>
                     <div className="flex flex-wrap gap-1">
                       {topArtists.map((a) => (
@@ -926,6 +930,91 @@ export const Navbar: React.FC<NavbarProps> = ({
                       ))}
                     </div>
                   </div>
+                </div>
+              </details>
+
+              {/* Catalog switcher (header dropdown is hidden on phones) */}
+              <div className="border-t border-[var(--song-border)] pt-3">
+                <div className="text-[10px] font-bold uppercase tracking-wider mb-1.5" style={{ color: 'var(--song-muted)' }}>
+                  แคตตาล็อกเพลง
+                </div>
+                <div className="grid grid-cols-3 gap-1.5" role="group" aria-label="เลือกแคตตาล็อกเพลง">
+                  {categories.map((cat) => {
+                    const isSelected = category === cat.id;
+                    return (
+                      <button
+                        key={cat.id}
+                        type="button"
+                        aria-pressed={isSelected}
+                        onClick={() => onCategoryChange(cat.id)}
+                        className="min-h-[44px] px-2 rounded-xl border text-xs font-bold flex flex-col items-center justify-center leading-tight transition hover:brightness-110"
+                        style={
+                          isSelected
+                            ? {
+                                backgroundColor: 'color-mix(in srgb, var(--song-accent) 18%, var(--song-surface))',
+                                borderColor: 'var(--song-accent)',
+                                color: 'var(--song-accent-text)',
+                              }
+                            : {
+                                backgroundColor: 'var(--song-surface-soft)',
+                                borderColor: 'var(--song-border)',
+                                color: 'var(--song-text)',
+                              }
+                        }
+                      >
+                        <span aria-hidden="true">{cat.badge}</span>
+                        <span>{cat.label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Theme picker (header settings dropdown is hidden on phones) */}
+              <details className="border-t border-[var(--song-border)] pt-2 group sm:hidden">
+                <summary className="flex items-center justify-between min-h-[44px] text-xs font-bold cursor-pointer select-none">
+                  <span className="flex items-center gap-2">
+                    <Palette className="w-4 h-4" style={{ color: 'var(--song-accent-text)' }} />
+                    <span>ธีมสี</span>
+                  </span>
+                  <ChevronDown className="w-4 h-4 transition-transform group-open:rotate-180" />
+                </summary>
+                <div className="pb-2 space-y-1">
+                  {(Object.keys(THEME_PRESETS) as ThemeId[]).map((id) => {
+                    const preset = THEME_PRESETS[id];
+                    const selected = themeId === id;
+                    return (
+                      <button
+                        key={id}
+                        type="button"
+                        aria-pressed={selected}
+                        onClick={() => setThemeId(id)}
+                        className="w-full min-h-[44px] px-3 rounded-xl text-left flex items-center gap-2.5 transition hover:brightness-110"
+                        style={{ backgroundColor: selected ? 'var(--song-surface-soft)' : 'transparent' }}
+                      >
+                        <span
+                          className="w-4 h-4 rounded-full flex-shrink-0 border border-white/20"
+                          style={{ backgroundColor: preset.accent }}
+                        />
+                        <span className="flex-1 min-w-0 text-xs font-bold truncate">{preset.name}</span>
+                        {selected && <Check className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--song-accent-text)' }} />}
+                      </button>
+                    );
+                  })}
+                  {themeId === 'songspot-dark' && (
+                    <label
+                      className="min-h-[44px] px-3 flex items-center justify-between text-[11px] cursor-pointer"
+                      style={{ color: 'var(--song-muted)' }}
+                    >
+                      <span>เปลี่ยนสีไฟตามระดับความยาก</span>
+                      <input
+                        type="checkbox"
+                        checked={syncDifficultyAccent}
+                        onChange={(e) => setSyncDifficultyAccent(e.target.checked)}
+                        className="rounded accent-emerald-500"
+                      />
+                    </label>
+                  )}
                 </div>
               </details>
 
@@ -946,7 +1035,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 >
                   <span className="flex items-center gap-2">
                     <Trophy className="w-4 h-4 text-amber-400" />
-                    <span>ตารางอันดับผู้เล่น (Rankings)</span>
+                    <span>ตารางอันดับ</span>
                   </span>
                   <ArrowRight className="w-3.5 h-3.5 opacity-60" />
                 </button>
@@ -993,7 +1082,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                     <Shield className="w-4 h-4 text-emerald-400" />
                     <span>Admin Console</span>
                   </span>
-                  <span className="text-[10px] text-emerald-400 font-mono font-bold">Key Locked</span>
+                  <span className="text-[10px] text-emerald-400 font-bold">ต้องใช้คีย์</span>
                 </Link>
               </div>
 

@@ -14,7 +14,7 @@ paths:
 - Canonical custom snippet bounds: 0.1–15 seconds.
 - Standard preset: 0.5–15 seconds.
 - Songspot is a separate preset; do not conflate it with Standard.
-- Daily Challenge inherits canonical Songspot timing configuration.
+- Daily Challenge clip stages come from `DAILY_TIME_STAGES` (Standard preset), fixed server-side for every player.
 - Convert seconds to milliseconds only at the audio API boundary.
 - Validate actual playback duration, not only slider labels.
 - Prevent duplicate round initialization, answer submission, score awards, and skip penalties.

@@ -23,6 +23,7 @@ import {
   YEAR_OPTIONS,
 } from '../types';
 import { TimeRangeSelector } from './TimeRangeSelector';
+import { SetupDisclosure, describeSetup } from './SetupDisclosure';
 import { Modal } from './Modal';
 
 interface ModeSelectorProps {
@@ -205,7 +206,7 @@ const GenrePickerModal: React.FC<{
           >
             <span className="flex items-center gap-2">
               <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
-              Any genre (สุ่มทุกแนวเพลง)
+              ทุกแนวเพลง
             </span>
             {(!selectedGenre || selectedGenre === 'any') && (
               <Check className="w-4 h-4 text-emerald-400" />
@@ -312,7 +313,7 @@ const EraPickerModal: React.FC<{
           >
             <span className="flex items-center gap-2">
               <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
-              Any era (สุ่มทุกยุคสมัย)
+              ทุกยุคสมัย
             </span>
             {(!selectedEra || selectedEra === 'any') && (
               <Check className="w-4 h-4 text-emerald-400" />
@@ -578,7 +579,7 @@ const ArtistPickerModal: React.FC<{
           >
             <span className="flex items-center gap-2">
               <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
-              Any artist (สุ่มทุกศิลปินในคลัง)
+              ทุกศิลปินในคลัง
             </span>
             {(!selectedArtist || selectedArtist === 'any') && (
               <Check className="w-4 h-4 text-emerald-400" />
@@ -695,7 +696,7 @@ export const ModeSelector: React.FC<ModeSelectorProps> = ({
   // Genre reel options
   const genreReelOptions = useMemo(() => {
     const opts = [
-      { value: 'any', label: 'Any genre' },
+      { value: 'any', label: 'ทุกแนว' },
       ...GENRE_OPTIONS.filter((g) => g !== 'any').map((g) => ({ value: g, label: g })),
     ];
     if (
@@ -711,7 +712,7 @@ export const ModeSelector: React.FC<ModeSelectorProps> = ({
   // Era reel options
   const eraReelOptions = useMemo(() => {
     const opts = [
-      { value: 'any', label: 'Any era' },
+      { value: 'any', label: 'ทุกยุค' },
       ...DECADE_OPTIONS.map((d) => ({
         value: d,
         label: d === 'classic' ? 'Classic' : d,
@@ -738,7 +739,7 @@ export const ModeSelector: React.FC<ModeSelectorProps> = ({
 
   const artistReelOptions = useMemo(() => {
     const opts = [
-      { value: 'any', label: 'Any artist' },
+      { value: 'any', label: 'ทุกศิลปิน' },
       ...filteredPoolArtists.map((a) => ({ value: a.name, label: a.name })),
     ];
     if (
@@ -755,7 +756,14 @@ export const ModeSelector: React.FC<ModeSelectorProps> = ({
 
   return (
     <div className="w-full max-w-2xl mx-auto mb-5 space-y-3 relative z-10">
-      {/* Exact Songspot 3-Row Filter Reels + 5 Difficulty Tabs */}
+      {/* Exact Songspot 3-Row Filter Reels + 5 Difficulty Tabs (collapsed on phones) */}
+      <SetupDisclosure
+        summary={describeSetup({
+          difficulty: config.difficulty,
+          timeRangePreset: config.timeRangePreset,
+          extras: [config.genreFilter, config.yearFilter, config.artistName],
+        })}
+      >
       <div className="pt-1 pb-2">
         <div className="songspot-filter-stack">
           {/* Indicator Arrow at Top of Filter Reel */}
@@ -772,7 +780,7 @@ export const ModeSelector: React.FC<ModeSelectorProps> = ({
 
           {/* Row 1: GENRES */}
           <FilterReelRow
-            label="GENRES"
+            label="แนวเพลง"
             options={genreReelOptions}
             value={config.genreFilter || 'any'}
             onSelect={(val) =>
@@ -785,7 +793,7 @@ export const ModeSelector: React.FC<ModeSelectorProps> = ({
 
           {/* Row 2: ERAS */}
           <FilterReelRow
-            label="ERAS"
+            label="ยุค"
             options={eraReelOptions}
             value={config.yearFilter || 'any'}
             onSelect={(val) =>
@@ -798,7 +806,7 @@ export const ModeSelector: React.FC<ModeSelectorProps> = ({
 
           {/* Row 3: ARTISTS */}
           <FilterReelRow
-            label="ARTISTS"
+            label="ศิลปิน"
             options={artistReelOptions}
             value={config.artistName || 'any'}
             onSelect={(val) =>
@@ -865,6 +873,7 @@ export const ModeSelector: React.FC<ModeSelectorProps> = ({
           </div>
         </div>
       </div>
+      </SetupDisclosure>
 
       {/* Genre Picker Modal */}
       <GenrePickerModal

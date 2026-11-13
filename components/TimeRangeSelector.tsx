@@ -158,10 +158,10 @@ export const TimeRangeSelector: React.FC<TimeRangeSelectorProps> = ({
         <div
           className="flex items-center gap-1 text-[11px] font-bold uppercase tracking-wider shrink-0 mr-0.5"
           style={{ color: 'var(--song-muted)' }}
-          title="ตัวเลือกช่วงเวลาเสียงตัวอย่าง (Clip Duration Stages)"
+          title="ตัวเลือกช่วงเวลาเสียงตัวอย่าง"
         >
           <Clock className="w-3.5 h-3.5" style={{ color: 'var(--song-accent-text)' }} />
-          <span>Time Range:</span>
+          <span>ช่วงเวลาคลิป:</span>
         </div>
 
         <div className="flex items-center justify-center gap-1 sm:gap-1.5 flex-wrap">
@@ -179,7 +179,7 @@ export const TimeRangeSelector: React.FC<TimeRangeSelectorProps> = ({
                   }
                 }}
                 title={p.tooltip}
-                className={`group relative px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-full text-[11px] sm:text-xs font-bold transition-all flex items-center gap-1 border whitespace-nowrap ${
+                className={`songspot-time-chip group relative px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-full text-[11px] sm:text-xs font-bold transition-all flex items-center gap-1 border whitespace-nowrap ${
                   isSelected ? 'shadow-sm' : 'hover:brightness-110'
                 }`}
                 style={
@@ -237,7 +237,7 @@ export const TimeRangeSelector: React.FC<TimeRangeSelectorProps> = ({
                 <div className="flex items-center gap-2">
                   <Sliders className="w-5 h-5 flex-shrink-0" style={{ color: 'var(--song-accent-text)' }} />
                   <h3 className="text-sm sm:text-base font-extrabold tracking-wide truncate">
-                    กำหนดช่วงเวลาเสียง (Custom Stages)
+                    กำหนดช่วงเวลาเสียงเอง
                   </h3>
                 </div>
                 <p className="text-[10px] sm:text-xs mt-1" style={{ color: 'var(--song-muted)' }}>
