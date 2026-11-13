@@ -1846,3 +1846,30 @@ html {
     height: 7rem;
   }
 }
+
+/* Launch splash shown until AppShell mounts (avoids the white flash on PWA start). */
+#beatdrop-boot-splash {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--song-page, #030704);
+  transition: opacity 0.3s ease, visibility 0.3s ease;
+  /* Failsafe: never block the page if hydration fails. */
+  animation: beatdrop-boot-failsafe 0.3s ease 8s forwards;
+}
+@keyframes beatdrop-boot-failsafe {
+  to { opacity: 0; visibility: hidden; }
+}
+#beatdrop-boot-splash img {
+  width: 96px;
+  height: 96px;
+  border-radius: 22px;
+}
+#beatdrop-boot-splash[data-hidden='true'] {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}

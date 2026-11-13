@@ -219,8 +219,8 @@ export const GuessAutocomplete: React.FC<GuessAutocompleteProps> = ({
         title={t('searchTitle')}
         placement="fullscreen"
         dismissOnBackdrop={false}
-        className="search-sheet-root !z-[200] !top-[var(--search-sheet-top,0px)] !bottom-auto !h-[var(--search-sheet-h,100dvh)] overscroll-contain"
-        panelClassName="search-sheet-panel !h-full !max-h-full !flex-col !gap-2 !px-3 !pb-3 !pt-[calc(0.75rem+env(safe-area-inset-top,0px))] !overflow-hidden"
+        className="search-sheet-root !z-[200] !items-start !bg-[var(--song-page)] !backdrop-blur-none overscroll-none"
+        panelClassName="search-sheet-panel !mt-[var(--search-sheet-top,0px)] !h-[var(--search-sheet-h,100dvh)] !max-h-[var(--search-sheet-h,100dvh)] !flex-col !gap-2 !px-3 !pb-3 !pt-[calc(0.75rem+env(safe-area-inset-top,0px))] !overflow-hidden"
       >
           <div className="flex min-h-0 flex-1 flex-col gap-2">
             <div className="flex shrink-0 items-center gap-2">

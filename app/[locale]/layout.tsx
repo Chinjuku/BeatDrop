@@ -21,6 +21,11 @@ import {
   absoluteUrl,
 } from '../../lib/siteConfig';
 
+const BOOT_PAGE_DEFAULT = '#030704';
+// Runs before first paint: reuse the player's last theme colour (stored only with
+// preference consent) so a home-screen launch never flashes white.
+const BOOT_SCRIPT = `(function(){try{var c=localStorage.getItem('songspot:boot-page');if(c&&/^#[0-9a-fA-F]{3,8}$/.test(c)){var d=document.documentElement;d.style.backgroundColor=c;d.style.setProperty('--song-page',c);}}catch(e){}})();`;
+
 type LocaleParams = { params: Promise<{ locale: string }> };
 
 export function generateStaticParams() {
@@ -112,8 +117,10 @@ export default async function LocaleLayout({
   const t = await getTranslations({ locale, namespace: 'Shell' });
 
   return (
-    <html lang={locale} className="dark">
+    <html lang={locale} className="dark" style={{ backgroundColor: BOOT_PAGE_DEFAULT }} suppressHydrationWarning>
       <head>
+        <meta name="color-scheme" content="dark" />
+        <script dangerouslySetInnerHTML={{ __html: BOOT_SCRIPT }} />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link
@@ -126,7 +133,13 @@ export default async function LocaleLayout({
         <StructuredData />
       </head>
       <body>
+        {/* PWA launch splash: app icon on the theme colour until the shell has mounted. */}
+        <div id="beatdrop-boot-splash" aria-hidden="true">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/icons/icon-192.png" alt="" width={96} height={96} />
+        </div>
         <noscript>
+          <style>{'#beatdrop-boot-splash{display:none}'}</style>
           <div
             style={{
               backgroundColor: '#0a0d0a',

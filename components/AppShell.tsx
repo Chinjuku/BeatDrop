@@ -46,6 +46,15 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
     history,
   } = useGame();
 
+  // Hide the pre-hydration launch splash once the interactive shell is on screen.
+  useEffect(() => {
+    const splash = document.getElementById('beatdrop-boot-splash');
+    if (!splash) return;
+    splash.setAttribute('data-hidden', 'true');
+    const timer = window.setTimeout(() => splash.remove(), 400);
+    return () => window.clearTimeout(timer);
+  }, []);
+
   // The install offer waits until the player has finished at least one round this visit.
   const [hasFinishedRound, setHasFinishedRound] = useState(false);
   useEffect(() => {

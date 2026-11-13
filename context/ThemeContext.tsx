@@ -80,6 +80,9 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     root.style.setProperty('--song-accent-on', effectiveTheme.accentOn);
     root.style.setProperty('--song-accent-rgb', effectiveTheme.rgb);
     root.style.setProperty('--song-page', effectiveTheme.page);
+    root.style.backgroundColor = effectiveTheme.page;
+    // Read by the pre-hydration boot script so the next PWA launch paints this colour first.
+    setPreference('songspot:boot-page', effectiveTheme.page);
     root.style.setProperty('--song-stage', effectiveTheme.stage);
     root.style.setProperty('--song-surface', effectiveTheme.surface);
     root.style.setProperty('--song-surface-soft', effectiveTheme.surfaceSoft);
