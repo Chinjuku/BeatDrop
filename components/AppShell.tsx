@@ -44,16 +44,31 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
     activeClipSeconds,
     stages,
     history,
+    loadingRound,
   } = useGame();
 
-  // Hide the pre-hydration launch splash once the interactive shell is on screen.
+  // The launch splash stays up as the loading stage until the shell has mounted and the
+  // first round has finished loading, then fades out (capped so it never hangs).
+  const [splashDone, setSplashDone] = useState(false);
   useEffect(() => {
+    if (splashDone) return;
+    const finish = () => setSplashDone(true);
+    const cap = window.setTimeout(finish, 6000);
+    // Give mount effects a moment to start the first round request before checking it.
+    const settle = loadingRound ? undefined : window.setTimeout(finish, 250);
+    return () => {
+      window.clearTimeout(cap);
+      if (settle) window.clearTimeout(settle);
+    };
+  }, [loadingRound, splashDone]);
+  useEffect(() => {
+    if (!splashDone) return;
     const splash = document.getElementById('beatdrop-boot-splash');
     if (!splash) return;
     splash.setAttribute('data-hidden', 'true');
     const timer = window.setTimeout(() => splash.remove(), 400);
     return () => window.clearTimeout(timer);
-  }, []);
+  }, [splashDone]);
 
   // The install offer waits until the player has finished at least one round this visit.
   const [hasFinishedRound, setHasFinishedRound] = useState(false);

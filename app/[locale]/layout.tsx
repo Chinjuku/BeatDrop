@@ -6,6 +6,7 @@ import { getTranslations, setRequestLocale } from 'next-intl/server';
 import { OG_LOCALES, isAppLocale, routing } from '../../i18n/routing';
 import { localizedAlternates, localizedPath } from '../../lib/i18nMetadata';
 import '../globals.css';
+import splashScreens from '../../lib/splashScreens.json';
 import { ThemeProvider } from '../../context/ThemeContext';
 import { GameProvider } from '../../context/GameContext';
 import { QueryProvider } from '../../components/QueryProvider';
@@ -84,6 +85,8 @@ export async function generateMetadata({ params }: LocaleParams): Promise<Metada
     capable: true,
     title: SITE_NAME,
     statusBarStyle: 'black-translucent',
+    // iOS launch images (scripts/generate-splash.mjs): icon on the app background.
+    startupImage: splashScreens,
   },
   formatDetection: { telephone: false },
   manifest: '/manifest.webmanifest',
@@ -120,6 +123,8 @@ export default async function LocaleLayout({
     <html lang={locale} className="dark" style={{ backgroundColor: BOOT_PAGE_DEFAULT }} suppressHydrationWarning>
       <head>
         <meta name="color-scheme" content="dark" />
+        {/* Older iOS only honours apple-touch-startup-image with this legacy flag. */}
+        <meta name="apple-mobile-web-app-capable" content="yes" />
         <script dangerouslySetInnerHTML={{ __html: BOOT_SCRIPT }} />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
@@ -136,7 +141,7 @@ export default async function LocaleLayout({
         {/* PWA launch splash: app icon on the theme colour until the shell has mounted. */}
         <div id="beatdrop-boot-splash" aria-hidden="true">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/icons/icon-192.png" alt="" width={96} height={96} />
+          <img src="/icons/beatdrop-icon.svg" alt="" width={150} height={150} />
         </div>
         <noscript>
           <style>{'#beatdrop-boot-splash{display:none}'}</style>

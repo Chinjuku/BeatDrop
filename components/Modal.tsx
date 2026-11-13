@@ -32,6 +32,7 @@ const FOCUSABLE = [
 ].join(',');
 
 let activeModalsCount = 0;
+let lockedScrollY = 0;
 
 /** Shared accessible overlay behavior. Content remains owned by each feature. */
 export function Modal({
@@ -65,7 +66,16 @@ export function Modal({
     previousFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     activeModalsCount++;
     if (activeModalsCount === 1) {
-      document.body.style.overflow = 'hidden';
+      // iOS Safari ignores overflow:hidden on <body>, so pin the body in place instead;
+      // otherwise the page behind scrolls while the user drags inside the dialog.
+      lockedScrollY = window.scrollY;
+      const body = document.body.style;
+      body.overflow = 'hidden';
+      body.position = 'fixed';
+      body.top = `-${lockedScrollY}px`;
+      body.left = '0';
+      body.right = '0';
+      body.width = '100%';
     }
 
     const focusables = () => Array.from(panelRef.current?.querySelectorAll<HTMLElement>(FOCUSABLE) ?? [])
@@ -111,12 +121,16 @@ export function Modal({
       document.removeEventListener('keydown', handleKeyDown);
       activeModalsCount = Math.max(0, activeModalsCount - 1);
       if (activeModalsCount === 0) {
-        document.body.style.overflow = '';
-        document.body.style.position = '';
-        document.body.style.top = '';
-        document.body.style.width = '';
+        const body = document.body.style;
+        body.overflow = '';
+        body.position = '';
+        body.top = '';
+        body.left = '';
+        body.right = '';
+        body.width = '';
+        window.scrollTo(0, lockedScrollY);
       }
-      previousFocusRef.current?.focus();
+      previousFocusRef.current?.focus({ preventScroll: true });
     };
   }, [open, mounted]);
 

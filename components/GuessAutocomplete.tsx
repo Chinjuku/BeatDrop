@@ -279,7 +279,7 @@ export const GuessAutocomplete: React.FC<GuessAutocompleteProps> = ({
 
             {suggestions.length > 0 && (
               <div
-                className="min-h-0 flex-1 rounded-2xl border p-1.5 overflow-y-auto overscroll-contain"
+                className="min-h-0 flex-1 rounded-2xl border p-1.5 overflow-y-auto overscroll-contain touch-pan-y [-webkit-overflow-scrolling:touch]"
                 style={{
                   backgroundColor: 'var(--song-surface)',
                   borderColor: 'var(--song-border)',

@@ -1858,15 +1858,15 @@ html {
   background: var(--song-page, #030704);
   transition: opacity 0.3s ease, visibility 0.3s ease;
   /* Failsafe: never block the page if hydration fails. */
-  animation: beatdrop-boot-failsafe 0.3s ease 8s forwards;
+  animation: beatdrop-boot-failsafe 0.3s ease 10s forwards;
 }
 @keyframes beatdrop-boot-failsafe {
   to { opacity: 0; visibility: hidden; }
 }
+/* Same size and position as the iOS launch image so the hand-off is invisible. */
 #beatdrop-boot-splash img {
-  width: 96px;
-  height: 96px;
-  border-radius: 22px;
+  width: 150px;
+  height: 150px;
 }
 #beatdrop-boot-splash[data-hidden='true'] {
   opacity: 0;
