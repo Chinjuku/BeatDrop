@@ -53,5 +53,11 @@
     "streakTitle": "Current win streak",
     "bestTitle": "Best win streak",
     "fastestTitle": "Fastest correct guess"
+  },
+  "error": {
+    "title": "Something went wrong",
+    "body": "Something broke while loading this page. Please try again.",
+    "retry": "Try again",
+    "home": "Back to the game"
   }
 }

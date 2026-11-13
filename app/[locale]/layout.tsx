@@ -27,6 +27,8 @@ const BOOT_PAGE_DEFAULT = '#030704';
 // preference consent) so a home-screen launch never flashes white.
 const BOOT_SCRIPT = `(function(){try{var c=localStorage.getItem('songspot:boot-page');if(c&&/^#[0-9a-fA-F]{3,8}$/.test(c)){var d=document.documentElement;d.style.backgroundColor=c;d.style.setProperty('--song-page',c);}}catch(e){}})();`;
 
+const SPLASH_SCRIPT = `(function(){var s=document.currentScript;if(!s||document.getElementById('beatdrop-boot-splash'))return;var d=document.createElement('div');d.id='beatdrop-boot-splash';d.setAttribute('aria-hidden','true');var i=document.createElement('img');i.src='/icons/beatdrop-icon.svg';i.alt='';i.width=150;i.height=150;d.appendChild(i);s.parentNode.insertBefore(d,s);})();`;
+
 type LocaleParams = { params: Promise<{ locale: string }> };
 
 export function generateStaticParams() {
@@ -138,11 +140,13 @@ export default async function LocaleLayout({
         <StructuredData />
       </head>
       <body>
-        {/* PWA launch splash: app icon on the theme colour until the shell has mounted. */}
-        <div id="beatdrop-boot-splash" aria-hidden="true">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/icons/beatdrop-icon.svg" alt="" width={150} height={150} />
-        </div>
+        {/*
+          PWA launch splash, injected by script rather than rendered by React. React must not
+          own it: AppShell removes it once loaded, and a locale switch re-mounts this layout —
+          a React-owned node would be removed twice (NotFoundError) or shown again. Scripts
+          inserted during client navigation do not execute, so it only appears on a real load.
+        */}
+        <script dangerouslySetInnerHTML={{ __html: SPLASH_SCRIPT }} />
         <noscript>
           <style>{'#beatdrop-boot-splash{display:none}'}</style>
           <div
