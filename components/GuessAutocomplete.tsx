@@ -54,6 +54,32 @@ export const GuessAutocomplete: React.FC<GuessAutocompleteProps> = ({
     onGiveUp?.();
   };
 
+  // iOS: the on-screen keyboard shrinks the *visual* viewport but not the layout one, so a
+  // 100dvh sheet ends up partly behind the keyboard and the page scrolls underneath it.
+  // Track the visual viewport and size the sheet to exactly what is visible.
+  useEffect(() => {
+    if (!mobileOpen) return;
+    const vv = window.visualViewport;
+    const root = document.documentElement;
+    const sync = () => {
+      const height = vv ? vv.height : window.innerHeight;
+      const top = vv ? vv.offsetTop : 0;
+      root.style.setProperty('--search-sheet-h', `${Math.round(height)}px`);
+      root.style.setProperty('--search-sheet-top', `${Math.round(top)}px`);
+    };
+    sync();
+    vv?.addEventListener('resize', sync);
+    vv?.addEventListener('scroll', sync);
+    window.addEventListener('resize', sync);
+    return () => {
+      vv?.removeEventListener('resize', sync);
+      vv?.removeEventListener('scroll', sync);
+      window.removeEventListener('resize', sync);
+      root.style.removeProperty('--search-sheet-h');
+      root.style.removeProperty('--search-sheet-top');
+    };
+  }, [mobileOpen]);
+
   // Auto-close mobile sheet if rotated/resized to desktop width
   useEffect(() => {
     if (!mobileOpen) return;
@@ -191,11 +217,11 @@ export const GuessAutocomplete: React.FC<GuessAutocompleteProps> = ({
         title="Search songs"
         placement="fullscreen"
         dismissOnBackdrop={false}
-        className="!z-[200]"
-        panelClassName="!flex-col !gap-2 !px-3 !pb-3 !pt-[calc(0.75rem+env(safe-area-inset-top,0px))] !overflow-y-auto !overscroll-contain !touch-pan-y"
+        className="search-sheet-root !z-[200] !top-[var(--search-sheet-top,0px)] !bottom-auto !h-[var(--search-sheet-h,100dvh)] overscroll-contain"
+        panelClassName="search-sheet-panel !h-full !max-h-full !flex-col !gap-2 !px-3 !pb-3 !pt-[calc(0.75rem+env(safe-area-inset-top,0px))] !overflow-hidden"
       >
           <div className="flex min-h-0 flex-1 flex-col gap-2">
-            <div className="flex items-center gap-2">
+            <div className="flex shrink-0 items-center gap-2">
               <button
                 type="button"
                 onClick={() => setMobileOpen(false)}
@@ -251,8 +277,12 @@ export const GuessAutocomplete: React.FC<GuessAutocompleteProps> = ({
 
             {suggestions.length > 0 && (
               <div
-                className="rounded-2xl border p-1.5 overflow-y-auto"
-                style={{ backgroundColor: 'var(--song-surface)', borderColor: 'var(--song-border)' }}
+                className="min-h-0 flex-1 rounded-2xl border p-1.5 overflow-y-auto overscroll-contain"
+                style={{
+                  backgroundColor: 'var(--song-surface)',
+                  borderColor: 'var(--song-border)',
+                  WebkitOverflowScrolling: 'touch',
+                }}
                 role="listbox"
               >
                 {suggestions.map((song, idx) => (
