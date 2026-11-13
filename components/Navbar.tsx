@@ -1,7 +1,8 @@
 'use client';
+import { Link, usePathname, useRouter } from '../i18n/navigation';
 import React, { useEffect, useRef, useState } from 'react';
-import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation';
+import { useLocale, useTranslations } from 'next-intl';
+import { routing, type AppLocale } from '../i18n/routing';
 import {
   ArrowRight,
   CalendarDays,
@@ -63,8 +64,45 @@ export const Navbar: React.FC<NavbarProps> = ({
   currentMode = 'standard',
   onSelectQuiz,
 }) => {
+  const t = useTranslations('Navbar');
+  const locale = useLocale();
   const router = useRouter();
   const pathname = usePathname() || '/play';
+
+  // Keeps the current path and query string. Read from window at click time rather than
+  // useSearchParams, which would force a Suspense boundary around the root shell.
+  const switchLocale = (next: AppLocale) => {
+    setActiveMenu(null);
+    if (next === locale) return;
+    const search = typeof window !== 'undefined' ? window.location.search : '';
+    router.replace(`${pathname}${search}`, { locale: next });
+  };
+
+  const renderLanguageOptions = (buttonClassName: string) =>
+    routing.locales.map((code) => {
+      const selected = locale === code;
+      return (
+        <button
+          key={code}
+          type="button"
+          lang={code}
+          aria-pressed={selected}
+          onClick={() => switchLocale(code)}
+          className={buttonClassName}
+          style={
+            selected
+              ? {
+                  backgroundColor: 'color-mix(in srgb, var(--song-accent) 18%, var(--song-surface))',
+                  color: 'var(--song-accent-text)',
+                }
+              : { color: 'var(--song-text)' }
+          }
+        >
+          <span>{t(`languages.${code}`)}</span>
+          {selected && <Check className="w-4 h-4 flex-shrink-0" aria-hidden="true" />}
+        </button>
+      );
+    });
   const navigate = (path: string) => router.push(path);
   const location = { pathname };
 
@@ -125,9 +163,9 @@ export const Navbar: React.FC<NavbarProps> = ({
   }, []);
 
   const categories: Array<{ id: CategoryType; label: string; badge: string }> = [
-    { id: 'thai', label: 'เพลงไทย', badge: '🇹🇭' },
-    { id: 'international', label: 'เพลงสากล', badge: '🌍' },
-    { id: 'all', label: 'รวมไทย & สากล', badge: '🔥' },
+    { id: 'thai', label: t('catalog.thai'), badge: '🇹🇭' },
+    { id: 'international', label: t('catalog.international'), badge: '🌍' },
+    { id: 'all', label: t('catalog.all'), badge: '🔥' },
   ];
 
   const currentCategoryObj =
@@ -150,7 +188,7 @@ export const Navbar: React.FC<NavbarProps> = ({
     { label: '2000s', value: '2000s' },
     { label: '1990s', value: '1990s' },
     { label: '1980s', value: '1980s' },
-    { label: 'Classic', value: 'classic' },
+    { label: t('eraClassic'), value: 'classic' },
   ];
 
   const topArtists =
@@ -193,7 +231,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           href="/play"
           onClick={() => setActiveMenu(null)}
           className="songspot-site-brand group"
-          title="BeatDrop — หน้าแรก"
+          title={t('homeTitle')}
         >
           <div
             className="w-8 h-8 rounded-xl flex items-center justify-center p-1 transition group-hover:scale-105"
@@ -212,7 +250,7 @@ export const Navbar: React.FC<NavbarProps> = ({
         </Link>
 
         {/* Center: Desktop Navigation Tabs & Mega Menus (Exact Songspot Style) */}
-        <nav className="songspot-site-desktop-nav" aria-label="เมนูหลัก">
+        <nav className="songspot-site-desktop-nav" aria-label={t('mainNav')}>
           {/* 1. Play (Default Clip Mode) */}
           <Link
             href="/play"
@@ -221,7 +259,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             data-section={isPlayActive ? 'active' : undefined}
             onClick={() => setActiveMenu(null)}
           >
-            เล่น
+            {t('play')}
           </Link>
 
           {/* 2. Music Categories (Unified Pill with Dropdown) */}
@@ -234,7 +272,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               data-section={isCategoriesActive || activeMenu === 'clip' ? 'active' : undefined}
               onClick={() => setActiveMenu(activeMenu === 'clip' ? null : 'clip')}
             >
-              <span>หมวดหมู่เพลง</span>
+              <span>{t('categories')}</span>
               <ChevronDown
                 className={`w-3.5 h-3.5 opacity-60 transition-transform duration-200 ${
                   activeMenu === 'clip' ? 'rotate-180' : ''
@@ -250,11 +288,11 @@ export const Navbar: React.FC<NavbarProps> = ({
             >
               {/* Left Column: Interactive Mode Card */}
               <div className="songspot-menu-mode">
-                <span className="songspot-menu-mode-badge">ทายจากคลิป</span>
-                <p className="songspot-menu-mode-title">ฟังแล้วทายชื่อเพลง</p>
+                <span className="songspot-menu-mode-badge">{t('clip.badge')}</span>
+                <p className="songspot-menu-mode-title">{t('clip.title')}</p>
                 <p className="songspot-menu-mode-description">
-                  <span>เริ่มจากคลิปสั้นไม่ถึงวินาที</span>
-                  <span>พิมพ์ค้นชื่อเพลงเพื่อตอบ</span>
+                  <span>{t('clip.line1')}</span>
+                  <span>{t('clip.line2')}</span>
                 </p>
 
                 {/* Waveform & Stages Demo */}
@@ -285,7 +323,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   </div>
                   <div className="songspot-menu-search-demo">
                     <Search className="w-4 h-4" />
-                    <span>ค้นหาชื่อเพลง…</span>
+                    <span>{t('clip.searchDemo')}</span>
                   </div>
                 </div>
 
@@ -294,7 +332,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   onClick={handlePlayClipChallenge}
                   className="songspot-menu-play"
                 >
-                  <span>เริ่มเล่นทายจากคลิป</span>
+                  <span>{t('clip.cta')}</span>
                   <ArrowRight className="w-4 h-4" />
                 </button>
               </div>
@@ -303,7 +341,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               <div className="songspot-site-quiz-directory">
                 <div className="songspot-site-quiz-groups">
                   <div>
-                    <p>แนวเพลง</p>
+                    <p>{t('genres')}</p>
                     {topGenres.slice(0, 5).map((g) => (
                       <button
                         key={g}
@@ -316,7 +354,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   </div>
 
                   <div>
-                    <p>ยุคสมัย</p>
+                    <p>{t('eras')}</p>
                     {topEras.slice(0, 5).map((e) => (
                       <button
                         key={e.value}
@@ -329,7 +367,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   </div>
 
                   <div>
-                    <p>ศิลปิน</p>
+                    <p>{t('artists')}</p>
                     {topArtists.slice(0, 5).map((a) => (
                       <button
                         key={a}
@@ -347,7 +385,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   onClick={() => setActiveMenu(null)}
                   className="songspot-site-browse-all"
                 >
-                  <span>ดูหมวดหมู่ทั้งหมด</span>
+                  <span>{t('browseAll')}</span>
                   <ArrowRight className="w-4 h-4" />
                 </Link>
               </div>
@@ -391,11 +429,11 @@ export const Navbar: React.FC<NavbarProps> = ({
             >
               {/* Left Column: Mode Card */}
               <div className="songspot-menu-mode">
-                <span className="songspot-menu-mode-badge">4 ตัวเลือก</span>
-                <p className="songspot-menu-mode-title">ฟังแล้วเลือกคำตอบ</p>
+                <span className="songspot-menu-mode-badge">{t('choice.badge')}</span>
+                <p className="songspot-menu-mode-title">{t('choice.title')}</p>
                 <p className="songspot-menu-mode-description">
-                  <span>ฟังคลิปสั้น ๆ</span>
-                  <span>เลือกคำตอบจาก 4 ตัวเลือก</span>
+                  <span>{t('choice.line1')}</span>
+                  <span>{t('choice.line2')}</span>
                 </p>
 
                 {/* Multiple Choice Demo Preview */}
@@ -403,19 +441,19 @@ export const Navbar: React.FC<NavbarProps> = ({
                   <div className="songspot-menu-answers">
                     <div data-selected="true">
                       <span>A</span>
-                      <span>แสงสุดท้าย - Bodyslam</span>
+                      <span>{t('choice.demoA')}</span>
                     </div>
                     <div data-selected="false">
                       <span>B</span>
-                      <span>โต๊ะริม - Nont Tanont</span>
+                      <span>{t('choice.demoB')}</span>
                     </div>
                     <div data-selected="false">
                       <span>C</span>
-                      <span>Cruel Summer - Taylor Swift</span>
+                      <span>{t('choice.demoC')}</span>
                     </div>
                     <div data-selected="false">
                       <span>D</span>
-                      <span>Bohemian Rhapsody - Queen</span>
+                      <span>{t('choice.demoD')}</span>
                     </div>
                   </div>
                 </div>
@@ -425,7 +463,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   onClick={handlePlayMultipleChoice}
                   className="songspot-menu-play"
                 >
-                  <span>เริ่มเล่นแบบ 4 ตัวเลือก</span>
+                  <span>{t('choice.cta')}</span>
                   <ArrowRight className="w-4 h-4" />
                 </button>
               </div>
@@ -434,7 +472,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               <div className="songspot-site-quiz-directory">
                 <div className="songspot-site-quiz-groups">
                   <div>
-                    <p>แนวเพลง</p>
+                    <p>{t('genres')}</p>
                     {topGenres.slice(0, 5).map((g) => (
                       <button
                         key={g}
@@ -447,7 +485,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   </div>
 
                   <div>
-                    <p>ยุคสมัย</p>
+                    <p>{t('eras')}</p>
                     {topEras.slice(0, 5).map((e) => (
                       <button
                         key={e.value}
@@ -460,7 +498,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   </div>
 
                   <div>
-                    <p>ศิลปิน</p>
+                    <p>{t('artists')}</p>
                     {topArtists.slice(0, 5).map((a) => (
                       <button
                         key={a}
@@ -478,7 +516,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   onClick={() => setActiveMenu(null)}
                   className="songspot-site-browse-all"
                 >
-                  <span>ดูหมวดหมู่ทั้งหมด</span>
+                  <span>{t('browseAll')}</span>
                   <ArrowRight className="w-4 h-4" />
                 </Link>
               </div>
@@ -496,8 +534,8 @@ export const Navbar: React.FC<NavbarProps> = ({
               onClick={() =>
                 setActiveMenu(activeMenu === 'locale' ? null : 'locale')
               }
-              title="สลับแคตตาล็อกเพลง"
-              aria-label={`แคตตาล็อกเพลง: ${currentCategoryObj.label}`}
+              title={t('catalog.switchTitle')}
+              aria-label={t('catalog.ariaLabel', { label: currentCategoryObj.label })}
               aria-expanded={activeMenu === 'locale'}
             >
               <Globe className="w-3.5 h-3.5" style={{ color: 'var(--song-accent-text)' }} />
@@ -521,7 +559,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   className="px-3 py-1.5 text-[10px] font-extrabold uppercase tracking-wider"
                   style={{ color: 'var(--song-muted)' }}
                 >
-                  เลือกแคตตาล็อกเพลง
+                  {t('catalog.choose')}
                 </div>
                 {categories.map((cat) => {
                   const isSelected = category === cat.id;
@@ -557,7 +595,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             )}
           </div>
 
-          {/* Unified Settings Dropdown: จัดการศิลปิน & เลือกสีธีม (in the drawer on phones) */}
+          {/* Unified Settings Dropdown: artists & theme (in the drawer on phones) */}
           <div className="relative shrink-0 max-sm:hidden">
             <button
               type="button"
@@ -573,12 +611,12 @@ export const Navbar: React.FC<NavbarProps> = ({
                 borderColor: 'var(--song-border)',
                 color: 'var(--song-text)',
               }}
-              title="ตั้งค่า (จัดการศิลปิน & เลือกสีธีม)"
-              aria-label="ตั้งค่าและธีม"
+              title={t('settings.title')}
+              aria-label={t('settings.ariaLabel')}
               aria-expanded={activeMenu === 'settings'}
             >
               <Settings className="w-3.5 h-3.5" style={{ color: 'var(--song-accent-text)' }} />
-              <span className="hidden sm:inline">ตั้งค่า</span>
+              <span className="hidden sm:inline">{t('settings.label')}</span>
               <ChevronDown className="w-3 h-3 opacity-60" />
             </button>
 
@@ -591,12 +629,12 @@ export const Navbar: React.FC<NavbarProps> = ({
                   color: 'var(--song-text)',
                 }}
               >
-                {/* 1. จัดการศิลปิน */}
+                {/* 1. Artists */}
                 <div
                   className="px-3 py-1 text-[10px] font-extrabold uppercase tracking-wider"
                   style={{ color: 'var(--song-muted)' }}
                 >
-                  คลังศิลปิน
+                  {t('artistLibrary')}
                 </div>
 
                 <button
@@ -622,9 +660,9 @@ export const Navbar: React.FC<NavbarProps> = ({
                       <PlusCircle className="w-4 h-4" />
                     </div>
                     <div>
-                      <div className="text-xs font-bold">เพิ่ม & จัดการศิลปิน</div>
+                      <div className="text-xs font-bold">{t('manageArtists')}</div>
                       <div className="text-[10px]" style={{ color: 'var(--song-muted)' }}>
-                        ค้นหาหรือเพิ่มศิลปินใหม่
+                        {t('manageArtistsHint')}
                       </div>
                     </div>
                   </div>
@@ -640,12 +678,12 @@ export const Navbar: React.FC<NavbarProps> = ({
                   </span>
                 </button>
 
-                {/* 2. เลือกสีธีม */}
+                {/* 2. Theme */}
                 <div
                   className="px-3 py-1.5 text-[10px] font-extrabold uppercase tracking-wider border-t mt-2 pt-2 flex items-center justify-between"
                   style={{ borderColor: 'var(--song-border)', color: 'var(--song-muted)' }}
                 >
-                  <span>ธีมสี</span>
+                  <span>{t('theme')}</span>
                   <Palette className="w-3.5 h-3.5" />
                 </div>
 
@@ -676,7 +714,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                             className="text-[10px] truncate"
                             style={{ color: 'var(--song-muted)' }}
                           >
-                            {preset.description}
+                            {t(`themes.${id}.description`)}
                           </div>
                         </div>
                         {selected && (
@@ -692,7 +730,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                     className="mt-2 pt-2 border-t px-3 py-1.5 flex items-center justify-between text-[11px] cursor-pointer"
                     style={{ borderColor: 'var(--song-border)', color: 'var(--song-muted)' }}
                   >
-                    <span>เปลี่ยนสีไฟตามระดับความยาก</span>
+                    <span>{t('syncAccent')}</span>
                     <input
                       type="checkbox"
                       checked={syncDifficultyAccent}
@@ -702,7 +740,21 @@ export const Navbar: React.FC<NavbarProps> = ({
                   </label>
                 )}
 
-                {/* 3. Admin Console */}
+                {/* 3. Language */}
+                <div
+                  className="px-3 py-1.5 text-[10px] font-extrabold uppercase tracking-wider border-t mt-2 pt-2 flex items-center justify-between"
+                  style={{ borderColor: 'var(--song-border)', color: 'var(--song-muted)' }}
+                >
+                  <span>{t('language')}</span>
+                  <Globe className="w-3.5 h-3.5" />
+                </div>
+                <div className="space-y-1" role="group" aria-label={t('languageGroup')}>
+                  {renderLanguageOptions(
+                    'w-full px-3 py-1.5 rounded-xl text-left text-xs font-bold flex items-center justify-between transition hover:brightness-110'
+                  )}
+                </div>
+
+                {/* 4. Admin Console */}
                 <div className="border-t mt-2 pt-2" style={{ borderColor: 'var(--song-border)' }}>
                   <Link
                     href="/admin"
@@ -717,7 +769,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                       <Shield className="w-3.5 h-3.5 text-emerald-400" />
                       <span>Admin Console</span>
                     </div>
-                    <span className="text-[10px] text-emerald-400 font-bold">ต้องใช้คีย์</span>
+                    <span className="text-[10px] text-emerald-400 font-bold">{t('adminKeyRequired')}</span>
                   </Link>
                 </div>
               </div>
@@ -731,7 +783,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             onClick={() =>
               setActiveMenu(activeMenu === 'mobile' ? null : 'mobile')
             }
-            aria-label={activeMenu === 'mobile' ? 'ปิดเมนู' : 'เปิดเมนู'}
+            aria-label={activeMenu === 'mobile' ? t('menu.close') : t('menu.open')}
             aria-expanded={activeMenu === 'mobile'}
           >
             {activeMenu === 'mobile' ? (
@@ -747,7 +799,7 @@ export const Navbar: React.FC<NavbarProps> = ({
       <Modal
         open={mounted && activeMenu === 'mobile'}
         onClose={() => setActiveMenu(null)}
-        title="เมนู"
+        title={t('menu.title')}
         placement="right"
         className="max-[1140px]:flex min-[1141px]:hidden"
         panelClassName="!p-4 sm:!p-5 !pt-[calc(1rem+env(safe-area-inset-top,0px))] !pb-[calc(1rem+env(safe-area-inset-bottom,0px))] !overflow-y-auto !border-l !rounded-l-3xl"
@@ -759,14 +811,14 @@ export const Navbar: React.FC<NavbarProps> = ({
             >
               <div className="flex items-center justify-between pb-3 border-b border-[var(--song-border)]">
                 <span className="text-xs font-extrabold uppercase tracking-wider" style={{ color: 'var(--song-muted)' }}>
-                  เมนูหลัก
+                  {t('mainNav')}
                 </span>
                 <button
                   type="button"
                   onClick={() => setActiveMenu(null)}
                   className="p-1.5 rounded-xl border hover:bg-white/10 transition"
                   style={{ backgroundColor: 'var(--song-surface-soft)', borderColor: 'var(--song-border)' }}
-                  aria-label="ปิดเมนู"
+                  aria-label={t('menu.close')}
                 >
                   <X className="w-4 h-4" />
                 </button>
@@ -792,7 +844,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 >
                   <span className="flex items-center gap-2">
                     <Play className="w-4 h-4" />
-                    <span>เล่น (ทายจากคลิป)</span>
+                    <span>{t('mobile.play')}</span>
                   </span>
                   <ArrowRight className="w-4 h-4 opacity-70" />
                 </Link>
@@ -815,7 +867,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 >
                   <span className="flex items-center gap-2">
                     <CalendarDays className="w-4 h-4" />
-                    <span>Daily Challenge (5 เพลง)</span>
+                    <span>{t('mobile.daily')}</span>
                   </span>
                   <ArrowRight className="w-4 h-4 opacity-70" />
                 </Link>
@@ -838,7 +890,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 >
                   <span className="flex items-center gap-2">
                     <ListChecks className="w-4 h-4" />
-                    <span>Song Guesser (4 ตัวเลือก)</span>
+                    <span>{t('mobile.guesser')}</span>
                   </span>
                   <ArrowRight className="w-4 h-4 opacity-70" />
                 </Link>
@@ -861,7 +913,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 >
                   <span className="flex items-center gap-2">
                     <Compass className="w-4 h-4" />
-                    <span>หมวดหมู่เพลง</span>
+                    <span>{t('categories')}</span>
                   </span>
                   <ArrowRight className="w-4 h-4 opacity-70" />
                 </Link>
@@ -870,13 +922,13 @@ export const Navbar: React.FC<NavbarProps> = ({
               {/* Accordion Topics for Clip Quizzes */}
               <details className="border-t border-[var(--song-border)] pt-2 group">
                 <summary className="flex items-center justify-between py-2 text-xs font-bold cursor-pointer select-none">
-                  <span>เลือกเล่นตามหัวข้อ</span>
+                  <span>{t('mobile.topics')}</span>
                   <ChevronDown className="w-4 h-4 transition-transform group-open:rotate-180" />
                 </summary>
                 <div className="py-2 space-y-3">
                   <div>
                     <div className="text-[10px] font-bold uppercase tracking-wider mb-1" style={{ color: 'var(--song-muted)' }}>
-                      แนวเพลง
+                      {t('genres')}
                     </div>
                     <div className="flex flex-wrap gap-1">
                       {topGenres.map((g) => (
@@ -895,7 +947,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
                   <div>
                     <div className="text-[10px] font-bold uppercase tracking-wider mb-1" style={{ color: 'var(--song-muted)' }}>
-                      ยุคสมัย
+                      {t('eras')}
                     </div>
                     <div className="flex flex-wrap gap-1">
                       {topEras.map((e) => (
@@ -914,7 +966,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
                   <div>
                     <div className="text-[10px] font-bold uppercase tracking-wider mb-1" style={{ color: 'var(--song-muted)' }}>
-                      ศิลปิน
+                      {t('artists')}
                     </div>
                     <div className="flex flex-wrap gap-1">
                       {topArtists.map((a) => (
@@ -936,9 +988,9 @@ export const Navbar: React.FC<NavbarProps> = ({
               {/* Catalog switcher (header dropdown is hidden on phones) */}
               <div className="border-t border-[var(--song-border)] pt-3">
                 <div className="text-[10px] font-bold uppercase tracking-wider mb-1.5" style={{ color: 'var(--song-muted)' }}>
-                  แคตตาล็อกเพลง
+                  {t('catalog.section')}
                 </div>
-                <div className="grid grid-cols-3 gap-1.5" role="group" aria-label="เลือกแคตตาล็อกเพลง">
+                <div className="grid grid-cols-3 gap-1.5" role="group" aria-label={t('catalog.choose')}>
                   {categories.map((cat) => {
                     const isSelected = category === cat.id;
                     return (
@@ -970,12 +1022,24 @@ export const Navbar: React.FC<NavbarProps> = ({
                 </div>
               </div>
 
+              {/* Language switcher */}
+              <div className="border-t border-[var(--song-border)] pt-3">
+                <div className="text-[10px] font-bold uppercase tracking-wider mb-1.5" style={{ color: 'var(--song-muted)' }}>
+                  {t('language')}
+                </div>
+                <div className="grid grid-cols-2 gap-1.5" role="group" aria-label={t('languageGroup')}>
+                  {renderLanguageOptions(
+                    'min-h-[44px] px-3 rounded-xl border border-[var(--song-border)] text-xs font-bold flex items-center justify-center gap-1.5 transition hover:brightness-110'
+                  )}
+                </div>
+              </div>
+
               {/* Theme picker (header settings dropdown is hidden on phones) */}
               <details className="border-t border-[var(--song-border)] pt-2 group sm:hidden">
                 <summary className="flex items-center justify-between min-h-[44px] text-xs font-bold cursor-pointer select-none">
                   <span className="flex items-center gap-2">
                     <Palette className="w-4 h-4" style={{ color: 'var(--song-accent-text)' }} />
-                    <span>ธีมสี</span>
+                    <span>{t('theme')}</span>
                   </span>
                   <ChevronDown className="w-4 h-4 transition-transform group-open:rotate-180" />
                 </summary>
@@ -1006,7 +1070,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                       className="min-h-[44px] px-3 flex items-center justify-between text-[11px] cursor-pointer"
                       style={{ color: 'var(--song-muted)' }}
                     >
-                      <span>เปลี่ยนสีไฟตามระดับความยาก</span>
+                      <span>{t('syncAccent')}</span>
                       <input
                         type="checkbox"
                         checked={syncDifficultyAccent}
@@ -1035,7 +1099,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 >
                   <span className="flex items-center gap-2">
                     <Trophy className="w-4 h-4 text-amber-400" />
-                    <span>ตารางอันดับ</span>
+                    <span>{t('leaderboard')}</span>
                   </span>
                   <ArrowRight className="w-3.5 h-3.5 opacity-60" />
                 </button>
@@ -1055,7 +1119,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 >
                   <span className="flex items-center gap-2">
                     <PlusCircle className="w-4 h-4" style={{ color: 'var(--song-accent-text)' }} />
-                    <span>จัดการศิลปินในคลัง</span>
+                    <span>{t('manageLibrary')}</span>
                   </span>
                   <span
                     className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold"
@@ -1064,7 +1128,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                       color: 'var(--song-accent-text)',
                     }}
                   >
-                    {artistCount} ศิลปิน
+                    {t('artistCount', { count: artistCount })}
                   </span>
                 </button>
 
@@ -1082,7 +1146,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                     <Shield className="w-4 h-4 text-emerald-400" />
                     <span>Admin Console</span>
                   </span>
-                  <span className="text-[10px] text-emerald-400 font-bold">ต้องใช้คีย์</span>
+                  <span className="text-[10px] text-emerald-400 font-bold">{t('adminKeyRequired')}</span>
                 </Link>
               </div>
 

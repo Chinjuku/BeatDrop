@@ -1,5 +1,6 @@
 'use client';
 import React, { useState, useEffect } from 'react';
+import { useTranslations } from 'next-intl';
 import { Modal } from './Modal';
 import { Clock, Settings2, Sliders, X, Plus, Trash2, Check, RotateCcw } from 'lucide-react';
 import {
@@ -23,6 +24,8 @@ export const TimeRangeSelector: React.FC<TimeRangeSelectorProps> = ({
   onChangePreset,
   compact = false,
 }) => {
+  const t = useTranslations('TimeRange');
+  const tc = useTranslations('Common');
   const [modalOpen, setModalOpen] = useState(false);
   const [customDraft, setCustomDraft] = useState<number[]>(stages);
   const [rawCommaInput, setRawCommaInput] = useState<string>(stages.join(', '));
@@ -56,21 +59,21 @@ export const TimeRangeSelector: React.FC<TimeRangeSelectorProps> = ({
       .filter((n) => !isNaN(n));
 
     if (parsed.length < 2) {
-      setValidationError('ต้องระบุอย่างน้อย 2 ช่วงเวลา (เช่น 0.5, 1.5, 3, 6, 10)');
+      setValidationError(t('errors.minEntries'));
       return;
     }
 
     // Ensure all within [MIN_SNIPPET_DURATION, MAX_SNIPPET_DURATION] (0.1s..15s)
     const outOfBounds = parsed.some((n) => n < MIN_SNIPPET_DURATION || n > MAX_SNIPPET_DURATION);
     if (outOfBounds) {
-      setValidationError(`ช่วงเวลาต้องอยู่ระหว่าง ${MIN_SNIPPET_DURATION}s ถึงสูงสุด ${MAX_SNIPPET_DURATION}s`);
+      setValidationError(t('errors.outOfBounds', { min: MIN_SNIPPET_DURATION, max: MAX_SNIPPET_DURATION }));
       return;
     }
 
     // Auto sort ascending and deduplicate
     const sorted = Array.from(new Set(parsed)).sort((a, b) => a - b);
     if (sorted.length < 2) {
-      setValidationError('ต้องมีค่าที่ไม่ซ้ำกันอย่างน้อย 2 ขั้น');
+      setValidationError(t('errors.minUnique'));
       return;
     }
 
@@ -91,7 +94,7 @@ export const TimeRangeSelector: React.FC<TimeRangeSelectorProps> = ({
 
   const handleAddStage = () => {
     if (customDraft.length >= 8) {
-      setValidationError('สูงสุด 8 ขั้น');
+      setValidationError(t('errors.maxStages'));
       return;
     }
     const last = customDraft[customDraft.length - 1] || 5;
@@ -105,7 +108,7 @@ export const TimeRangeSelector: React.FC<TimeRangeSelectorProps> = ({
 
   const handleRemoveStage = (index: number) => {
     if (customDraft.length <= 2) {
-      setValidationError('ต้องมีอย่างน้อย 2 ขั้น');
+      setValidationError(t('errors.minStages'));
       return;
     }
     const updated = customDraft.filter((_, idx) => idx !== index);
@@ -130,25 +133,25 @@ export const TimeRangeSelector: React.FC<TimeRangeSelectorProps> = ({
       id: 'relaxed',
       label: 'Relaxed',
       sub: '3s → 15s',
-      tooltip: 'Easy / Relaxed (3s → 5s → 10s → 15s)',
+      tooltip: tc('timeRange.relaxed.tooltip'),
     },
     {
       id: 'standard',
       label: 'Standard',
       sub: '0.5s → 15s',
-      tooltip: 'Standard Default (0.5s → 2s → 6s → 8s → 15s)',
+      tooltip: tc('timeRange.standard.tooltip'),
     },
     {
       id: 'songspot',
       label: 'Songspot',
       sub: '0.1s → 15s',
-      tooltip: 'Songspot (0.1s → 0.5s → 2s → 8s → 15s)',
+      tooltip: tc('timeRange.songspot.tooltip'),
     },
     {
       id: 'custom',
       label: 'Custom',
-      sub: currentPreset === 'custom' ? `${stages[0]}s → ${stages[stages.length - 1]}s` : 'กำหนดเอง',
-      tooltip: 'Custom Clip Stages (สูงสุด 15 วินาที)',
+      sub: currentPreset === 'custom' ? `${stages[0]}s → ${stages[stages.length - 1]}s` : tc('timeRange.custom.sub'),
+      tooltip: tc('timeRange.custom.tooltip'),
     },
   ];
 
@@ -158,10 +161,10 @@ export const TimeRangeSelector: React.FC<TimeRangeSelectorProps> = ({
         <div
           className="flex items-center gap-1 text-[11px] font-bold uppercase tracking-wider shrink-0 mr-0.5"
           style={{ color: 'var(--song-muted)' }}
-          title="ตัวเลือกช่วงเวลาเสียงตัวอย่าง"
+          title={t('selectorTitle')}
         >
           <Clock className="w-3.5 h-3.5" style={{ color: 'var(--song-accent-text)' }} />
-          <span>ช่วงเวลาคลิป:</span>
+          <span>{t('clipRange')}</span>
         </div>
 
         <div className="flex items-center justify-center gap-1 sm:gap-1.5 flex-wrap">
@@ -222,7 +225,7 @@ export const TimeRangeSelector: React.FC<TimeRangeSelectorProps> = ({
 
       {/* Custom Stages Configuration Modal */}
       {modalOpen && (
-        <Modal open={modalOpen} onClose={() => setModalOpen(false)} title="Custom snippet stages" dismissOnBackdrop={false} panelClassName="!bg-transparent !border-0 !shadow-none !overflow-visible !max-h-none">
+        <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={t('modal.dialogTitle')} dismissOnBackdrop={false} panelClassName="!bg-transparent !border-0 !shadow-none !overflow-visible !max-h-none">
           <div
             className="m-auto w-[calc(100vw-16px)] sm:w-full max-w-lg md:max-w-xl rounded-2xl border p-3.5 sm:p-6 shadow-2xl flex flex-col gap-4 relative my-auto animate-in zoom-in-95 duration-200 max-h-[92dvh] overflow-y-auto"
             style={{
@@ -237,16 +240,17 @@ export const TimeRangeSelector: React.FC<TimeRangeSelectorProps> = ({
                 <div className="flex items-center gap-2">
                   <Sliders className="w-5 h-5 flex-shrink-0" style={{ color: 'var(--song-accent-text)' }} />
                   <h3 className="text-sm sm:text-base font-extrabold tracking-wide truncate">
-                    กำหนดช่วงเวลาเสียงเอง
+                    {t('modal.heading')}
                   </h3>
                 </div>
                 <p className="text-[10px] sm:text-xs mt-1" style={{ color: 'var(--song-muted)' }}>
-                  ปรับความยาวเสียงแต่ละขั้นตอน (วินาที) คั่นด้วยจุลภาค (,) สูงสุด 15s
+                  {t('modal.subheading', { max: MAX_SNIPPET_DURATION })}
                 </p>
               </div>
               <button
                 type="button"
                 onClick={() => setModalOpen(false)}
+                aria-label={t('modal.close')}
                 className="p-1 rounded-lg border hover:opacity-80 transition-opacity flex-shrink-0"
                 style={{
                   backgroundColor: 'var(--song-surface-soft)',
@@ -261,7 +265,7 @@ export const TimeRangeSelector: React.FC<TimeRangeSelectorProps> = ({
             {/* Quick Templates */}
             <div>
               <div className="text-[11px] font-bold uppercase tracking-wider mb-1.5" style={{ color: 'var(--song-muted)' }}>
-                เทมเพลตด่วน (Quick Presets):
+                {t('modal.quickPresets')}
               </div>
               <div className="flex flex-wrap gap-1.5">
                 <button
@@ -302,7 +306,7 @@ export const TimeRangeSelector: React.FC<TimeRangeSelectorProps> = ({
             {/* Comma-Separated Input */}
             <div>
               <label className="block text-[11px] font-bold uppercase tracking-wider mb-1" style={{ color: 'var(--song-muted)' }}>
-                ใส่ตัวเลขคั่นด้วย comma:
+                {t('modal.commaLabel')}
               </label>
               <input
                 type="text"
@@ -318,7 +322,7 @@ export const TimeRangeSelector: React.FC<TimeRangeSelectorProps> = ({
                   }
                   setValidationError(null);
                 }}
-                placeholder="เช่น 0.5, 1.5, 3, 6, 10"
+                placeholder={t('modal.commaPlaceholder')}
                 className="w-full px-3 py-2 rounded-xl border text-base sm:text-sm font-mono focus:outline-none focus:border-[var(--song-accent)]"
                 style={{
                   backgroundColor: 'var(--song-surface-soft)',
@@ -331,7 +335,7 @@ export const TimeRangeSelector: React.FC<TimeRangeSelectorProps> = ({
             {/* Stage Sliders List */}
             <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
               <div className="flex items-center justify-between text-[11px] font-bold uppercase tracking-wider" style={{ color: 'var(--song-muted)' }}>
-                <span>ปรับค่าแต่ละขั้น ({customDraft.length} ขั้น):</span>
+                <span>{t('modal.adjustStages', { count: customDraft.length })}</span>
                 {customDraft.length < 8 && (
                   <button
                     type="button"
@@ -339,7 +343,7 @@ export const TimeRangeSelector: React.FC<TimeRangeSelectorProps> = ({
                     className="flex items-center gap-1 text-[11px] font-bold hover:underline"
                     style={{ color: 'var(--song-accent-text)' }}
                   >
-                    <Plus className="w-3.5 h-3.5" /> เพิ่มสเตจ
+                    <Plus className="w-3.5 h-3.5" /> {t('modal.addStage')}
                   </button>
                 )}
               </div>
@@ -354,7 +358,7 @@ export const TimeRangeSelector: React.FC<TimeRangeSelectorProps> = ({
                   }}
                 >
                   <span className="text-xs font-bold w-12 shrink-0" style={{ color: 'var(--song-muted)' }}>
-                    ขั้นที่ {idx + 1}
+                    {t('stage', { n: idx + 1 })}
                   </span>
                   <input
                     type="range"
@@ -376,7 +380,8 @@ export const TimeRangeSelector: React.FC<TimeRangeSelectorProps> = ({
                       type="button"
                       onClick={() => handleRemoveStage(idx)}
                       className="p-1 text-red-400 hover:text-red-300 transition-colors"
-                      title="ลบขั้นนี้"
+                      title={t('modal.removeStage')}
+                      aria-label={t('modal.removeStage')}
                     >
                       <Trash2 className="w-3.5 h-3.5" />
                     </button>
@@ -388,7 +393,7 @@ export const TimeRangeSelector: React.FC<TimeRangeSelectorProps> = ({
             {/* Live Progress Preview */}
             <div className="p-3 rounded-xl border space-y-1.5" style={{ backgroundColor: 'var(--song-surface-soft)', borderColor: 'var(--song-border)' }}>
               <div className="text-[10px] font-bold uppercase tracking-wider" style={{ color: 'var(--song-muted)' }}>
-                ตัวอย่างแถบเวลาที่จะแสดงในเกม:
+                {t('modal.preview')}
               </div>
               <div className="grid gap-1.5" style={{ gridTemplateColumns: `repeat(${customDraft.length}, minmax(0, 1fr))` }}>
                 {customDraft.map((sec, idx) => (
@@ -426,7 +431,7 @@ export const TimeRangeSelector: React.FC<TimeRangeSelectorProps> = ({
                   color: 'var(--song-muted)',
                 }}
               >
-                ยกเลิก (Cancel)
+                {t('modal.cancel')}
               </button>
               <button
                 type="button"
@@ -438,7 +443,7 @@ export const TimeRangeSelector: React.FC<TimeRangeSelectorProps> = ({
                 }}
               >
                 <Check className="w-3.5 h-3.5" />
-                บันทึกและเริ่มเล่น (Save & Apply)
+                {t('modal.apply')}
               </button>
             </div>
           </div>

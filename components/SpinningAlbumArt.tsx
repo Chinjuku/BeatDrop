@@ -18,6 +18,7 @@ import {
   Song,
 } from '../types';
 import { AudioPlaybackState } from '../hooks/useAudioController';
+import { useTranslations } from 'next-intl';
 import { useAudioProgress } from '../context/GameContext';
 import { copyToClipboard, shareOrCopy } from '../lib/shareUtils';
 
@@ -65,6 +66,8 @@ export const SpinningAlbumArt: React.FC<SpinningAlbumArtProps> = ({
   onNextSong,
   onOpenTicket,
 }) => {
+  const t = useTranslations('Reveal');
+  const tc = useTranslations('Common');
   const audioProgress = useAudioProgress();
   const currentTime = audioProgress ? audioProgress.currentTime : propCurrentTime;
   const totalDuration = audioProgress ? audioProgress.totalDuration : propTotalDuration;
@@ -95,18 +98,18 @@ export const SpinningAlbumArt: React.FC<SpinningAlbumArtProps> = ({
   const handleCopyShare = async () => {
     const grid = emojiBoxes.join('');
     const resultLine = isWon
-      ? `ทายถูกใน ${guessedAtSeconds} วินาที! (${difficulty.toUpperCase()})`
-      : `รอบนี้เกือบได้! (${difficulty.toUpperCase()})`;
+      ? t('share.wonLine', { seconds: guessedAtSeconds, difficulty: difficulty.toUpperCase() })
+      : t('share.lostLine', { difficulty: difficulty.toUpperCase() });
     const shareText = [
-      `🎧 BeatDrop • ${song.category === 'thai' ? '🇹🇭 เพลงไทย' : '🌍 เพลงสากล'}`,
+      `🎧 BeatDrop • ${song.category === 'thai' ? `🇹🇭 ${tc('category.thai')}` : `🌍 ${tc('category.international')}`}`,
       `${grid}`,
       `${resultLine} | 🔥 Streak: ${streak}`,
-      `🎵 เพลง: ${song.title} — ${song.artistName} (${song.releaseYear})`,
+      `🎵 ${t('share.songLine', { title: song.title, artist: song.artistName, year: String(song.releaseYear) })}`,
       `https://beatdrop.app #beatdrop`,
     ].join('\n');
 
     const result = await shareOrCopy({
-      title: 'BeatDrop Guess Result',
+      title: t('share.title'),
       text: shareText,
       url: typeof window !== 'undefined' ? window.location.href : undefined,
     });
@@ -139,7 +142,7 @@ export const SpinningAlbumArt: React.FC<SpinningAlbumArtProps> = ({
         {/* Vinyl Record Disc (360-deg continuous spin, pauses when audio pauses) */}
         <div
           onClick={onToggleFullPlay}
-          title={isPlaying ? 'คลิกเพื่อหยุดชั่วคราว' : 'คลิกเพื่อเล่นต่อ'}
+          title={isPlaying ? t('vinylPause') : t('vinylResume')}
           className={`reveal-vinyl relative w-44 h-44 sm:w-56 md:w-60 sm:h-56 md:h-60 rounded-full shadow-2xl cursor-pointer flex items-center justify-center border-4 border-black/80 vinyl-grooves vinyl-record-spin ${
             isPlaying ? '' : 'is-paused'
           }`}
@@ -157,7 +160,7 @@ export const SpinningAlbumArt: React.FC<SpinningAlbumArtProps> = ({
           <div className="reveal-vinyl-label relative w-28 h-28 sm:w-36 sm:h-36 rounded-full overflow-hidden border-4 border-neutral-900 shadow-inner">
             <img
               src={song.artworkUrl}
-              alt={`${song.title} album art`}
+              alt={t('albumArtAlt', { title: song.title })}
               className="w-full h-full object-cover"
             />
             {/* Vinyl Center Spindle Hole */}
@@ -180,7 +183,7 @@ export const SpinningAlbumArt: React.FC<SpinningAlbumArtProps> = ({
           }}
         >
           <Disc3 className={`w-3.5 h-3.5 ${isPlaying ? 'animate-spin' : ''}`} />
-          <span>{isPlaying ? 'กำลังเล่น 30 วิ' : 'หยุดชั่วคราว'}</span>
+          <span>{isPlaying ? t('playingFull') : t('paused')}</span>
         </div>
       </div>
 
@@ -189,7 +192,7 @@ export const SpinningAlbumArt: React.FC<SpinningAlbumArtProps> = ({
         className="text-[11px] font-mono font-extrabold uppercase tracking-[0.18em] mt-4"
         style={{ color: isWon ? 'var(--song-accent-text)' : '#ff746d' }}
       >
-        {isWon ? `ทายถูกใน ${guessedAtSeconds} วินาที!` : 'เพลงนี้คือ'}
+        {isWon ? t('guessedIn', { seconds: guessedAtSeconds }) : t('theSongWas')}
       </span>
 
       <div className="relative inline-block max-w-full px-6 mt-1.5">
@@ -205,7 +208,7 @@ export const SpinningAlbumArt: React.FC<SpinningAlbumArtProps> = ({
             right: '-58px',
           }}
         >
-          {isWon ? 'เยี่ยม!' : 'พลาด'}
+          {isWon ? t('stampWon') : t('stampLost')}
         </strong>
       </div>
 
@@ -223,7 +226,7 @@ export const SpinningAlbumArt: React.FC<SpinningAlbumArtProps> = ({
             color: 'var(--song-muted)',
           }}
         >
-          💿 อัลบั้ม: <strong style={{ color: 'var(--song-text)' }}>{song.albumName}</strong>
+          💿 {t('album')} <strong style={{ color: 'var(--song-text)' }}>{song.albumName}</strong>
         </span>
         <span
           className="px-2.5 py-1 rounded-lg border"
@@ -233,7 +236,7 @@ export const SpinningAlbumArt: React.FC<SpinningAlbumArtProps> = ({
             color: 'var(--song-muted)',
           }}
         >
-          📅 ปีที่ปล่อย: <strong style={{ color: 'var(--song-text)' }}>{song.releaseYear}</strong>
+          📅 {t('released')} <strong style={{ color: 'var(--song-text)' }}>{song.releaseYear}</strong>
         </span>
         <span
           className="px-2.5 py-1 rounded-lg border"
@@ -243,7 +246,7 @@ export const SpinningAlbumArt: React.FC<SpinningAlbumArtProps> = ({
             color: 'var(--song-muted)',
           }}
         >
-          🎸 แนวเพลง: <strong style={{ color: 'var(--song-text)' }}>{song.genre}</strong>
+          🎸 {t('genre')} <strong style={{ color: 'var(--song-text)' }}>{song.genre}</strong>
         </span>
       </div>
 
@@ -264,7 +267,7 @@ export const SpinningAlbumArt: React.FC<SpinningAlbumArtProps> = ({
               backgroundColor: 'var(--song-accent)',
               color: 'var(--song-accent-on)',
             }}
-            aria-label={isPlaying ? 'Pause 30s preview' : 'Play 30s preview'}
+            aria-label={isPlaying ? t('pausePreview') : t('playPreview')}
           >
             {isPlaying ? (
               <Pause className="w-5 h-5 fill-current" />
@@ -283,7 +286,7 @@ export const SpinningAlbumArt: React.FC<SpinningAlbumArtProps> = ({
               onChange={(e) => onSeek(Number(e.target.value))}
               className="songspot-slider"
               style={{ '--fill': `${progressPct}%` } as React.CSSProperties}
-              aria-label="Seek 30-second audio preview"
+              aria-label={t('seekPreview')}
             />
             <div
               className="flex justify-between text-[11px] font-mono font-bold mt-0.5"
@@ -292,7 +295,7 @@ export const SpinningAlbumArt: React.FC<SpinningAlbumArtProps> = ({
               <span style={{ color: 'var(--song-accent-text)' }}>
                 {formatTime(currentTime)}
               </span>
-              <span>ตัวอย่างเต็ม {formatTime(totalDuration || 30)}</span>
+              <span>{t('fullPreview', { time: formatTime(totalDuration || 30) })}</span>
             </div>
           </div>
 
@@ -302,7 +305,7 @@ export const SpinningAlbumArt: React.FC<SpinningAlbumArtProps> = ({
               type="button"
               onClick={() => onVolumeChange(volume > 0 ? 0 : 80)}
               style={{ color: 'var(--song-muted)' }}
-              aria-label="Mute/Unmute"
+              aria-label={t('toggleMute')}
             >
               {volume === 0 ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
             </button>
@@ -314,7 +317,7 @@ export const SpinningAlbumArt: React.FC<SpinningAlbumArtProps> = ({
               onChange={(e) => onVolumeChange(Number(e.target.value))}
               className="songspot-slider"
               style={{ '--fill': `${volume}%` } as React.CSSProperties}
-              aria-label="Volume"
+              aria-label={t('volume')}
             />
           </div>
         </div>
@@ -322,7 +325,7 @@ export const SpinningAlbumArt: React.FC<SpinningAlbumArtProps> = ({
 
       {/* Emoji Result Summary Grid & Share / Next Actions */}
       <div className="w-full mt-4 flex flex-col items-center">
-        <div className="flex items-center gap-2 text-lg mb-3" title="Round Attempt Summary">
+        <div className="flex items-center gap-2 text-lg mb-3" title={t('attemptSummary')}>
           <span>{emojiBoxes.join(' ')}</span>
           {song.trackViewUrl && (
             <a
@@ -350,7 +353,7 @@ export const SpinningAlbumArt: React.FC<SpinningAlbumArtProps> = ({
             }}
           >
             <Ticket className="w-4 h-4" />
-            <span>แชร์การ์ดเพลง</span>
+            <span>{t('shareCard')}</span>
           </button>
 
           <button
@@ -363,7 +366,7 @@ export const SpinningAlbumArt: React.FC<SpinningAlbumArtProps> = ({
               color: 'var(--song-accent-on)',
             }}
           >
-            <span>เพลงถัดไป</span>
+            <span>{t('nextSong')}</span>
             <SkipForward className="w-4 h-4" />
           </button>
         </div>
@@ -375,7 +378,7 @@ export const SpinningAlbumArt: React.FC<SpinningAlbumArtProps> = ({
           style={{ color: 'var(--song-muted)' }}
         >
           {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-          <span>{copied ? 'คัดลอกข้อความผลลัพธ์แล้ว!' : 'คัดลอกผลลัพธ์เป็นข้อความ'}</span>
+          <span>{copied ? t('copied') : t('copyText')}</span>
         </button>
       </div>
     </section>

@@ -1,4 +1,5 @@
 'use client';
+import { useTranslations } from 'next-intl';
 import React, { useEffect, useRef, useState } from 'react';
 import { Loader2, Search, SkipForward, Check, Flag, ChevronLeft, X } from 'lucide-react';
 import { CategoryType, GameMode, Song } from '../types';
@@ -27,6 +28,7 @@ export const GuessAutocomplete: React.FC<GuessAutocompleteProps> = ({
   disabled,
   submitting,
 }) => {
+  const t = useTranslations('Guess');
   const [query, setQuery] = useState('');
   const [suggestions, setSuggestions] = useState<Song[]>([]);
   const [loading, setLoading] = useState(false);
@@ -141,9 +143,9 @@ export const GuessAutocomplete: React.FC<GuessAutocompleteProps> = ({
           return;
         }
         if (abortController.signal.reason === 'timeout') {
-          setNetworkError('สัญญาณอินเทอร์เน็ตล่าช้า กรุณาลองใหม่อีกครั้ง');
+          setNetworkError(t('errors.timeout'));
         } else {
-          setNetworkError('ไม่สามารถค้นหาเพลงได้ กรุณาตรวจสอบการเชื่อมต่อ');
+          setNetworkError(t('errors.network'));
           console.error('Autocomplete error:', err);
         }
       } finally {
@@ -214,7 +216,7 @@ export const GuessAutocomplete: React.FC<GuessAutocompleteProps> = ({
       <Modal
         open={mobileOpen}
         onClose={() => setMobileOpen(false)}
-        title="Search songs"
+        title={t('searchTitle')}
         placement="fullscreen"
         dismissOnBackdrop={false}
         className="search-sheet-root !z-[200] !top-[var(--search-sheet-top,0px)] !bottom-auto !h-[var(--search-sheet-h,100dvh)] overscroll-contain"
@@ -226,7 +228,7 @@ export const GuessAutocomplete: React.FC<GuessAutocompleteProps> = ({
                 type="button"
                 onClick={() => setMobileOpen(false)}
                 className="p-2 shrink-0"
-                aria-label="ปิดการค้นหา"
+                aria-label={t('closeSearch')}
                 style={{ color: 'var(--song-text)' }}
               >
                 <ChevronLeft className="w-6 h-6" />
@@ -242,7 +244,7 @@ export const GuessAutocomplete: React.FC<GuessAutocompleteProps> = ({
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
                   onKeyDown={handleKeyDown}
-                  placeholder={isArtistScoped ? `เพลงของ ${artistFilter}...` : 'ชื่อเพลง หรือ ศิลปิน...'}
+                  placeholder={isArtistScoped ? t('mobilePlaceholderArtist', { artist: artistFilter ?? '' }) : t('mobilePlaceholder')}
                   className="w-full bg-transparent outline-none text-base font-semibold"
                   style={{ color: 'var(--song-text)' }}
                 />
@@ -254,7 +256,7 @@ export const GuessAutocomplete: React.FC<GuessAutocompleteProps> = ({
                       setSuggestions([]);
                     }}
                     className="p-1 rounded-full hover:bg-white/10 shrink-0 cursor-pointer"
-                    aria-label="ล้างคำค้นหา"
+                    aria-label={t('clearSearch')}
                   >
                     <X className="w-4 h-4 opacity-60 hover:opacity-100" />
                   </button>
@@ -271,7 +273,7 @@ export const GuessAutocomplete: React.FC<GuessAutocompleteProps> = ({
                 className="px-5 min-h-[46px] rounded-2xl font-extrabold text-sm shrink-0 disabled:opacity-50"
                 style={{ backgroundColor: 'var(--song-accent)', color: 'var(--song-accent-on)' }}
               >
-                {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : 'ทาย'}
+                {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : t('submit')}
               </button>
             </div>
 
@@ -324,7 +326,7 @@ export const GuessAutocomplete: React.FC<GuessAutocompleteProps> = ({
                 className="rounded-2xl border p-4 text-center text-xs sm:text-sm font-semibold"
                 style={{ backgroundColor: 'var(--song-surface)', borderColor: 'var(--song-border)', color: 'var(--song-muted)' }}
               >
-                ไม่พบเพลงที่ตรงกับ &ldquo;{query}&rdquo;
+                {t('noResults', { query })}
               </div>
             )}
           </div>
@@ -346,7 +348,7 @@ export const GuessAutocomplete: React.FC<GuessAutocompleteProps> = ({
             </div>
           ) : suggestions.length === 0 ? (
             <div className="py-3 px-4 text-center text-xs font-semibold" style={{ color: 'var(--song-muted)' }}>
-              ไม่พบเพลงที่ตรงกับ &ldquo;{query}&rdquo;
+              {t('noResults', { query })}
             </div>
           ) : (
             <>
@@ -355,8 +357,8 @@ export const GuessAutocomplete: React.FC<GuessAutocompleteProps> = ({
                   className="px-3 py-1 text-[10px] font-extrabold uppercase tracking-wider border-b mb-1 flex items-center justify-between"
                   style={{ borderColor: 'var(--song-border)', color: 'var(--song-accent-text)' }}
                 >
-                  <span>🎤 เพลงเฉพาะของ {artistFilter}</span>
-                  <span>↑↓ เลือก • Enter ตอบ</span>
+                  <span>🎤 {t('artistOnly', { artist: artistFilter ?? '' })}</span>
+                  <span>{t('keyboardHint')}</span>
                 </div>
               )}
 
@@ -402,7 +404,7 @@ export const GuessAutocomplete: React.FC<GuessAutocompleteProps> = ({
                         }}
                       >
                         <Check className="w-3 h-3" />
-                        ทายเพลงนี้
+                        {t('guessThis')}
                       </span>
                     )}
                   </button>
@@ -445,10 +447,10 @@ export const GuessAutocomplete: React.FC<GuessAutocompleteProps> = ({
             onKeyDown={handleKeyDown}
             placeholder={
               submitting
-                ? 'กำลังตรวจสอบคำตอบ...'
+                ? t('checkingAnswer')
                 : isArtistScoped
-                  ? `เลือกเพลงของ ${artistFilter}...`
-                  : 'พิมพ์ชื่อเพลง หรือ ศิลปิน เพื่อทายคำตอบ...'
+                  ? t('placeholderArtist', { artist: artistFilter ?? '' })
+                  : t('placeholder')
             }
             className="w-full bg-transparent border-0 outline-none text-base sm:text-sm font-semibold placeholder:opacity-60 disabled:opacity-50"
             style={{ color: 'var(--song-text)' }}
@@ -461,7 +463,7 @@ export const GuessAutocomplete: React.FC<GuessAutocompleteProps> = ({
                 setSuggestions([]);
               }}
               className="p-1 rounded-full hover:bg-white/10 shrink-0 cursor-pointer mr-1"
-              aria-label="ล้างคำค้นหา"
+              aria-label={t('clearSearch')}
             >
               <X className="w-3.5 h-3.5 opacity-60 hover:opacity-100" />
             </button>
@@ -495,10 +497,10 @@ export const GuessAutocomplete: React.FC<GuessAutocompleteProps> = ({
             )}
             <span>
               {submitting
-                ? 'กำลังตรวจ...'
+                ? t('checking')
                 : nextStageSeconds !== null
-                  ? `ข้าม (+${nextStageSeconds}s)`
-                  : 'ยอมแพ้ / เฉลย'}
+                  ? t('skip', { seconds: nextStageSeconds })
+                  : t('giveUpReveal')}
             </span>
           </button>
 
@@ -518,10 +520,10 @@ export const GuessAutocomplete: React.FC<GuessAutocompleteProps> = ({
                       color: '#f87171',
                     }
               }
-              title="ยอมแพ้และเฉลยเพลงทันที (streak จะถูกรีเซ็ต)"
+              title={t('giveUpTitle')}
             >
               <Flag className={`w-3.5 h-3.5 ${confirmGiveUp ? 'text-white' : 'text-red-400'}`} aria-hidden="true" />
-              <span aria-live="polite">{confirmGiveUp ? 'แตะอีกครั้งเพื่อยืนยัน' : 'ยอมแพ้'}</span>
+              <span aria-live="polite">{confirmGiveUp ? t('confirmGiveUp') : t('giveUp')}</span>
             </button>
           )}
         </div>

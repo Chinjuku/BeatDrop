@@ -1,0 +1,42 @@
+{
+  "modalTitle": "ตารางอันดับ",
+  "title": {
+    "daily": "อันดับ Daily Challenge",
+    "standard": "ตารางอันดับ Songspot"
+  },
+  "subtitle": "ผู้เล่นสายทายเพลงที่แม่นและไวที่สุด",
+  "close": "ปิดตารางอันดับ",
+  "filter": {
+    "all": "ทั้งหมด"
+  },
+  "category": {
+    "thai": "ไทย",
+    "international": "สากล",
+    "mix": "รวม Mix",
+    "thaiSongs": "เพลงไทย",
+    "internationalSongs": "เพลงสากล"
+  },
+  "refresh": "รีเฟรชอันดับ",
+  "alreadySubmitted": "คุณได้ส่งคะแนนของรอบนี้แล้ว ({points} pts)",
+  "level": "ระดับ:",
+  "levelValue": "ระดับ: {level}",
+  "levelHint": "คะแนนของคุณจะถูกบันทึกในระดับ {level} เท่านั้น",
+  "namePlaceholder": "ชื่อที่จะแสดงในอันดับ",
+  "nameLabel": "ชื่อที่จะแสดงในตารางอันดับ",
+  "submitLocked": {
+    "daily": "เล่นให้ครบ {total} เพลงก่อนจึงจะส่งคะแนนได้ (ตอนนี้ {played}/{total})",
+    "standard": "ทายถูกอย่างน้อย 1 เพลงก่อนจึงจะส่งคะแนนได้"
+  },
+  "submit": {
+    "button": "ส่งคะแนน ({points} pts)",
+    "success": "บันทึกคะแนนขึ้นตารางอันดับสำเร็จ!",
+    "error": "เกิดข้อผิดพลาดในการส่งคะแนน",
+    "networkError": "เกิดข้อผิดพลาดในการเชื่อมต่อเซิร์ฟเวอร์"
+  },
+  "loading": "กำลังโหลดอันดับคะแนน...",
+  "empty": "ยังไม่มีข้อมูลอันดับในหมวดนี้ มาร่วมประเดิมส่งคะแนนคนแรกกันเลย!",
+  "dailyStats": "ถูก {correct} · ข้าม {skipped} · เวลา {seconds} วิ",
+  "streak": "Streak: {streak}",
+  "fastest": "ไวสุด: {seconds}s",
+  "pts": "pts"
+}

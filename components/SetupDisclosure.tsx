@@ -1,5 +1,6 @@
 'use client';
 import React, { useId, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { ChevronDown, SlidersHorizontal } from 'lucide-react';
 import { DIFFICULTY_PRESETS, DifficultyLevel, TimeRangePresetId } from '../types';
 
@@ -36,6 +37,7 @@ interface SetupDisclosureProps {
  * setup is always shown, exactly as before.
  */
 export const SetupDisclosure: React.FC<SetupDisclosureProps> = ({ summary, children, className }) => {
+  const t = useTranslations('Setup');
   const [open, setOpen] = useState(false);
   const bodyId = useId();
 
@@ -49,7 +51,7 @@ export const SetupDisclosure: React.FC<SetupDisclosureProps> = ({ summary, child
         onClick={() => setOpen((value) => !value)}
       >
         <SlidersHorizontal className="w-4 h-4 shrink-0" style={{ color: 'var(--song-accent-text)' }} aria-hidden="true" />
-        <span className="font-bold shrink-0">ตั้งค่ารอบ</span>
+        <span className="font-bold shrink-0">{t('roundSetup')}</span>
         <span className="setup-disclosure-summary">{summary}</span>
         <ChevronDown className="setup-disclosure-chevron w-4 h-4 shrink-0" aria-hidden="true" />
       </button>

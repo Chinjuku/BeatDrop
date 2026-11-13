@@ -1,0 +1,34 @@
+{
+  "tagline": "5 SONGS • HEAR LESS. KNOW MORE.",
+  "score": "Score:",
+  "points": "{points} pts",
+  "round": "Round",
+  "rankingsTitle": "Open the daily rankings",
+  "rankings": "Rankings",
+  "categoryToggleTitle": "Switch mode: Thai / International / Thai & International",
+  "progress": "Progress ({total} songs)",
+  "clipRangeShort": "{min} → {max} seconds",
+  "clipRangeFixed": "Clip range {min} → {max} seconds · same for everyone",
+  "finished": {
+    "kicker": "DAILY CHALLENGE COMPLETED",
+    "heading": "All {total} songs done!",
+    "subheading": "Your total score for today",
+    "breakdown": "{correct} correct · {wrong} wrong · {skipped} skipped · {expired} expired · {seconds}s answer time",
+    "copied": "Result copied to clipboard!",
+    "share": "Share scorecard",
+    "viewRankings": "View rankings",
+    "practice": "Play practice mode"
+  },
+  "retry": "Retry",
+  "retrying": "Retrying…",
+  "loading": "Loading today's {total} songs...",
+  "feedback": {
+    "correct": "Correct! +{points} pts",
+    "speedBonus": "(speed bonus +{bonus})",
+    "wrong": "Wrong · 0 pts",
+    "skipped": "Gave up / skipped · 0 pts",
+    "expired": "Round over · 0 pts",
+    "wrongKeepListening": "Wrong answer · 0 pts. Keep listening."
+  },
+  "historyHeading": "Guesses this round ({used}/{total})"
+}

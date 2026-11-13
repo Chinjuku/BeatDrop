@@ -1,0 +1,9 @@
+{
+  "offline": "You're offline: the app still opens, but new songs, artist sync and audio previews need a connection.",
+  "updateAvailable": "A new version of BeatDrop is ready",
+  "refreshToUpdate": "Refresh to update",
+  "addToHomeScreen": "Add BeatDrop to your Home Screen",
+  "install": "Install BeatDrop",
+  "dismissInstall": "Hide install tip",
+  "iosHelp": "In Safari, tap the Share button, then choose “Add to Home Screen”."
+}

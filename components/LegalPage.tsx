@@ -1,5 +1,6 @@
+import { Link } from '../i18n/navigation';
 import React from 'react';
-import Link from 'next/link';
+import { getLocale, getTranslations } from 'next-intl/server';
 
 type LegalPageProps = {
   title: string;
@@ -9,10 +10,11 @@ type LegalPageProps = {
 };
 
 /** Shared, readable shell for legal/policy documents. Server-rendered for SEO. */
-export function LegalPage({ title, subtitle, updated, children }: LegalPageProps) {
+export async function LegalPage({ title, subtitle, updated, children }: LegalPageProps) {
+  const [t, locale] = await Promise.all([getTranslations('Legal'), getLocale()]);
   return (
     <article className="w-full max-w-3xl mx-auto text-left">
-      <nav aria-label="Breadcrumb" className="mb-4 text-[11px] font-bold" style={{ color: 'var(--song-muted)' }}>
+      <nav aria-label={t('breadcrumb')} className="mb-4 text-[11px] font-bold" style={{ color: 'var(--song-muted)' }}>
         <ol className="flex items-center gap-1.5">
           <li>
             <Link href="/play" className="hover:underline underline-offset-2">
@@ -36,9 +38,9 @@ export function LegalPage({ title, subtitle, updated, children }: LegalPageProps
           </p>
         )}
         <p className="mt-3 text-[11px] font-bold uppercase tracking-wider" style={{ color: 'var(--song-muted)' }}>
-          ปรับปรุงล่าสุด (Last updated):{' '}
+          {t('lastUpdated')}:{' '}
           <time dateTime={updated}>
-            {new Date(`${updated}T00:00:00Z`).toLocaleDateString('th-TH', {
+            {new Date(`${updated}T00:00:00Z`).toLocaleDateString(locale === 'en' ? 'en-US' : 'th-TH', {
               year: 'numeric',
               month: 'long',
               day: 'numeric',

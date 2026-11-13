@@ -1,0 +1,25 @@
+{
+  "errors": {
+    "timeout": "The connection is slow. Please try again.",
+    "network": "Could not search songs. Check your connection."
+  },
+  "searchTitle": "Search songs",
+  "closeSearch": "Close search",
+  "clearSearch": "Clear search",
+  "mobilePlaceholder": "Song or artist...",
+  "mobilePlaceholderArtist": "Songs by {artist}...",
+  "placeholder": "Type a song or artist to guess...",
+  "placeholderArtist": "Pick a song by {artist}...",
+  "checkingAnswer": "Checking your answer...",
+  "submit": "Guess",
+  "noResults": "No songs match “{query}”",
+  "artistOnly": "Only songs by {artist}",
+  "keyboardHint": "↑↓ select • Enter to answer",
+  "guessThis": "Guess this",
+  "checking": "Checking...",
+  "skip": "Skip (+{seconds}s)",
+  "giveUpReveal": "Give up / reveal",
+  "giveUpTitle": "Give up and reveal the song now (resets your streak)",
+  "confirmGiveUp": "Tap again to confirm",
+  "giveUp": "Give up"
+}

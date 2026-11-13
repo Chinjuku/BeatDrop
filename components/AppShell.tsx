@@ -1,8 +1,8 @@
 'use client';
+import { Link, usePathname, useRouter } from '../i18n/navigation';
 
 import React, { useEffect, useState } from 'react';
-import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import { Navbar } from './Navbar';
 import { AddArtistModal } from './AddArtistModal';
 import { LeaderboardModal } from './LeaderboardModal';
@@ -16,6 +16,7 @@ import { invalidateArtists, invalidateSongs } from '../lib/queryClient';
 import type { GameConfig, GameMode } from '../types';
 
 export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const t = useTranslations('Shell');
   const router = useRouter();
   const pathname = usePathname() || '/play';
   const navigate = (path: string) => router.push(path);
@@ -157,18 +158,18 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
             </span>
           </div>
           <nav
-            aria-label="ลิงก์นโยบายและข้อมูลเว็บไซต์"
+            aria-label={t('footerNav')}
             className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1.5 text-[11px]"
           >
-            <span className="opacity-60">🇹🇭 Thai &amp; International Music Challenge</span>
+            <span className="opacity-60">🇹🇭 {t('footerTagline')}</span>
             <span aria-hidden="true" className="opacity-25">
               •
             </span>
             <Link href="/privacy" className="opacity-75 underline-offset-2 transition hover:underline hover:opacity-100">
-              ความเป็นส่วนตัว
+              {t('privacyLink')}
             </Link>
             <Link href="/cookies" className="opacity-75 underline-offset-2 transition hover:underline hover:opacity-100">
-              คุกกี้
+              {t('cookiesLink')}
             </Link>
             <CookiePreferencesButton variant="link" className="opacity-75 hover:opacity-100" />
           </nav>

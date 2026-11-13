@@ -1,6 +1,6 @@
 import React from 'react';
+import { getTranslations } from 'next-intl/server';
 import {
-  SITE_DESCRIPTION,
   SITE_NAME,
   SITE_TAGLINE,
   absoluteUrl,
@@ -10,7 +10,14 @@ import {
  * JSON-LD for rich results. Server-rendered so crawlers see it without executing JS.
  * Kept to schema types Google actually supports for a free web game.
  */
-export function StructuredData() {
+export async function StructuredData() {
+  const [tMeta, t] = await Promise.all([getTranslations('Metadata'), getTranslations('Shell')]);
+  const siteDescription = tMeta('siteDescription');
+  const faq = (['howToPlay', 'daily', 'cost', 'thaiSongs'] as const).map((key) => ({
+    '@type': 'Question',
+    name: t(`faq.${key}.q`),
+    acceptedAnswer: { '@type': 'Answer', text: t(`faq.${key}.a`) },
+  }));
   const graph = [
     {
       '@type': 'WebSite',
@@ -18,7 +25,7 @@ export function StructuredData() {
       url: absoluteUrl('/'),
       name: SITE_NAME,
       alternateName: `${SITE_NAME} — ${SITE_TAGLINE}`,
-      description: SITE_DESCRIPTION,
+      description: siteDescription,
       inLanguage: ['th-TH', 'en-US'],
       publisher: { '@id': absoluteUrl('/#organization') },
     },
@@ -34,7 +41,7 @@ export function StructuredData() {
       '@id': absoluteUrl('/#game'),
       name: SITE_NAME,
       url: absoluteUrl('/play'),
-      description: SITE_DESCRIPTION,
+      description: siteDescription,
       inLanguage: ['th-TH', 'en-US'],
       applicationCategory: 'GameApplication',
       genre: ['Music', 'Quiz', 'Trivia'],
@@ -54,45 +61,7 @@ export function StructuredData() {
     {
       '@type': 'FAQPage',
       '@id': absoluteUrl('/#faq'),
-      mainEntity: [
-        {
-          '@type': 'Question',
-          name: 'BeatDrop เล่นอย่างไร?',
-          acceptedAnswer: {
-            '@type': 'Answer',
-            text:
-              'กดเล่นเพื่อฟังสนิปเพ็ตสั้น ๆ ของเพลง แล้วพิมพ์ชื่อเพลงที่คิดว่าใช่ ' +
-              'ถ้ายังไม่แน่ใจสามารถขอฟังยาวขึ้นได้ แต่ยิ่งฟังสั้นยิ่งได้คะแนนมาก',
-          },
-        },
-        {
-          '@type': 'Question',
-          name: 'Daily Challenge คืออะไร?',
-          acceptedAnswer: {
-            '@type': 'Answer',
-            text:
-              'โจทย์ชุดเดียวกันสำหรับผู้เล่นทุกคนในแต่ละวัน รีเซ็ตตามเวลาไทย (UTC+7) ' +
-              'คะแนนถูกตรวจสอบที่ฝั่งเซิร์ฟเวอร์และขึ้นลีดเดอร์บอร์ดรายวัน',
-          },
-        },
-        {
-          '@type': 'Question',
-          name: 'ต้องสมัครสมาชิกหรือเสียเงินไหม?',
-          acceptedAnswer: {
-            '@type': 'Answer',
-            text: 'ไม่ต้อง BeatDrop เล่นฟรีบนเบราว์เซอร์ และไม่ต้องสร้างบัญชีผู้ใช้',
-          },
-        },
-        {
-          '@type': 'Question',
-          name: 'มีเพลงไทยด้วยหรือไม่?',
-          acceptedAnswer: {
-            '@type': 'Answer',
-            text:
-              'มี BeatDrop มีทั้งเพลงไทยและเพลงสากล เลือกได้ตามหมวดหมู่ ศิลปิน แนวเพลง หรือปีที่ออก',
-          },
-        },
-      ],
+      mainEntity: faq,
     },
   ];
 
@@ -101,7 +70,7 @@ export function StructuredData() {
       type="application/ld+json"
       // Static, developer-authored content — no user input is interpolated.
       dangerouslySetInnerHTML={{
-        __html: JSON.stringify({ '@context': 'https://schema.org', '@graph': graph }),
+        __html: JSON.stringify({ '@context': 'https://schema.org', '@graph': graph }).replace(/</g, '\\u003c'),
       }}
     />
   );

@@ -1,0 +1,29 @@
+{
+  "skipToContent": "Skip to main content",
+  "noscriptTitle": "BeatDrop needs JavaScript",
+  "noscriptBody": "This music guessing game uses the Web Audio API to play clips and run the game in real time. Please enable JavaScript in your browser settings to play.",
+  "noscriptHint": "ต้องเปิด JavaScript เพื่อเล่นเกม",
+  "loading": "Loading...",
+  "footerNav": "Policies and site information",
+  "footerTagline": "Thai & International Music Challenge",
+  "privacyLink": "Privacy",
+  "cookiesLink": "Cookies",
+  "faq": {
+    "howToPlay": {
+      "q": "How do you play BeatDrop?",
+      "a": "Press play to hear a short snippet of a song, then type the title you think it is. Not sure yet? Unlock a longer clip, but the less you hear, the more you score."
+    },
+    "daily": {
+      "q": "What is the Daily Challenge?",
+      "a": "The same set of songs for every player each day, resetting on Thailand time (UTC+7). Scores are verified on the server and ranked on a daily leaderboard."
+    },
+    "cost": {
+      "q": "Do I need an account or to pay?",
+      "a": "No. BeatDrop is free to play in your browser, with no account required."
+    },
+    "thaiSongs": {
+      "q": "Are there Thai songs?",
+      "a": "Yes. BeatDrop has both Thai and international songs, and you can play by category, artist, genre or release year."
+    }
+  }
+}

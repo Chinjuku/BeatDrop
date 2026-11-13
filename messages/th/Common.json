@@ -1,0 +1,57 @@
+{
+  "close": "ปิด",
+  "difficulty": {
+    "easy": {
+      "description": "คลิปเสียงยาวขึ้น (3s, 5s, 10s, 15s) • เพลงฮิตติดชาร์ต"
+    },
+    "medium": {
+      "description": "ลำดับคลิปมาตรฐาน (0.5s, 2s, 6s, 8s, 15s) • คลังเพลงผสม"
+    },
+    "hard": {
+      "description": "คลิปสั้น (0.5s, 1.5s, 3s, 6s, 10s) • เพลงที่ลึกขึ้น"
+    },
+    "expert": {
+      "description": "คลิปเร็ว (0.2s, 0.5s, 1.5s, 3s, 6s) • เพลงท้าทาย"
+    },
+    "impossible": {
+      "description": "คลิปแรกสั้นสุด 0.1s (0.1s, 0.3s, 0.8s, 2s, 4s) • สำหรับแฟนตัวจริง"
+    }
+  },
+  "timeRange": {
+    "relaxed": {
+      "tooltip": "Relaxed: ปลดล็อกช้า ฟังสบาย (3s → 5s → 10s → 15s)"
+    },
+    "standard": {
+      "tooltip": "Standard: มาตรฐานทั่วไป (0.5s → 2s → 6s → 8s → 15s)"
+    },
+    "songspot": {
+      "tooltip": "Songspot: ลำดับต้นฉบับ (0.1s → 0.5s → 2s → 8s → 15s)"
+    },
+    "custom": {
+      "tooltip": "Custom: กำหนดช่วงคลิปเอง (สูงสุด 15 วินาที)",
+      "sub": "กำหนดเอง"
+    }
+  },
+  "category": {
+    "thai": "เพลงไทย",
+    "international": "เพลงสากล",
+    "mixed": "รวมไทย & สากล"
+  },
+  "any": {
+    "genre": "ทุกแนว",
+    "era": "ทุกยุค",
+    "artist": "ทุกศิลปิน",
+    "genreLong": "ทุกแนวเพลง",
+    "eraLong": "ทุกยุคสมัย",
+    "artistLong": "ทุกศิลปินในคลัง"
+  },
+  "eraClassic": "Classic",
+  "stats": {
+    "streak": "Streak",
+    "best": "Best",
+    "fastest": "Fastest",
+    "streakTitle": "ชนะติดต่อกันรอบปัจจุบัน",
+    "bestTitle": "สถิติชนะติดต่อกันสูงสุด",
+    "fastestTitle": "เวลาทายถูกเร็วที่สุด"
+  }
+}

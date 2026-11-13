@@ -1,0 +1,57 @@
+{
+  "close": "Close",
+  "difficulty": {
+    "easy": {
+      "description": "Longer snippets (3s, 5s, 10s, 15s) • Popular chart hits"
+    },
+    "medium": {
+      "description": "Standard snippet progression (0.5s, 2s, 6s, 8s, 15s) • Mixed catalog"
+    },
+    "hard": {
+      "description": "Short clips (0.5s, 1.5s, 3s, 6s, 10s) • Deeper cuts"
+    },
+    "expert": {
+      "description": "Rapid clips (0.2s, 0.5s, 1.5s, 3s, 6s) • Challenging tracks"
+    },
+    "impossible": {
+      "description": "Ultra-short 0.1s opening clip (0.1s, 0.3s, 0.8s, 2s, 4s) • True fans only"
+    }
+  },
+  "timeRange": {
+    "relaxed": {
+      "tooltip": "Relaxed: slow unlocks, easy listening (3s → 5s → 10s → 15s)"
+    },
+    "standard": {
+      "tooltip": "Standard: the default progression (0.5s → 2s → 6s → 8s → 15s)"
+    },
+    "songspot": {
+      "tooltip": "Songspot: the original progression (0.1s → 0.5s → 2s → 8s → 15s)"
+    },
+    "custom": {
+      "tooltip": "Custom: set your own clip stages (up to 15 seconds)",
+      "sub": "set your own"
+    }
+  },
+  "category": {
+    "thai": "Thai songs",
+    "international": "International songs",
+    "mixed": "Thai & International"
+  },
+  "any": {
+    "genre": "Any genre",
+    "era": "Any era",
+    "artist": "Any artist",
+    "genreLong": "All genres",
+    "eraLong": "All eras",
+    "artistLong": "All artists in the library"
+  },
+  "eraClassic": "Classic",
+  "stats": {
+    "streak": "Streak",
+    "best": "Best",
+    "fastest": "Fastest",
+    "streakTitle": "Current win streak",
+    "bestTitle": "Best win streak",
+    "fastestTitle": "Fastest correct guess"
+  }
+}

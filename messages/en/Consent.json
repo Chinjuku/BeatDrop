@@ -1,0 +1,35 @@
+{
+  "preferencesButton": "Cookie settings",
+  "dialogTitle": "Cookie settings",
+  "introHeading": "Cookies and storage",
+  "customizeHeading": "Your cookie settings",
+  "introSubheading": "Choose before you play. You can change this any time from the bottom of the page.",
+  "customizeSubheading": "Turn each category on or off.",
+  "close": "Close",
+  "introNecessary": "BeatDrop always uses <strong>necessary</strong> storage to run the game and keep rounds secure.",
+  "introOptional": "The <strong>optional</strong> parts remember your settings (theme, snippet length, streak) and collect anonymous usage stats. We only use them if you allow it.",
+  "alwaysOn": "Always on",
+  "readMore": "Read more in the <cookies>Cookie Policy</cookies> and <privacy>Privacy Policy</privacy>.",
+  "preferencesOffNote": "If you turn off “Preferences”, data saved on this device, such as your theme, streak and player name, is deleted as soon as you save.",
+  "customize": "Customize",
+  "necessaryOnly": "Necessary only",
+  "acceptAll": "Accept all",
+  "back": "Back",
+  "cancel": "Cancel",
+  "rejectAll": "Reject all",
+  "save": "Save settings",
+  "categories": {
+    "necessary": {
+      "title": "Strictly necessary",
+      "description": "Keeps game rounds secure (round token), rate-limits API calls and stores this consent choice. It can't be turned off because the game would stop working."
+    },
+    "preferences": {
+      "title": "Preferences",
+      "description": "Remembers your theme, snippet length, chosen mode, streak and best time on this device. If off, your settings reset every time you open the game."
+    },
+    "analytics": {
+      "title": "Analytics",
+      "description": "Helps us see which modes are played most and which pages have problems, using aggregated, anonymous data. Off by default."
+    }
+  }
+}

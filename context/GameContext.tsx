@@ -30,6 +30,7 @@ import { useTheme } from './ThemeContext';
 import { useAudioController, prefetchAudio, AudioPlaybackState } from '../hooks/useAudioController';
 import { getCachedArtists, setCachedArtists, getCachedHistory, setCachedHistory } from '../lib/clientDb';
 import { useQuery } from '@tanstack/react-query';
+import { useTranslations } from 'next-intl';
 import {
   queryClient,
   QUERY_KEYS,
@@ -198,6 +199,11 @@ export const useGame = (): GameContextType => {
 };
 
 export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
+  // Messages are only read inside callbacks for display state; a ref keeps the
+  // callbacks' dependency lists unchanged.
+  const t = useTranslations('Game');
+  const tRef = useRef(t);
+  tRef.current = t;
   const { setActiveDifficulty } = useTheme();
 
   const [config, setConfig] = useState<GameConfig>({
@@ -447,7 +453,7 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         });
         const json = await res.json();
         if (json.code !== 0 || !json.data) {
-          throw new Error(json.message || 'ไม่สามารถดึงเพลงจากเซิร์ฟเวอร์ได้');
+          throw new Error(json.message || tRef.current('errors.syncFailed'));
         }
 
         const syncedArtist: Artist = json.data.artist || json.data;
@@ -704,9 +710,9 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       } catch (err: unknown) {
         if ((err as Error)?.name === 'AbortError' && !dailyRequestTimedOut) return;
         if (activeCfg.mode === 'daily') {
-          setDailyLoadError('Daily Challenge could not be loaded. Check your connection and retry.');
+          setDailyLoadError(tRef.current('errors.dailyLoad'));
         } else if (activeCfg.mode === 'guesser') {
-          setRoundLoadError('Could not load the next song. Check your connection and retry.');
+          setRoundLoadError(tRef.current('errors.roundLoad'));
         }
         if (err instanceof DailyChallengeLoadError) {
           failedRequest.status = err.status;
@@ -912,7 +918,7 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       if (!res.ok || json?.code !== 0 || !json.data) {
         const serverMessage = typeof json?.message === 'string' ? ` ${json.message}` : '';
         if (config.mode === 'guesser') {
-          setGuesserFeedback(`Could not check that answer. Please try again.${serverMessage}`);
+          setGuesserFeedback(`${tRef.current('feedback.guessRejected')}${serverMessage}`);
         }
         console.warn('[Game] Guess request was rejected', {
           mode: config.mode,
@@ -1035,7 +1041,7 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     } catch (err) {
       console.error('[Game] Error submitting guess:', err);
       if (config.mode === 'guesser') {
-        setGuesserFeedback('Could not check that answer. Check your connection and try again.');
+        setGuesserFeedback(tRef.current('feedback.guessNetwork'));
       }
     } finally {
       roundActionLockRef.current = false;
@@ -1063,7 +1069,7 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       if (!res.ok || json?.code !== 0 || !json?.data) {
         if (config.mode === 'guesser') {
           const detail = typeof json?.message === 'string' ? ` ${json.message}` : '';
-          setGuesserFeedback(`Skip could not be recorded. Please retry.${detail}`);
+          setGuesserFeedback(`${tRef.current('feedback.skipRejected')}${detail}`);
         }
         console.warn('[Game] Skip request was rejected', { mode: config.mode, status: res.status, code: json?.code });
         return;
@@ -1091,7 +1097,7 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           recordPlayedTrack(data.reveal.id);
           if (config.mode === 'guesser' && resultStatus === 'skipped') {
             setGuesserSkipCount((count) => count + 1);
-            setGuesserFeedback('ข้ามแล้ว · ไม่ได้คะแนน');
+            setGuesserFeedback(tRef.current('feedback.skipped'));
           }
           if (resultStatus !== 'correct') {
             setStreak(0);
@@ -1105,7 +1111,7 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             ...prev,
             {
               trackId: 'skipped',
-              title: 'ข้าม',
+              title: '', // display label comes from the 'skipped' trackId (Game.history.skipped)
               artistName: '—',
               stageIndex: currentStage,
               clipSeconds: activeClipSeconds,
@@ -1133,7 +1139,7 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                     ...history,
                     {
                       trackId: 'skipped',
-                      title: 'ข้าม',
+                      title: '', // display label comes from the 'skipped' trackId (Game.history.skipped)
                       artistName: '—',
                       stageIndex: currentStage,
                       clipSeconds: activeClipSeconds,
@@ -1221,7 +1227,7 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           setRound(json.data as RoundStartResponse);
           setDailyFeedback(null);
         } catch (err) {
-          setDailyLoadError('Daily Challenge could not be loaded. Check your connection and retry.');
+          setDailyLoadError(tRef.current('errors.dailyLoad'));
           console.warn('[Daily] Could not start the next round', {
             errorType: err instanceof Error ? err.name : 'unknown',
           });

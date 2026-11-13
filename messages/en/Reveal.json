@@ -1,0 +1,31 @@
+{
+  "share": {
+    "wonLine": "Got it in {seconds} seconds! ({difficulty})",
+    "lostLine": "So close this round! ({difficulty})",
+    "songLine": "Song: {title} — {artist} ({year})",
+    "title": "BeatDrop guess result"
+  },
+  "vinylPause": "Click to pause",
+  "vinylResume": "Click to resume",
+  "albumArtAlt": "{title} album art",
+  "playingFull": "Playing 30s",
+  "paused": "Paused",
+  "guessedIn": "Got it in {seconds} seconds!",
+  "theSongWas": "The song was",
+  "stampWon": "Nice!",
+  "stampLost": "Missed",
+  "album": "Album:",
+  "released": "Released:",
+  "genre": "Genre:",
+  "pausePreview": "Pause 30s preview",
+  "playPreview": "Play 30s preview",
+  "seekPreview": "Seek 30-second audio preview",
+  "fullPreview": "Full preview {time}",
+  "toggleMute": "Mute/unmute",
+  "volume": "Volume",
+  "attemptSummary": "Round attempt summary",
+  "shareCard": "Share song card",
+  "nextSong": "Next song",
+  "copied": "Result text copied!",
+  "copyText": "Copy result as text"
+}

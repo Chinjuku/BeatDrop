@@ -1,0 +1,25 @@
+{
+  "errors": {
+    "timeout": "สัญญาณอินเทอร์เน็ตล่าช้า กรุณาลองใหม่อีกครั้ง",
+    "network": "ไม่สามารถค้นหาเพลงได้ กรุณาตรวจสอบการเชื่อมต่อ"
+  },
+  "searchTitle": "ค้นหาเพลง",
+  "closeSearch": "ปิดการค้นหา",
+  "clearSearch": "ล้างคำค้นหา",
+  "mobilePlaceholder": "ชื่อเพลง หรือ ศิลปิน...",
+  "mobilePlaceholderArtist": "เพลงของ {artist}...",
+  "placeholder": "พิมพ์ชื่อเพลง หรือ ศิลปิน เพื่อทายคำตอบ...",
+  "placeholderArtist": "เลือกเพลงของ {artist}...",
+  "checkingAnswer": "กำลังตรวจสอบคำตอบ...",
+  "submit": "ทาย",
+  "noResults": "ไม่พบเพลงที่ตรงกับ “{query}”",
+  "artistOnly": "เพลงเฉพาะของ {artist}",
+  "keyboardHint": "↑↓ เลือก • Enter ตอบ",
+  "guessThis": "ทายเพลงนี้",
+  "checking": "กำลังตรวจ...",
+  "skip": "ข้าม (+{seconds}s)",
+  "giveUpReveal": "ยอมแพ้ / เฉลย",
+  "giveUpTitle": "ยอมแพ้และเฉลยเพลงทันที (streak จะถูกรีเซ็ต)",
+  "confirmGiveUp": "แตะอีกครั้งเพื่อยืนยัน",
+  "giveUp": "ยอมแพ้"
+}

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { X } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import { getPreference, setPreference } from '../lib/preferenceStorage';
 
 const STORAGE_INSTALL_DISMISSED = 'songspot:install-dismissed';
@@ -38,6 +39,7 @@ interface PwaManagerProps {
 }
 
 export function PwaManager({ canOfferInstall = false }: PwaManagerProps) {
+  const t = useTranslations('Pwa');
   const [online, setOnline] = useState(true);
   const [installPrompt, setInstallPrompt] = useState<InstallPromptEvent | null>(null);
   const [updateWaiting, setUpdateWaiting] = useState(false);
@@ -159,14 +161,12 @@ export function PwaManager({ canOfferInstall = false }: PwaManagerProps) {
       {(!online || updateWaiting) && (
         <div className="pwa-status" role="status" aria-live="polite">
           {!online && (
-            <span>
-              ออฟไลน์อยู่: เปิดแอปได้ แต่การสุ่มเพลงใหม่ ซิงก์ศิลปิน และเสียงตัวอย่างต้องใช้อินเทอร์เน็ต
-            </span>
+            <span>{t('offline')}</span>
           )}
           {updateWaiting && online && (
             <>
-              <span>มี BeatDrop เวอร์ชันใหม่แล้ว</span>
-              <button type="button" onClick={applyUpdate}>รีเฟรชเพื่ออัปเดต</button>
+              <span>{t('updateAvailable')}</span>
+              <button type="button" onClick={applyUpdate}>{t('refreshToUpdate')}</button>
             </>
           )}
         </div>
@@ -174,20 +174,18 @@ export function PwaManager({ canOfferInstall = false }: PwaManagerProps) {
       {showInstall && (
         <div className="pwa-install-help">
           <button type="button" onClick={install} aria-expanded={iosHelpOpen}>
-            {iosInstallAvailable ? 'เพิ่ม BeatDrop ไว้ที่หน้าจอโฮม' : 'ติดตั้ง BeatDrop'}
+            {iosInstallAvailable ? t('addToHomeScreen') : t('install')}
           </button>
           <button
             type="button"
             className="pwa-install-dismiss"
             onClick={dismissInstall}
-            aria-label="ซ่อนคำแนะนำการติดตั้ง"
+            aria-label={t('dismissInstall')}
           >
             <X className="w-4 h-4" aria-hidden="true" />
           </button>
           {iosHelpOpen && iosInstallAvailable && (
-            <p>
-              ใน Safari แตะปุ่มแชร์ แล้วเลือก “เพิ่มไปยังหน้าจอโฮม”
-            </p>
+            <p>{t('iosHelp')}</p>
           )}
         </div>
       )}

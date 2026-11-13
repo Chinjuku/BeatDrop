@@ -2,6 +2,7 @@
 import React from 'react';
 import { Play, Square, Volume2, VolumeX, RotateCcw } from 'lucide-react';
 import { AudioPlaybackState } from '../hooks/useAudioController';
+import { useTranslations } from 'next-intl';
 import { useAudioProgress } from '../context/GameContext';
 
 interface AudioPlayerProps {
@@ -25,6 +26,7 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
   onVolumeChange,
   disabled,
 }) => {
+  const t = useTranslations('Audio');
   const audioProgress = useAudioProgress();
   const progress = audioProgress ? audioProgress.progress : propProgress;
   const maxSeconds = stages[stages.length - 1] || 15;
@@ -90,7 +92,7 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
                       }
               }
             >
-              <div className="text-[9px] sm:text-[10px] font-semibold uppercase truncate">ขั้นที่ {idx + 1}</div>
+              <div className="text-[9px] sm:text-[10px] font-semibold uppercase truncate">{t('stage', { n: idx + 1 })}</div>
               <div className="text-[11px] sm:text-sm font-extrabold font-mono truncate">{sec}s</div>
             </div>
           );
@@ -130,9 +132,9 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
           <span style={{ color: 'var(--song-accent-text)' }}>
             {audioState === 'playing'
               ? `${(progress * activeSeconds).toFixed(1)}s / ${activeSeconds}s`
-              : `ปลดล็อกแล้ว: ${activeSeconds}s`}
+              : t('unlocked', { seconds: activeSeconds })}
           </span>
-          <span style={{ color: 'var(--song-muted)' }}>สูงสุด {maxSeconds}s</span>
+          <span style={{ color: 'var(--song-muted)' }}>{t('max', { seconds: maxSeconds })}</span>
         </div>
       </div>
 
@@ -144,13 +146,13 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
           disabled={disabled || audioState === 'loading'}
           data-audio-state={audioState === 'playing' ? 'playing' : 'ready'}
           className="songspot-play-key"
-          aria-label={audioState === 'playing' ? 'Stop snippet' : `Play ${activeSeconds} second snippet`}
+          aria-label={audioState === 'playing' ? t('stopSnippet') : t('playSnippet', { seconds: activeSeconds })}
         >
           <span className="songspot-play-ripple" aria-hidden="true" />
           {audioState === 'loading' ? (
             <div
               className="w-8 h-8 sm:w-10 sm:h-10 rounded-full border-3 sm:border-4 border-current border-t-transparent animate-spin"
-              aria-label="Loading audio"
+              aria-label={t('loadingAudio')}
             />
           ) : audioState === 'playing' ? (
             <Square className="w-8 h-8 sm:w-11 sm:h-11 fill-current" />
@@ -167,12 +169,12 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
             style={{ color: 'var(--song-accent-text)' }}
           >
             {audioState === 'loading'
-              ? 'กำลังโหลดเสียงเพลง...'
+              ? t('status.loading')
               : audioState === 'playing'
-                ? `กำลังเล่นตัวอย่าง ${activeSeconds} วินาที...`
+                ? t('status.playing', { seconds: activeSeconds })
                 : audioState === 'error'
-                  ? 'สัญญาณเน็ตสะดุด กดปุ่มเพื่อลองใหม่อีกครั้ง'
-                  : `กดปุ่ม หรือกด [Space] เพื่อฟัง ${activeSeconds} วินาที`}
+                  ? t('status.error')
+                  : t('status.idle', { seconds: activeSeconds })}
           </span>
         </div>
       </div>
@@ -184,7 +186,7 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
           onClick={() => onVolumeChange(volume > 0 ? 0 : 80)}
           className="text-xs"
           style={{ color: 'var(--song-muted)' }}
-          aria-label="Toggle Mute"
+          aria-label={t('toggleMute')}
         >
           {volume === 0 ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
         </button>
@@ -196,7 +198,7 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
           onChange={(e) => onVolumeChange(Number(e.target.value))}
           className="songspot-slider"
           style={{ '--fill': `${volume}%` } as React.CSSProperties}
-          aria-label="Volume"
+          aria-label={t('volume')}
         />
         <span className="text-[11px] font-mono font-bold w-8 text-right" style={{ color: 'var(--song-muted)' }}>
           {volume}%

@@ -2,6 +2,7 @@
 
 import React from 'react';
 import { SlidersHorizontal } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import { useConsent } from '../context/ConsentContext';
 
 type Props = {
@@ -14,8 +15,10 @@ type Props = {
 export const CookiePreferencesButton: React.FC<Props> = ({
   className = '',
   variant = 'button',
-  label = 'การตั้งค่าคุกกี้',
+  label,
 }) => {
+  const t = useTranslations('Consent');
+  const text = label ?? t('preferencesButton');
   const { openPreferences } = useConsent();
 
   if (variant === 'link') {
@@ -25,7 +28,7 @@ export const CookiePreferencesButton: React.FC<Props> = ({
         onClick={openPreferences}
         className={`font-semibold underline underline-offset-2 transition hover:brightness-125 ${className}`}
       >
-        {label}
+        {text}
       </button>
     );
   }
@@ -38,7 +41,7 @@ export const CookiePreferencesButton: React.FC<Props> = ({
       style={{ backgroundColor: 'var(--song-accent)', color: 'var(--song-accent-on)' }}
     >
       <SlidersHorizontal aria-hidden="true" className="h-3.5 w-3.5" />
-      {label}
+      {text}
     </button>
   );
 };

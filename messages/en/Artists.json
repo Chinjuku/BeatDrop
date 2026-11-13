@@ -1,0 +1,39 @@
+{
+  "modalTitle": "Add and manage artists",
+  "title": "Add and manage artists",
+  "subtitle": "Search for an artist to pull their songs into your library",
+  "close": "Close",
+  "dismiss": "Dismiss notification",
+  "syncing": "Fetching songs from the iTunes API and saving to the database...",
+  "search": {
+    "placeholder": "Search artists, e.g. NONT TANONT, Bodyslam, Three Man Down, Taylor Swift...",
+    "httpError": "Search failed (HTTP {status})",
+    "networkError": "Connection error",
+    "searching": "Searching for “{query}” in the library and iTunes...",
+    "failed": "Search failed: {error}",
+    "noMatch": "No artists match “{query}”",
+    "noMatchHint": "Not in your library or on iTunes • Check the spelling or try the Thai/English name",
+    "syncNow": "Add songs by <strong>\"{name}\"</strong> to your library now"
+  },
+  "sync": {
+    "successTitle": "Synced songs by \"{name}\"!",
+    "added": "Added {added, plural, one {# new song} other {# new songs}} ({total} in library)",
+    "upToDate": "Library is already up to date ({total, plural, one {# song} other {# songs}})",
+    "errorTitle": "Couldn't fetch songs by \"{name}\""
+  },
+  "discovered": "New artists found online ({count})",
+  "category": {
+    "thai": "Thai",
+    "international": "International"
+  },
+  "inLibrary": "In library",
+  "add": "Add artist",
+  "library": {
+    "matching": "Library artists matching your search ({count})",
+    "all": "All library artists ({count})",
+    "noMatch": "No artist named “{query}” in your library"
+  },
+  "trackCount": "{count, plural, one {# song} other {# songs}}",
+  "playTitle": "Play artist mode: {name}",
+  "play": "Play"
+}

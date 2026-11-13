@@ -1,0 +1,42 @@
+{
+  "modalTitle": "Leaderboard",
+  "title": {
+    "daily": "Daily Challenge Rankings",
+    "standard": "Songspot Leaderboard"
+  },
+  "subtitle": "The sharpest and fastest song guessers",
+  "close": "Close leaderboard",
+  "filter": {
+    "all": "All"
+  },
+  "category": {
+    "thai": "Thai",
+    "international": "International",
+    "mix": "Mix",
+    "thaiSongs": "Thai songs",
+    "internationalSongs": "International songs"
+  },
+  "refresh": "Refresh rankings",
+  "alreadySubmitted": "You've already submitted this run ({points} pts)",
+  "level": "Level:",
+  "levelValue": "Level: {level}",
+  "levelHint": "Your score is saved to the {level} level only",
+  "namePlaceholder": "Name shown on the leaderboard",
+  "nameLabel": "Name to show on the leaderboard",
+  "submitLocked": {
+    "daily": "Play all {total, plural, one {# song} other {# songs}} before submitting ({played}/{total} so far)",
+    "standard": "Guess at least 1 song correctly before submitting"
+  },
+  "submit": {
+    "button": "Submit score ({points} pts)",
+    "success": "Score saved to the leaderboard!",
+    "error": "Couldn't submit your score",
+    "networkError": "Couldn't connect to the server"
+  },
+  "loading": "Loading rankings...",
+  "empty": "No rankings in this category yet. Be the first to submit a score!",
+  "dailyStats": "{correct} correct · {skipped} skipped · {seconds}s",
+  "streak": "Streak: {streak}",
+  "fastest": "Best: {seconds}s",
+  "pts": "pts"
+}

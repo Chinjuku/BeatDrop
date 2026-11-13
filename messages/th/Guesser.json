@@ -1,0 +1,15 @@
+{
+  "choicesBadge": "4 ตัวเลือก",
+  "skips": "ข้าม: {count}",
+  "loading": "กำลังสุ่มโจทย์ 4 ตัวเลือก...",
+  "retry": "ลองใหม่",
+  "retrying": "กำลังลองใหม่…",
+  "result": {
+    "correct": "ตอบถูก · บันทึกคะแนนผ่าน streak ของคุณแล้ว",
+    "skipped": "ข้ามแล้ว · ไม่ได้คะแนน",
+    "incorrect": "ตอบผิด",
+    "incorrectWithAnswer": "ตอบผิด: {title} — {artist}"
+  },
+  "pickAnswer": "เลือกคำตอบจาก 4 ตัวเลือก",
+  "giveUpTitle": "ยอมแพ้เพื่อเฉลยเพลงทันที"
+}

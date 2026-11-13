@@ -1,5 +1,6 @@
 'use client';
 import React, { useCallback, useEffect, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { Modal } from './Modal';
 import {
   Award,
@@ -64,6 +65,7 @@ export const LeaderboardModal: React.FC<LeaderboardModalProps> = ({
   dailyRoundsPlayed = 0,
   dailyRoundsTotal = 0,
 }) => {
+  const t = useTranslations('Leaderboard');
   const [diffFilter, setDiffFilter] = useState<DifficultyLevel | 'all'>(currentDifficulty);
   const [catFilter, setCatFilter] = useState<CategoryType>(category);
   const [hasSubmitted, setHasSubmitted] = useState(false);
@@ -110,8 +112,8 @@ export const LeaderboardModal: React.FC<LeaderboardModalProps> = ({
     ? dailyRoundsTotal > 0 && dailyRoundsPlayed >= dailyRoundsTotal
     : bestStreak > 0;
   const submitLockedHint = isDailyMode
-    ? `เล่นให้ครบ ${dailyRoundsTotal || 5} เพลงก่อนจึงจะส่งคะแนนได้ (ตอนนี้ ${dailyRoundsPlayed}/${dailyRoundsTotal || 5})`
-    : 'ทายถูกอย่างน้อย 1 เพลงก่อนจึงจะส่งคะแนนได้';
+    ? t('submitLocked.daily', { total: dailyRoundsTotal || 5, played: dailyRoundsPlayed })
+    : t('submitLocked.standard');
 
   // Unique session key for current score to prevent duplicate submissions
   const scoreSessionKey = `beatdrop_lb_sub_${category}_${isDailyMode ? `${dateKey}_${currentDifficulty}` : currentDifficulty}_${calculatedScore}`;
@@ -165,24 +167,24 @@ export const LeaderboardModal: React.FC<LeaderboardModalProps> = ({
       const json = await res.json();
       if (json.code === 0) {
         setHasSubmitted(true);
-        setSubmittedMsg('บันทึกคะแนนขึ้นตารางอันดับสำเร็จ!');
+        setSubmittedMsg(t('submit.success'));
         try {
           sessionStorage.setItem(scoreSessionKey, 'true');
         } catch {}
         if (isDailyMode) await refetch();
         else await invalidateLeaderboard();
       } else {
-        setSubmittedMsg(json.message || 'เกิดข้อผิดพลาดในการส่งคะแนน');
+        setSubmittedMsg(json.message || t('submit.error'));
       }
     } catch {
-      setSubmittedMsg('เกิดข้อผิดพลาดในการเชื่อมต่อเซิร์ฟเวอร์');
+      setSubmittedMsg(t('submit.networkError'));
     } finally {
       setSubmitting(false);
     }
   };
 
   return (
-    <Modal open={isOpen} onClose={onClose} title="Leaderboard" dismissOnBackdrop={false} panelClassName="!bg-transparent !border-0 !shadow-none !overflow-visible !max-h-none">
+    <Modal open={isOpen} onClose={onClose} title={t('modalTitle')} dismissOnBackdrop={false} panelClassName="!bg-transparent !border-0 !shadow-none !overflow-visible !max-h-none">
       <div
         className="w-[calc(100vw-16px)] sm:w-full max-w-xl md:max-w-2xl self-center rounded-2xl sm:rounded-3xl border shadow-2xl overflow-hidden flex flex-col max-h-[92dvh] my-auto relative animate-in zoom-in-95 duration-200"
         style={{
@@ -208,10 +210,10 @@ export const LeaderboardModal: React.FC<LeaderboardModalProps> = ({
             </div>
             <div className="min-w-0">
               <h2 className="text-sm sm:text-base font-extrabold tracking-tight truncate">
-                {isDailyMode ? 'Daily Challenge Rankings' : 'Songspot Leaderboard (ตารางอันดับ)'}
+                {isDailyMode ? t('title.daily') : t('title.standard')}
               </h2>
               <p className="text-[10px] sm:text-xs truncate" style={{ color: 'var(--song-muted)' }}>
-                ผู้เล่นสายทายเพลงที่แม่นและไวที่สุด
+                {t('subtitle')}
               </p>
             </div>
           </div>
@@ -220,7 +222,7 @@ export const LeaderboardModal: React.FC<LeaderboardModalProps> = ({
             type="button"
             onClick={onClose}
             className="p-1.5 sm:p-2 rounded-full hover:bg-white/10 transition flex-shrink-0"
-            aria-label="Close Leaderboard"
+            aria-label={t('close')}
           >
             <X className="w-5 h-5" />
           </button>
@@ -254,7 +256,7 @@ export const LeaderboardModal: React.FC<LeaderboardModalProps> = ({
                       }
                 }
               >
-                {d === 'all' ? 'ทั้งหมด' : DIFFICULTY_PRESETS[d]?.label || d}
+                {d === 'all' ? t('filter.all') : DIFFICULTY_PRESETS[d]?.label || d}
               </button>
             ))}
           </div>
@@ -280,14 +282,14 @@ export const LeaderboardModal: React.FC<LeaderboardModalProps> = ({
                       }
                 }
               >
-                {cat === 'thai' ? '🇹🇭 ไทย' : cat === 'international' ? '🌍 สากล' : '🔥 รวม Mix'}
+                {cat === 'thai' ? `🇹🇭 ${t('category.thai')}` : cat === 'international' ? `🌍 ${t('category.international')}` : `🔥 ${t('category.mix')}`}
               </button>
             ))}
             <button
               type="button"
               onClick={fetchLeaderboard}
               className="p-1 sm:p-1.5 rounded-lg hover:bg-white/10 transition"
-              title="รีเฟรชอันดับ"
+              title={t('refresh')}
             >
               <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
             </button>
@@ -306,12 +308,12 @@ export const LeaderboardModal: React.FC<LeaderboardModalProps> = ({
           >
             <div className="flex items-center gap-2 text-xs sm:text-sm font-bold">
               <Check className="w-4 h-4 shrink-0 text-emerald-400" />
-              <span>คุณได้ส่งคะแนนของรอบนี้แล้ว ({calculatedScore} pts)</span>
+              <span>{t('alreadySubmitted', { points: calculatedScore })}</span>
             </div>
             <span
               className="text-[11px] font-bold px-2 py-0.5 rounded-lg border border-emerald-500/30 bg-emerald-500/20"
             >
-              {isDailyMode ? `Daily Challenge · ${dateKey || ''}` : `ระดับ: ${DIFFICULTY_PRESETS[currentDifficulty]?.label || currentDifficulty}`}
+              {isDailyMode ? `Daily Challenge · ${dateKey || ''}` : t('levelValue', { level: DIFFICULTY_PRESETS[currentDifficulty]?.label || currentDifficulty })}
             </span>
           </div>
         ) : !canSubmit ? (
@@ -332,8 +334,8 @@ export const LeaderboardModal: React.FC<LeaderboardModalProps> = ({
                 type="text"
                 value={playerName}
                 onChange={(e) => setPlayerName(e.target.value)}
-                placeholder="ชื่อที่จะแสดงในอันดับ"
-                aria-label="ชื่อที่จะแสดงในตารางอันดับ"
+                placeholder={t('namePlaceholder')}
+                aria-label={t('nameLabel')}
                 autoComplete="nickname"
                 maxLength={24}
                 disabled={submitting}
@@ -351,9 +353,9 @@ export const LeaderboardModal: React.FC<LeaderboardModalProps> = ({
                   borderColor: 'var(--song-border)',
                   color: DIFFICULTY_PRESETS[currentDifficulty]?.accentText || 'var(--song-accent-text)',
                 }}
-                title={`คะแนนของคุณจะถูกบันทึกในระดับ ${currentDifficulty} เท่านั้น`}
+                title={t('levelHint', { level: currentDifficulty })}
               >
-                <span className="opacity-60 text-[10px]">ระดับ:</span>
+                <span className="opacity-60 text-[10px]">{t('level')}</span>
                 <span>{DIFFICULTY_PRESETS[currentDifficulty]?.label || currentDifficulty}</span>
               </div>
             </div>
@@ -367,7 +369,7 @@ export const LeaderboardModal: React.FC<LeaderboardModalProps> = ({
               }}
             >
               <Send className="w-3.5 h-3.5" />
-              <span>ส่งคะแนน ({calculatedScore} pts)</span>
+              <span>{t('submit.button', { points: calculatedScore })}</span>
             </button>
           </form>
         )}
@@ -390,12 +392,12 @@ export const LeaderboardModal: React.FC<LeaderboardModalProps> = ({
             <div className="py-16 flex flex-col items-center justify-center gap-2.5">
               <Loader2 className="w-7 h-7 animate-spin text-emerald-400" />
               <span className="text-xs font-bold" style={{ color: 'var(--song-muted)' }}>
-                กำลังโหลดอันดับคะแนน...
+                {t('loading')}
               </span>
             </div>
           ) : entries.length === 0 ? (
             <div className="py-12 text-center text-xs" style={{ color: 'var(--song-muted)' }}>
-              ยังไม่มีข้อมูลอันดับในหมวดนี้ มาร่วมประเดิมส่งคะแนนคนแรกกันเลย!
+              {t('empty')}
             </div>
           ) : (
             entries.map((entry, idx) => {
@@ -466,11 +468,11 @@ export const LeaderboardModal: React.FC<LeaderboardModalProps> = ({
                           {diffPreset.label}
                         </span>
                         {entry.category === 'thai' ? (
-                          <span className="text-[10px]" title="เพลงไทย">
+                          <span className="text-[10px]" title={t('category.thaiSongs')}>
                             🇹🇭
                           </span>
                         ) : entry.category === 'international' ? (
-                          <span className="text-[10px]" title="เพลงสากล">
+                          <span className="text-[10px]" title={t('category.internationalSongs')}>
                             🌍
                           </span>
                         ) : null}
@@ -483,16 +485,16 @@ export const LeaderboardModal: React.FC<LeaderboardModalProps> = ({
                       >
                         {isDailyMode ? (
                           <span>
-                            ถูก {entry.correctCount || 0} · ข้าม {entry.skipCount || 0} · เวลา {((entry.totalAnswerTimeMs || 0) / 1000).toFixed(1)} วิ
+                            {t('dailyStats', { correct: entry.correctCount || 0, skipped: entry.skipCount || 0, seconds: ((entry.totalAnswerTimeMs || 0) / 1000).toFixed(1) })}
                           </span>
                         ) : (
                           <>
                             <span className="flex items-center gap-0.5">
                               <Zap className="w-2.5 h-2.5" />
-                              <span>Streak: {entry.streak}</span>
+                              <span>{t('streak', { streak: entry.streak })}</span>
                             </span>
                             <span>•</span>
-                            <span>ไวสุด: {entry.fastestSeconds}s</span>
+                            <span>{t('fastest', { seconds: entry.fastestSeconds })}</span>
                           </>
                         )}
                       </div>
@@ -511,7 +513,7 @@ export const LeaderboardModal: React.FC<LeaderboardModalProps> = ({
                       className="text-[9px] uppercase tracking-wider font-bold mt-0.5"
                       style={{ color: 'var(--song-muted)' }}
                     >
-                      pts
+                      {t('pts')}
                     </div>
                   </div>
                 </div>

@@ -1,0 +1,34 @@
+{
+  "tagline": "5 เพลง • HEAR LESS. KNOW MORE.",
+  "score": "คะแนน:",
+  "points": "{points} pts",
+  "round": "รอบ",
+  "rankingsTitle": "เปิดตารางอันดับผู้เล่นประจำวัน",
+  "rankings": "อันดับ",
+  "categoryToggleTitle": "กดเพื่อสลับโหมด: เพลงไทย / เพลงสากล / รวมไทย & สากล",
+  "progress": "ความคืบหน้า ({total} เพลง)",
+  "clipRangeShort": "{min} → {max} วินาที",
+  "clipRangeFixed": "ช่วงเวลาคลิป {min} → {max} วินาที · เท่ากันทุกคน",
+  "finished": {
+    "kicker": "ภารกิจประจำวันสำเร็จ",
+    "heading": "ทำภารกิจครบ {total} เพลงแล้ว!",
+    "subheading": "คะแนนรวมประจำวันของคุณ",
+    "breakdown": "ถูก {correct} · ผิด {wrong} · ข้าม {skipped} · หมดเวลา {expired} · ใช้เวลาตอบ {seconds}s",
+    "copied": "คัดลอกผลลัพธ์ลงคลิปบอร์ดแล้ว!",
+    "share": "แชร์ผลคะแนนประจำวัน",
+    "viewRankings": "ดูตารางอันดับ",
+    "practice": "เล่นโหมดฝึกซ้อม"
+  },
+  "retry": "ลองใหม่",
+  "retrying": "กำลังลองใหม่…",
+  "loading": "กำลังโหลดโจทย์เพลงประจำวัน ({total} เพลง)...",
+  "feedback": {
+    "correct": "ตอบถูก! +{points} pts",
+    "speedBonus": "(โบนัสความเร็ว +{bonus})",
+    "wrong": "ทายผิด · 0 pts",
+    "skipped": "ยอมแพ้ / ข้ามเพลง · 0 pts",
+    "expired": "รอบสิ้นสุด · 0 pts",
+    "wrongKeepListening": "ทายผิด · 0 pts ฟังต่ออีกนิด"
+  },
+  "historyHeading": "ประวัติการทายในรอบนี้ ({used}/{total})"
+}
