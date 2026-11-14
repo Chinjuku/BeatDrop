@@ -1,10 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { isAllowedAppleAudioUrl } from '../../../../lib/audioProxyUtils';
+import { DEEZER_PREVIEW_ROUTE, isAllowedAppleAudioUrl, isDeezerPreviewUrl } from '../../../../lib/audioProxyUtils';
+
+/** Deezer links expire, so they go to the Node route that re-signs them (same `url` query). */
+function deezerRedirect(req: NextRequest, urlParam: string): NextResponse {
+  const target = new URL(DEEZER_PREVIEW_ROUTE, req.nextUrl.origin);
+  target.searchParams.set('url', urlParam);
+  return NextResponse.redirect(target, 307);
+}
 
 export const runtime = 'edge';
 
 export async function GET(req: NextRequest) {
   const urlParam = req.nextUrl.searchParams.get('url');
+  if (urlParam && isDeezerPreviewUrl(urlParam)) return deezerRedirect(req, urlParam);
   if (!urlParam || !isAllowedAppleAudioUrl(urlParam)) {
     return NextResponse.json({ error: 'Invalid audio url' }, { status: 400 });
   }
@@ -44,6 +52,7 @@ export async function GET(req: NextRequest) {
 
 export async function HEAD(req: NextRequest) {
   const urlParam = req.nextUrl.searchParams.get('url');
+  if (urlParam && isDeezerPreviewUrl(urlParam)) return deezerRedirect(req, urlParam);
   if (!urlParam || !isAllowedAppleAudioUrl(urlParam)) {
     return new NextResponse(null, { status: 400 });
   }

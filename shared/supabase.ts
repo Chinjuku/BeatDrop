@@ -788,6 +788,23 @@ export const supabaseAdmin = {
   },
 
   /**
+   * Read-only: the `dz_` song id whose stored Deezer preview link contains this 32-hex file key.
+   */
+  async findDeezerSongIdByPreviewKey(fileKey: string): Promise<string | null> {
+    if (!isSupabaseConfigured() || !/^[0-9a-f]{32}$/.test(fileKey)) return null;
+    try {
+      const query = `songs?id=like.dz_*&preview_url=like.*${fileKey}*&select=id&limit=1`;
+      const res = await supabaseFetch(getRestUrl(query), { headers: getSupabaseHeaders() });
+      if (!res.ok) return null;
+      const rows = (await res.json()) as Array<{ id?: unknown }>;
+      const id = rows[0]?.id;
+      return typeof id === 'string' && /^dz_\d{1,15}$/.test(id) ? id : null;
+    } catch {
+      return null;
+    }
+  },
+
+  /**
    * Count total songs matching artistName in Supabase and update artists.track_count
    */
   async refreshArtistTrackCount(artistName: string, avatarUrl?: string): Promise<number> {
