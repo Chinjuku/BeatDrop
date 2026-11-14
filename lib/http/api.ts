@@ -131,18 +131,60 @@ export const DISCOVER_LIMIT: RateLimiterOptions = {
   message: 'ค้นหาศิลปินออนไลน์ถี่เกินไป กรุณารอ 1 นาที (iTunes discovery rate limit)',
 };
 
+/** Room polling: about 1 request per second per player, with headroom. */
+export const ROOM_POLL_LIMIT: RateLimiterOptions = {
+  windowMs: 60 * 1000,
+  maxRequests: 150,
+  prefix: 'room-poll',
+  message: 'Too many room updates. Please slow down.',
+};
+
+/** Creating rooms (10 per minute per IP). */
+export const ROOM_CREATE_LIMIT: RateLimiterOptions = {
+  windowMs: 60 * 1000,
+  maxRequests: 10,
+  prefix: 'room-create',
+  message: 'Too many rooms created. Please wait a minute.',
+};
+
+/** Room actions keyed per player: join, start, answer, leave. */
+export const ROOM_ACTION_LIMIT: RateLimiterOptions = {
+  windowMs: 60 * 1000,
+  maxRequests: 60,
+  prefix: 'room-action',
+  message: 'Too many actions. Please slow down.',
+};
+
+/** Rate-limit identity for room calls: IP plus the room token, so one Wi-Fi is not one bucket. */
+export function roomLimitKey(req: ApiRequest): string {
+  const token = headerValue(req, 'x-room-token') ?? '';
+  return `${getClientIp(req)}:${token.split('.')[0] || 'anon'}`;
+}
+
 interface RunOptions {
   /** Extra limiter applied after the general one (e.g. ROUND_LIMIT). */
   limit?: RateLimiterOptions | ((req: ApiRequest) => RateLimiterOptions | undefined);
   /** Reject with 403 unless the request carries the admin key. */
   adminOnly?: boolean;
   params?: Record<string, string>;
+  /**
+   * Skip the shared per-IP limit. Only for endpoints with their own `limit` keyed more finely
+   * (e.g. room polling, where friends on one Wi-Fi share an IP).
+   */
+  skipGeneralLimit?: boolean;
+  /** Identity for the extra `limit` (default: client IP). */
+  limitKey?: (req: ApiRequest) => string;
 }
 
 /** Applies one limiter; returns false (and writes a 429) when the caller is over the limit. */
-async function applyLimit(req: ApiRequest, res: CollectedResponse, options: RateLimiterOptions): Promise<boolean> {
+async function applyLimit(
+  req: ApiRequest,
+  res: CollectedResponse,
+  options: RateLimiterOptions,
+  identifier = getClientIp(req)
+): Promise<boolean> {
   if (isAdminRequest(req)) return true;
-  const result = await verifyRateLimit(getClientIp(req), options);
+  const result = await verifyRateLimit(identifier, options);
   res.setHeader('X-RateLimit-Limit', String(result.limit));
   res.setHeader('X-RateLimit-Remaining', String(result.remaining));
   res.setHeader('X-RateLimit-Reset', String(Math.ceil(result.resetAt / 1000)));
@@ -165,9 +207,10 @@ export async function runApiHandler(request: Request, handler: ApiHandler, optio
     const req = await toApiRequest(request, options.params ?? {});
     ensureCatalogLoaded();
 
-    if (!(await applyLimit(req, res, GENERAL_LIMIT))) return res.toResponse();
+    if (!options.skipGeneralLimit && !(await applyLimit(req, res, GENERAL_LIMIT))) return res.toResponse();
     const extra = typeof options.limit === 'function' ? options.limit(req) : options.limit;
-    if (extra && !(await applyLimit(req, res, extra))) return res.toResponse();
+    const key = options.limitKey ? options.limitKey(req) : undefined;
+    if (extra && !(await applyLimit(req, res, extra, key))) return res.toResponse();
 
     if (options.adminOnly && !isAdminRequest(req)) {
       res.status(403).json({
