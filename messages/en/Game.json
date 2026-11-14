@@ -2,7 +2,8 @@
   "errors": {
     "syncFailed": "Could not fetch songs from the server",
     "roundLoad": "Could not load the next song. Check your connection and retry.",
-    "dailyLoad": "Daily Challenge could not be loaded. Check your connection and retry."
+    "dailyLoad": "Daily Challenge could not be loaded. Check your connection and retry.",
+    "noSongs": "No songs match this artist or filter yet. Pick another artist, genre or era, or try again."
   },
   "feedback": {
     "guessRejected": "Could not check that answer. Please try again.",

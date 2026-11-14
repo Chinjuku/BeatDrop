@@ -171,6 +171,39 @@ describe('rounds', () => {
   });
 });
 
+describe('artist mode', () => {
+  it('keeps serving an artist that is only in the cloud catalog, round after round', async () => {
+    // Artists added through Supabase are not in this instance's local library list; their
+    // songs still reach songPool (cloud preload). Every round must stay on that artist.
+    const { songPool } = await import('../lib/engine/songPool');
+    const name = 'Cloud Only Singer';
+    for (let i = 0; i < 12; i++) {
+      songPool.set(`cloud-only-${i}`, {
+        id: `cloud-only-${i}`,
+        title: `Cloud Song ${i}`,
+        artistId: 'cloud-only-singer',
+        artistName: name,
+        albumName: 'Cloud Album',
+        releaseYear: 2024,
+        genre: 'Pop',
+        category: 'thai',
+        previewUrl: `https://audio.test/cloud-${i}.m4a`,
+        artworkUrl: '',
+        popularityScore: 50,
+      });
+    }
+    const query = new URLSearchParams({ category: 'all', difficulty: 'easy', mode: 'artist', artist: name });
+    for (let round = 0; round < 4; round++) {
+      const start = await call('GET', `/api/songs?${query}`);
+      assert.equal(start.status, 200, `round ${round + 1} should start`);
+      await wait(60);
+      const reveal = await call('POST', '/api/round/skip', { body: { roundToken: start.json.data.roundToken, giveUp: true } });
+      assert.equal(reveal.status, 200);
+      assert.equal(reveal.json.data.reveal.artistName, name, `round ${round + 1} must be by ${name}`);
+    }
+  });
+});
+
 describe('autocomplete', () => {
   it('GET /api/autocomplete returns a list', async () => {
     const res = await call('GET', '/api/autocomplete?q=a&category=all&limit=5');
