@@ -72,6 +72,7 @@
     "timeLeft": "{seconds}s left",
     "gotItMe": "You got it! +{points}",
     "gotIt": "{name} got it +{points}",
+    "gotItMore": "+{count} more got it",
     "correct": "Correct! +{points}",
     "wrong": "Not it. {left, plural, one {# try} other {# tries}} left",
     "out": "Out of tries for this song",

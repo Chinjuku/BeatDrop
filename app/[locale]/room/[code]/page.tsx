@@ -18,7 +18,7 @@ import { Modal } from '../../../../components/Modal';
 import { PauseButton, PausedOverlay, PauseRequestDialog } from '../../../../components/room/PauseControls';
 import { useRoom, useServerNow } from '../../../../hooks/useRoom';
 import { useRoomAudio } from '../../../../hooks/useRoomAudio';
-import { useCorrectFeed } from '../../../../hooks/useCorrectFeed';
+import { CORRECT_POP_MS, useCorrectFeed } from '../../../../hooks/useCorrectFeed';
 import { CorrectToast } from '../../../../components/room/CorrectToast';
 import { CorrectBurst } from '../../../../components/room/CorrectBurst';
 import { playerColor } from '../../../../shared/roomColors';
@@ -191,8 +191,6 @@ function JoinPanel({ code, room }: { code: string; room: RoomApi }) {
   );
 }
 
-const POP_MS = 1200;
-
 function PlayerList({ players, showRound, pops }: { players: RoomPlayerView[]; showRound?: boolean; pops?: Map<string, { points: number; at: number }> }) {
   const t = useTranslations('Room');
   return (
@@ -203,12 +201,13 @@ function PlayerList({ players, showRound, pops }: { players: RoomPlayerView[]; s
         return (
         <li
           key={p.id}
-          className={`relative flex items-center gap-3 rounded-xl border px-3 py-2${pop ? ' bd-row-pop' : ''}`}
+          className={`relative flex items-center gap-3 rounded-xl border px-3 py-2${pop ? ' bd-row-pop z-10' : ''}`}
           style={{
             borderColor: p.isMe ? 'var(--song-accent)' : 'var(--song-border)',
             backgroundColor: 'var(--song-surface-soft)',
             opacity: p.left ? 0.5 : 1,
             ['--pop-color' as string]: color,
+            ['--bd-dur' as string]: `${CORRECT_POP_MS}ms`,
           }}
         >
           {pop && (
@@ -323,7 +322,7 @@ function Round({
   const isBuzzer = view.settings.mode === 'buzzer';
   // Row pop (everyone-answers mode): derived from the feed, no extra timers.
   const pops = new Map<string, { points: number; at: number }>();
-  if (!isBuzzer) for (const e of feed) if (now - e.at < POP_MS) pops.set(e.playerId, { points: e.points, at: e.at });
+  if (!isBuzzer) for (const e of feed) if (now - e.at < CORRECT_POP_MS) pops.set(e.playerId, { points: e.points, at: e.at });
   const remaining = view.endsAt !== undefined ? Math.max(0, view.endsAt - now) : 0;
 
   return (
@@ -331,9 +330,9 @@ function Round({
       <RoomCard className="relative flex flex-col gap-4">
         {view.pause && <PausedOverlay pause={view.pause} now={now} isHost={view.me.isHost} busy={room.busy} onPause={room.pause} />}
         {isBuzzer ? (
-          <CorrectBurst entries={feed} meId={view.me.id} colorIndexOf={colorIndexOf} />
+          <CorrectBurst entries={feed} meId={view.me.id} roundIndex={view.roundIndex} colorIndexOf={colorIndexOf} />
         ) : (
-          <CorrectToast entries={feed} meId={view.me.id} colorIndexOf={colorIndexOf} />
+          <CorrectToast entries={feed} meId={view.me.id} roundIndex={view.roundIndex} colorIndexOf={colorIndexOf} />
         )}
         {/* One polite live region announces each new correct answer once. */}
         <div className="sr-only" aria-live="polite" aria-relevant="additions">

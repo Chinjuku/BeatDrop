@@ -72,6 +72,7 @@
     "timeLeft": "เหลือ {seconds} วิ",
     "gotItMe": "คุณตอบถูก! +{points}",
     "gotIt": "{name} ตอบถูก +{points}",
+    "gotItMore": "ตอบถูกอีก {count} คน",
     "correct": "ถูกต้อง! +{points}",
     "wrong": "ยังไม่ใช่ เหลืออีก {left} ครั้ง",
     "out": "หมดสิทธิ์ทายเพลงนี้แล้ว",

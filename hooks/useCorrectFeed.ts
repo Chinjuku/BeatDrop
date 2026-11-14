@@ -51,37 +51,78 @@ export function useCorrectFeed(view: RoomView | null, now: number): CorrectEntry
 
 export const correctEntryKey = (e: CorrectEntry) => `${e.playerId}:${e.at}`;
 
+/** Display durations. The CSS animations read these through the `--bd-dur` variable (never hardcode them in CSS). */
+export const CORRECT_TOAST_MS = 2000;
+/** Toast duration while more are waiting behind it. */
+export const CORRECT_TOAST_FAST_MS = 900;
+export const CORRECT_BURST_MS = 1500;
+export const CORRECT_POP_MS = 1200;
+const MAX_PENDING = 3;
+
+export type ShownCorrect = { entry: CorrectEntry; more?: undefined; durationMs: number } | { entry?: undefined; more: number; durationMs: number };
+
 /**
- * Shows `entries` one at a time, each for `durationMs`, queueing the rest. Every entry is shown at
- * most once (even after the feed drops it). Timers are cleared on unmount.
+ * Shows `entries` one at a time, queueing the rest (at most `maxPending`; extra ones coalesce into
+ * one "+N more" item). Each entry is shown at most once. While more are waiting, items use
+ * `fastMs`. The queue and the shown item reset when `resetKey` (the round) changes. Timers are
+ * cleared on unmount.
  */
-export function useShownEntry(entries: CorrectEntry[], durationMs: number): CorrectEntry | null {
+export function useShownEntry(
+  entries: CorrectEntry[],
+  durationMs: number,
+  resetKey: number,
+  opts: { fastMs?: number; maxPending?: number } = {}
+): ShownCorrect | null {
+  const { fastMs = durationMs, maxPending = Infinity } = opts;
   const seenRef = useRef(new Set<string>());
   const pendingRef = useRef<CorrectEntry[]>([]);
-  const [current, setCurrent] = useState<CorrectEntry | null>(null);
-  const currentRef = useRef<CorrectEntry | null>(null);
+  const overflowRef = useRef(0);
+  const [current, setCurrent] = useState<ShownCorrect | null>(null);
+  const currentRef = useRef<ShownCorrect | null>(null);
 
   const advance = useCallback(() => {
-    const next = pendingRef.current.shift() ?? null;
+    let next: ShownCorrect | null = null;
+    const waiting = () => pendingRef.current.length + (overflowRef.current > 0 ? 1 : 0);
+    const entry = pendingRef.current.shift();
+    if (entry) {
+      next = { entry, durationMs: waiting() > 0 ? fastMs : durationMs };
+    } else if (overflowRef.current > 0) {
+      next = { more: overflowRef.current, durationMs };
+      overflowRef.current = 0;
+    }
     currentRef.current = next;
     setCurrent(next);
-  }, []);
+  }, [durationMs, fastMs]);
+
+  // New round: drop everything queued or on screen. Declared before the enqueue effect so it runs first.
+  const lastKeyRef = useRef(resetKey);
+  useEffect(() => {
+    if (lastKeyRef.current === resetKey) return;
+    lastKeyRef.current = resetKey;
+    pendingRef.current = [];
+    overflowRef.current = 0;
+    currentRef.current = null;
+    setCurrent(null);
+  }, [resetKey]);
 
   useEffect(() => {
     for (const e of entries) {
       const key = correctEntryKey(e);
       if (seenRef.current.has(key)) continue;
       seenRef.current.add(key);
-      pendingRef.current.push(e);
+      if (pendingRef.current.length < maxPending) pendingRef.current.push(e);
+      else overflowRef.current += 1;
     }
-    if (!currentRef.current && pendingRef.current.length > 0) advance();
-  }, [entries, advance]);
+    if (!currentRef.current && (pendingRef.current.length > 0 || overflowRef.current > 0)) advance();
+  }, [entries, advance, maxPending]);
 
   useEffect(() => {
     if (!current) return;
-    const id = window.setTimeout(advance, durationMs);
+    const id = window.setTimeout(advance, current.durationMs);
     return () => window.clearTimeout(id);
-  }, [current, durationMs, advance]);
+  }, [current, advance]);
 
   return current;
 }
+
+export { MAX_PENDING };
