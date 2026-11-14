@@ -1,4 +1,4 @@
-import { Request, Response } from 'express';
+import type { ApiRequest, ApiResponse } from '../http/api';
 import crypto from 'node:crypto';
 import {
   CategoryType,
@@ -208,7 +208,7 @@ async function getOrStartRound(
   };
 }
 
-export async function handleDaily(req: Request, res: Response): Promise<void> {
+export async function handleDaily(req: ApiRequest, res: ApiResponse): Promise<void> {
   const rawCategory = typeof req.query.category === 'string' ? req.query.category : 'all';
   const category = ALLOWED_CATEGORIES.has(rawCategory as CategoryType)
     ? rawCategory as CategoryType
@@ -313,7 +313,7 @@ export async function handleDaily(req: Request, res: Response): Promise<void> {
   }
 }
 
-export async function handleStartDailyRound(req: Request, res: Response): Promise<void> {
+export async function handleStartDailyRound(req: ApiRequest, res: ApiResponse): Promise<void> {
   const basePlayerId = readDailyPlayerId(req);
   const roundIndex = Number(req.body?.roundIndex);
   if (!basePlayerId || !Number.isInteger(roundIndex) || roundIndex < 0 || roundIndex >= DAILY_ROUND_COUNT) {
@@ -372,7 +372,7 @@ export async function handleStartDailyRound(req: Request, res: Response): Promis
   }
 }
 
-export async function handleSubmitDailyScore(req: Request, res: Response): Promise<void> {
+export async function handleSubmitDailyScore(req: ApiRequest, res: ApiResponse): Promise<void> {
   const basePlayerId = readDailyPlayerId(req);
   const playerName = typeof req.body?.playerName === 'string' ? req.body.playerName.trim().slice(0, 24) : '';
   const category = ALLOWED_CATEGORIES.has(req.body?.category) ? req.body.category as CategoryType : null;
@@ -429,7 +429,7 @@ function extractEntryDifficulty(entry: { id: string; difficulty?: DifficultyLeve
   return 'easy';
 }
 
-export async function handleGetDailyLeaderboard(req: Request, res: Response): Promise<void> {
+export async function handleGetDailyLeaderboard(req: ApiRequest, res: ApiResponse): Promise<void> {
   const rawCategory = typeof req.query.category === 'string' ? req.query.category : 'all';
   const category = ALLOWED_CATEGORIES.has(rawCategory as CategoryType)
     ? rawCategory as CategoryType

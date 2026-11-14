@@ -1,5 +1,6 @@
-import { forwardToExpress } from '../../../../lib/expressBridge';
+import { runApiHandler } from '../../../../lib/http/api';
+import { handleExpireDailyRound } from '../../../../lib/engine/roundEngine';
 
 export async function POST(req: Request) {
-  return forwardToExpress(req, '/api/daily/expire');
+  return runApiHandler(req, handleExpireDailyRound);
 }

@@ -29,10 +29,10 @@ export default function GlobalError({ error, reset }: { error: Error & { digest?
       >
         <div role="alert" style={{ maxWidth: 420 }}>
           <h1 style={{ fontSize: '1.25rem', fontWeight: 800, margin: '0 0 0.5rem' }}>
-            เกิดข้อผิดพลาด · Something went wrong
+            เกิดข้อผิดพลาด · <span lang="en">Something went wrong</span>
           </h1>
           <p style={{ fontSize: '0.9rem', color: '#9ca3af', margin: '0 0 1.25rem' }}>
-            ลองใหม่อีกครั้ง หรือรีเฟรชหน้า · Please try again or reload the page.
+            ลองใหม่อีกครั้ง หรือรีเฟรชหน้า · <span lang="en">Please try again or reload the page.</span>
           </p>
           <button
             type="button"
@@ -48,7 +48,7 @@ export default function GlobalError({ error, reset }: { error: Error & { digest?
               marginRight: 8,
             }}
           >
-            ลองใหม่ · Try again
+            ลองใหม่ · <span lang="en">Try again</span>
           </button>
           <a href="/play" style={{ color: '#4ade80', fontWeight: 700 }}>
             BeatDrop

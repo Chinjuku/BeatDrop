@@ -1,5 +1,6 @@
-import { forwardToExpress } from '../../../../lib/expressBridge';
+import { runApiHandler } from '../../../../lib/http/api';
+import { handleSubmitDailyScore } from '../../../../lib/engine/dailyEngine';
 
 export async function POST(req: Request) {
-  return forwardToExpress(req, '/api/daily/submit');
+  return runApiHandler(req, handleSubmitDailyScore);
 }

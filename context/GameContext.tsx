@@ -1088,9 +1088,14 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       if (json.code === 0 && json.data) {
         const data: RoundActionResponse = json.data;
         if ((data.outcome === 'failed' || data.outcome === 'correct') && data.reveal) {
+          // A give-up ends the round as a loss. The server labels it 'skipped' (Song Guesser
+          // counts it as a skip), but outside Guesser a 'skipped' row here would read as a
+          // second Skip in the history after a real one.
           const resultStatus = data.roundResult === 'correct'
             ? 'correct'
-            : data.roundResult === 'skipped' ? 'skipped' : 'wrong';
+            : data.roundResult === 'skipped' && !(giveUpDirectly && config.mode !== 'guesser')
+              ? 'skipped'
+              : 'wrong';
           setHistory((prev) => [
             ...prev,
             {

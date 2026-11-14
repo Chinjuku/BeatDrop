@@ -1,14 +1,10 @@
-import { Request, Response } from 'express';
+import type { ApiRequest, ApiResponse } from '../http/api';
 import crypto from 'node:crypto';
 import { Artist, CategoryType, Song } from '../../shared/types';
-import { parseArtistSyncDTO } from '../../shared/validation';
-import { dbService } from '../db';
-import { checkArtistStrictMatch, syncArtistSongs } from '../itunes';
 import { isSupabaseConfigured, supabaseAdmin } from '../supabase';
 import { songPool, fetchItunesSongs } from './songPool';
 import {
   getAllArtists,
-  addCustomArtist,
   deleteCustomArtist,
   extractSoloArtistNames,
   detectCategory,
@@ -39,7 +35,7 @@ export function invalidateArtistsServerCache(upsertedArtist?: Artist): void {
 
 export const invalidateSupabaseArtistsCache = invalidateArtistsServerCache;
 
-export async function handleGetArtists(req: Request, res: Response): Promise<void> {
+export async function handleGetArtists(req: ApiRequest, res: ApiResponse): Promise<void> {
   const category = (req.query.category as CategoryType) || 'all';
   const q = ((req.query.q as string) || '').trim();
   const discover = req.query.discover === 'true';
@@ -186,81 +182,7 @@ export async function handleGetArtists(req: Request, res: Response): Promise<voi
   });
 }
 
-export async function handleAddArtist(req: Request, res: Response): Promise<void> {
-  try {
-    const parsed = parseArtistSyncDTO(req.body);
-    if (!parsed.ok) {
-      res.status(400).json({ code: -1, message: parsed.error });
-      return;
-    }
-    const { name, category } = parsed.data;
-    const soloNames = extractSoloArtistNames(name);
-    const cleanName = soloNames.length > 0 ? soloNames[0] : name;
-
-    const configuredKey = process.env.ADMIN_API_KEY;
-    const providedKey = req.headers['x-admin-key'] || req.headers['authorization']?.replace(/^Bearer\s+/i, '');
-    const isAdmin = Boolean(configuredKey && providedKey === configuredKey);
-    const maxLimit = isAdmin ? 200 : 50;
-
-    const result = await syncArtistSongs(cleanName, category, maxLimit);
-    if (result.body.code === 0 && result.body.data?.artist) {
-      invalidateSupabaseArtistsCache(result.body.data.artist);
-      res.status(result.status).json({
-        code: 0,
-        message: 'ok',
-        data: result.body.data.artist,
-      });
-      return;
-    }
-
-    res.status(result.status).json(result.body);
-  } catch (err) {
-    res.status(500).json({ code: -1, message: (err as Error).message });
-  }
-}
-
-export async function handleSyncArtist(req: Request, res: Response): Promise<void> {
-  try {
-    const { name, id, category, forceRefresh } = req.body || {};
-    const all = getAllArtists(songPool);
-    const existing = all.find(
-      (a) =>
-        (id && a.id === id) ||
-        (name && (checkArtistStrictMatch(a.name, name) || normalizeText(a.name) === normalizeText(name)))
-    );
-
-    const rawName = String(name || existing?.name || '').trim();
-    if (!rawName) {
-      res.status(400).json({ code: 400, message: 'Artist name is required' });
-      return;
-    }
-
-    const soloNames = extractSoloArtistNames(rawName);
-    const cleanName = existing ? existing.name : soloNames.length > 0 ? soloNames[0] : rawName;
-    const validCat: 'thai' | 'international' | undefined =
-      (existing?.category || category) === 'international'
-        ? 'international'
-        : (existing?.category || category) === 'thai'
-        ? 'thai'
-        : undefined;
-
-    const configuredKey = process.env.ADMIN_API_KEY;
-    const providedKey = req.headers['x-admin-key'] || req.headers['authorization']?.replace(/^Bearer\s+/i, '');
-    const isAdmin = Boolean(configuredKey && providedKey === configuredKey);
-    const maxLimit = isAdmin ? 200 : 50;
-
-    const result = await syncArtistSongs(cleanName, validCat, maxLimit, Boolean(forceRefresh));
-    if (result.body.code === 0 && result.body.data?.artist) {
-      invalidateSupabaseArtistsCache(result.body.data.artist);
-    }
-
-    res.status(result.status).json(result.body);
-  } catch (err) {
-    res.status(500).json({ code: -1, message: (err as Error).message });
-  }
-}
-
-export function handleDeleteArtist(req: Request, res: Response): void {
+export function handleDeleteArtist(req: ApiRequest, res: ApiResponse): void {
   const id = String(req.params.id);
   deleteCustomArtist(id);
   res.json({ code: 0, message: 'ok', data: { removedId: id } });

@@ -7,6 +7,16 @@
  */
 
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+
+// The handler test below loads the catalog; give it a throwaway DB copy so the real
+// data/beatdrop.db is never migrated or written by a test run.
+const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'beatdrop-autocomplete-test-'));
+fs.copyFileSync(path.resolve('data/beatdrop.db'), path.join(tempDir, 'autocomplete-test.db'));
+process.env.BEATDROP_SQLITE_PATH = path.join(tempDir, 'autocomplete-test.db');
+process.env.BEATDROP_CUSTOM_ARTISTS_PATH = path.join(tempDir, 'custom-artists.json');
 
 interface Song {
   id: string;
