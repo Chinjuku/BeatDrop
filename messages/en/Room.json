@@ -21,7 +21,16 @@
     "modeAnswer": "Everyone answers",
     "modeAnswerHint": "Everyone guesses; faster correct answers score more",
     "modeBuzzer": "Buzzer",
-    "modeBuzzerHint": "First to buzz answers; a wrong answer locks you out"
+    "modeBuzzerHint": "First to buzz answers; a wrong answer locks you out",
+    "artist": "Artist",
+    "artistAny": "Any artist",
+    "artistHint": "Search the catalog, or leave on any artist.",
+    "artistLoading": "Loading artists…",
+    "artistNone": "No matching artist",
+    "clipCustom": "Custom",
+    "clipCustomLabel": "Custom clip length in seconds",
+    "secondsUnit": "seconds",
+    "clipRange": "{min}–{max} seconds"
   },
   "join": {
     "heading": "Join a room",
@@ -60,7 +69,8 @@
     "start": "Start game",
     "starting": "Starting…",
     "leave": "Leave room",
-    "summary": "{mode} · {rounds} songs · {clip}s clips · {where}"
+    "summary": "{mode} · {rounds} songs · {clip}s clips · {artist} · {where}",
+    "anyArtist": "Any artist"
   },
   "game": {
     "round": "Song {current} of {total}",

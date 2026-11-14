@@ -260,6 +260,7 @@ function Lobby({ view, busy, onStart, onLeave }: { view: RoomView; busy: boolean
             mode: t(`mode.${view.settings.mode}`),
             rounds: view.settings.rounds,
             clip: view.settings.clipSeconds,
+            artist: view.settings.artistName ?? t('lobby.anyArtist'),
             where: view.settings.audio === 'host' ? t('create.audioHost') : t('create.audioEveryone'),
           })}
         </p>

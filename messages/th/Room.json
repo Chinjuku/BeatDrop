@@ -21,7 +21,16 @@
     "modeAnswer": "ทุกคนตอบ",
     "modeAnswerHint": "ทุกคนได้ทาย ใครตอบถูกเร็วกว่าได้คะแนนมากกว่า",
     "modeBuzzer": "แข่งกดปุ่ม",
-    "modeBuzzerHint": "ใครกดก่อนได้ตอบ ตอบผิดหมดสิทธิ์เพลงนั้น"
+    "modeBuzzerHint": "ใครกดก่อนได้ตอบ ตอบผิดหมดสิทธิ์เพลงนั้น",
+    "artist": "ศิลปิน",
+    "artistAny": "ศิลปินใดก็ได้",
+    "artistHint": "ค้นหาจากรายชื่อในระบบ หรือเลือกศิลปินใดก็ได้",
+    "artistLoading": "กำลังโหลดรายชื่อศิลปิน…",
+    "artistNone": "ไม่พบศิลปินที่ตรงกัน",
+    "clipCustom": "กำหนดเอง",
+    "clipCustomLabel": "ความยาวคลิปที่กำหนดเอง (วินาที)",
+    "secondsUnit": "วินาที",
+    "clipRange": "{min}–{max} วินาที"
   },
   "join": {
     "heading": "เข้าห้อง",
@@ -60,7 +69,8 @@
     "start": "เริ่มเกม",
     "starting": "กำลังเริ่ม…",
     "leave": "ออกจากห้อง",
-    "summary": "{mode} · {rounds} เพลง · คลิป {clip} วิ · {where}"
+    "summary": "{mode} · {rounds} เพลง · คลิป {clip} วิ · {artist} · {where}",
+    "anyArtist": "ศิลปินใดก็ได้"
   },
   "game": {
     "round": "เพลงที่ {current} จาก {total}",
