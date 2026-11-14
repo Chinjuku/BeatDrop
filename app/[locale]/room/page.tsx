@@ -13,6 +13,8 @@ import {
   textInputClass,
   textInputStyle,
 } from '../../../components/room/RoomControls';
+import { ClipLengthPicker } from '../../../components/room/ClipLengthPicker';
+import { RoomArtistPicker } from '../../../components/room/RoomArtistPicker';
 import { errorKeyFor, saveRoomCredentials, type RoomErrorKey } from '../../../hooks/useRoom';
 import { DEFAULT_ROOM_SETTINGS, ROOM_LIMITS, type RoomAudio, type RoomMode, type RoomSettings } from '../../../shared/roomTypes';
 import type { CategoryType, DifficultyLevel } from '../../../shared/types';
@@ -181,19 +183,15 @@ export default function RoomHomePage() {
             options={DIFFICULTIES.map((d) => ({ value: d, label: DIFFICULTY_LABEL[d] }))}
             onChange={(v) => update('difficulty', v)}
           />
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <RoomArtistPicker value={settings.artistName} onChange={(a) => update('artistName', a)} />
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-start">
             <Segmented
               label={t('create.rounds')}
               value={settings.rounds}
               options={ROOM_LIMITS.rounds.map((r) => ({ value: r, label: String(r) }))}
               onChange={(v) => update('rounds', v)}
             />
-            <Segmented
-              label={t('create.clip')}
-              value={settings.clipSeconds}
-              options={ROOM_LIMITS.clipSeconds.map((s) => ({ value: s, label: t('create.seconds', { seconds: s }) }))}
-              onChange={(v) => update('clipSeconds', v)}
-            />
+            <ClipLengthPicker value={settings.clipSeconds} onChange={(v) => update('clipSeconds', v)} />
           </div>
           {createError && <ErrorText>{t(`errors.${createError}`)}</ErrorText>}
           <PrimaryButton type="submit" disabled={busy !== null}>

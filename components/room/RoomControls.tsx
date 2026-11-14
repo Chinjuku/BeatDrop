@@ -78,6 +78,10 @@ export function Segmented<T extends string | number>({
   );
 }
 
+/** Visible keyboard focus for room buttons. */
+const focusRing =
+  'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--song-accent)]';
+
 export function PrimaryButton({
   children,
   disabled,
@@ -94,7 +98,7 @@ export function PrimaryButton({
       type={type}
       onClick={onClick}
       disabled={disabled}
-      className="w-full min-h-12 rounded-xl px-5 text-base font-extrabold transition hover:brightness-110 disabled:opacity-50"
+      className={`w-full min-h-12 rounded-xl px-5 text-base font-extrabold transition hover:brightness-110 disabled:opacity-50 ${focusRing}`}
       style={{ backgroundColor: 'var(--song-accent)', color: 'var(--song-accent-on)' }}
     >
       {children}
@@ -102,12 +106,21 @@ export function PrimaryButton({
   );
 }
 
-export function SecondaryButton({ children, onClick }: { children: React.ReactNode; onClick: () => void }) {
+export function SecondaryButton({
+  children,
+  onClick,
+  disabled,
+}: {
+  children: React.ReactNode;
+  onClick: () => void;
+  disabled?: boolean;
+}) {
   return (
     <button
       type="button"
       onClick={onClick}
-      className="min-h-11 rounded-xl border px-4 text-sm font-bold transition hover:brightness-110"
+      disabled={disabled}
+      className={`min-h-11 rounded-xl border px-4 text-sm font-bold transition hover:brightness-110 disabled:opacity-50 ${focusRing}`}
       style={{ backgroundColor: 'var(--song-surface-soft)', borderColor: 'var(--song-border)', color: 'var(--song-text)' }}
     >
       {children}

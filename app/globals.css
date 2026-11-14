@@ -1960,3 +1960,50 @@ html {
     animation: none;
   }
 }
+
+/* Live rooms: correct-answer animations (toast, row pop, burst).
+   Durations come from the `--bd-dur` variable, set from the CORRECT_*_MS constants in hooks/useCorrectFeed.ts. */
+@keyframes bd-toast-in {
+  0% { opacity: 0; transform: translateY(-140%); }
+  14% { opacity: 1; transform: translateY(0); }
+  86% { opacity: 1; transform: translateY(0); }
+  100% { opacity: 0; transform: translateY(-40%); }
+}
+@keyframes bd-row-pop {
+  0% { transform: scale(1); box-shadow: 0 0 0 0 transparent; }
+  25% { transform: scale(1.08); box-shadow: 0 0 0 3px var(--pop-color), 0 0 18px var(--pop-color); }
+  100% { transform: scale(1); box-shadow: 0 0 0 0 transparent; }
+}
+@keyframes bd-row-glow {
+  0% { box-shadow: 0 0 0 0 transparent; }
+  25% { box-shadow: 0 0 0 3px var(--pop-color), 0 0 18px var(--pop-color); }
+  100% { box-shadow: 0 0 0 0 transparent; }
+}
+@keyframes bd-float-points {
+  0% { opacity: 0; transform: translateY(0); }
+  20% { opacity: 1; }
+  100% { opacity: 0; transform: translateY(-28px); }
+}
+@keyframes bd-burst {
+  0% { opacity: 0; transform: scale(0.6); }
+  18% { opacity: 1; transform: scale(1.05); }
+  30% { transform: scale(1); }
+  82% { opacity: 1; }
+  100% { opacity: 0; transform: scale(1); }
+}
+@keyframes bd-fade {
+  0% { opacity: 0; }
+  15% { opacity: 1; }
+  85% { opacity: 1; }
+  100% { opacity: 0; }
+}
+.bd-toast { animation: bd-toast-in var(--bd-dur) ease-out both; }
+.bd-row-pop { animation: bd-row-pop var(--bd-dur) ease-out both; }
+.bd-float-points { animation: bd-float-points var(--bd-dur) ease-out both; }
+.bd-burst { animation: bd-burst var(--bd-dur) ease-out both; }
+
+@media (prefers-reduced-motion: reduce) {
+  .bd-toast, .bd-burst, .bd-float-points { animation: bd-fade var(--bd-dur) linear both; }
+  /* The row itself never fades or moves: glow only. */
+  .bd-row-pop { animation: bd-row-glow var(--bd-dur) linear both; }
+}

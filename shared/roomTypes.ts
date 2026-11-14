@@ -27,11 +27,18 @@ export interface RoomSettings {
 export const ROOM_LIMITS = {
   maxPlayers: 12,
   rounds: [5, 10, 15],
-  clipSeconds: [2, 5, 10],
-  answerSeconds: 20,
+  /** Quick-pick clip lengths in seconds; any value in the snippet bounds is allowed. */
+  clipPresets: [0.5, 2, 5, 10, 15],
+  /** Answer window per mode, set by the server (never the client). */
+  answerSeconds: { answer: 20, buzzer: 30 },
   maxAttempts: 3,
   /** Buzzer mode: time the buzzing player has to answer. */
-  buzzAnswerMs: 8000,
+  buzzAnswerMs: 10_000,
+  /** Pause: longest a single pause may last, resume countdown, request window, per-player cooldown. */
+  pauseMaxMs: 60_000,
+  pauseResumeMs: 3_000,
+  pauseRequestMs: 10_000,
+  pauseCooldownMs: 30_000,
   countdownMs: 3000,
   revealMs: 6000,
   nameMaxLength: 20,
@@ -46,8 +53,11 @@ export const DEFAULT_ROOM_SETTINGS: RoomSettings = {
   difficulty: 'easy',
   rounds: 10,
   clipSeconds: 5,
-  answerSeconds: ROOM_LIMITS.answerSeconds,
+  answerSeconds: ROOM_LIMITS.answerSeconds.answer,
 };
+
+/** Body of POST /api/rooms/[code]/pause. Host: pause/approve/decline/resume; others: request. */
+export type PauseAction = 'request' | 'approve' | 'decline' | 'pause' | 'resume';
 
 export type RoomPhase = 'lobby' | 'countdown' | 'guessing' | 'reveal' | 'finished';
 
@@ -65,6 +75,8 @@ export interface RoomPlayerView {
   isHost: boolean;
   isMe: boolean;
   left: boolean;
+  /** Index in join order; stable while scores reorder the list. Feeds `playerColor`. */
+  colorIndex: number;
   /** This round: has the player finished (correct or out of attempts)? */
   done: boolean;
   /** Points earned this round (only shown in reveal / finished). */
@@ -87,6 +99,8 @@ export interface RoomView {
   revealEndsAt?: number;
   audioUrl?: string;
   players: RoomPlayerView[];
+  /** Who has answered correctly this round (guessing/reveal), by time. Never carries the song. */
+  correct: { playerId: string; name: string; points: number; at: number }[];
   me: {
     id: string;
     isHost: boolean;
@@ -104,4 +118,19 @@ export interface RoomView {
     lockedOut: boolean;
     canBuzz: boolean;
   };
+  /** True when the game ended because only one player was left. */
+  endedEarly?: boolean;
+  /** True inside any freeze (pause or buzz hold): audio stops. Input locking uses the pause, not this. */
+  frozen?: boolean;
+  /**
+   * Where the clip plays: start `fromSeconds` into the clip at server time `at`. Moves after
+   * each freeze so audio resumes where it stopped. Absent while frozen or once the clip is over.
+   */
+  audioCue?: { at: number; fromSeconds: number };
+  /** Present while a host pause is active; `resumingAt` is when its resuming countdown starts. */
+  pause?: { byName: string; until: number; resumingAt: number };
+  /** Host only: a pending request from a player. */
+  pauseRequest?: { playerName: string; expiresAt: number };
+  /** Requester only: the state of their request, shown for 5 s after the outcome. */
+  myPauseRequest?: 'pending' | 'approved' | 'declined' | 'expired';
 }

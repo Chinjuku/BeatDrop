@@ -4,7 +4,7 @@
  * second, estimates the offset between this device's clock and the server's, and sends actions.
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { RoomSettings, RoomView } from '../shared/roomTypes';
+import type { PauseAction, RoomSettings, RoomView } from '../shared/roomTypes';
 import type { Song } from '../shared/types';
 
 export interface RoomPreview {
@@ -62,6 +62,10 @@ export function errorKeyFor(status: number, message?: string): RoomErrorKey {
 function pollDelay(view: RoomView | null): number {
   if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return 4000;
   if (!view || view.phase === 'lobby' || view.phase === 'finished') return 2000;
+  // The host answers a break request within its 10 s window: show it promptly.
+  if (view.me.isHost && view.pauseRequest) return 600;
+  // A pause ends at a known moment; poll just after it so the clip resumes on time.
+  if (view.pause) return Math.min(1000, Math.max(150, view.pause.until - view.serverNow + 100));
   // Buzzer rounds change hands quickly; see who has the buzzer sooner.
   if (view.settings.mode === 'buzzer' && view.phase === 'guessing') return 600;
   return 1000;
@@ -225,13 +229,27 @@ export function useRoom(code: string) {
     return ok;
   }, [runAction]);
 
+  /**
+   * Pause flow. A rule failure (409) is normal (e.g. a cooldown or someone buzzed first): it still
+   * carries the current view, and its reason is returned instead of showing an error banner.
+   */
+  const pause = useCallback(
+    async (action: PauseAction): Promise<{ ok: boolean; reason?: string }> => {
+      const { ok, json } = await runAction('/pause', { action });
+      if (ok) return { ok };
+      setError(null);
+      return { ok, reason: typeof json?.message === 'string' ? json.message : undefined };
+    },
+    [runAction]
+  );
+
   const leave = useCallback(async () => {
     await runAction('/leave');
     clearCredentials(code);
     credsRef.current = null;
   }, [code, runAction]);
 
-  return { view, preview, error, offline, busy, lastAnswer, offsetMs, savedName, join, start, answer, buzz, leave };
+  return { view, preview, error, offline, busy, lastAnswer, offsetMs, savedName, join, start, answer, buzz, pause, leave };
 }
 
 /** Server-aligned "now", re-rendered every `intervalMs` while active. */

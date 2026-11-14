@@ -5,6 +5,7 @@
 import type { ApiRequest, ApiResponse } from '../http/api';
 import { headerValue } from '../http/api';
 import type { CategoryType, DifficultyLevel, Song } from '../../shared/types';
+import { MAX_SNIPPET_DURATION, MIN_SNIPPET_DURATION } from '../../shared/types';
 import {
   DEFAULT_ROOM_SETTINGS,
   ROOM_LIMITS,
@@ -16,15 +17,16 @@ import { songPool } from '../engine/songPool';
 import { getValidLibraryPool, matchesArtistFilter, sliceByDifficulty } from '../engine/roundEngine';
 import { normalizeText } from '../engine/artists';
 import { isJunkTrack } from '../itunes';
+import { applyPauseAction, PAUSE_ACTIONS, type PauseAction } from './pause';
 import { getRoomStore, updateRoom, type RoomStore } from './store';
 import { newPlayerId, newRoomCode, normalizeRoomCode, signPlayer, verifyPlayer } from './auth';
 import {
   activePlayers,
   applyAnswer,
+  applyLeave,
   applyBuzz,
   applyBuzzAnswer,
   buildView,
-  closeRoundIfEveryoneDone,
   locate,
   type RoomRound,
   type RoomState,
@@ -39,19 +41,28 @@ function pick<T>(value: unknown, allowed: readonly T[], fallback: T): T {
   return allowed.includes(value as T) ? (value as T) : fallback;
 }
 
+/** Clip length from an untrusted value: clamped to the snippet bounds, rounded to 0.1 s. */
+export function parseClipSeconds(raw: unknown): number {
+  const n = typeof raw === 'number' ? raw : typeof raw === 'string' && raw.trim() !== '' ? Number(raw) : NaN;
+  if (!Number.isFinite(n)) return DEFAULT_ROOM_SETTINGS.clipSeconds;
+  const clamped = Math.min(MAX_SNIPPET_DURATION, Math.max(MIN_SNIPPET_DURATION, n));
+  return Math.round(clamped * 10) / 10;
+}
+
 /** Validates settings from an untrusted body; anything unknown falls back to the default. */
 export function parseRoomSettings(raw: unknown): RoomSettings {
   const b = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
   const artist = typeof b.artistName === 'string' ? b.artistName.trim().slice(0, 80) : '';
+  const mode = pick(b.mode, MODES, DEFAULT_ROOM_SETTINGS.mode);
   return {
-    mode: pick(b.mode, MODES, DEFAULT_ROOM_SETTINGS.mode),
+    mode,
     audio: pick(b.audio, AUDIO, DEFAULT_ROOM_SETTINGS.audio),
     category: pick(b.category, CATEGORIES, DEFAULT_ROOM_SETTINGS.category),
     difficulty: pick(b.difficulty, DIFFICULTIES, DEFAULT_ROOM_SETTINGS.difficulty),
     ...(artist && artist !== 'any' ? { artistName: artist } : {}),
     rounds: pick(Number(b.rounds), ROOM_LIMITS.rounds, DEFAULT_ROOM_SETTINGS.rounds),
-    clipSeconds: pick(Number(b.clipSeconds), ROOM_LIMITS.clipSeconds, DEFAULT_ROOM_SETTINGS.clipSeconds),
-    answerSeconds: ROOM_LIMITS.answerSeconds,
+    clipSeconds: parseClipSeconds(b.clipSeconds),
+    answerSeconds: ROOM_LIMITS.answerSeconds[mode],
   };
 }
 
@@ -284,6 +295,11 @@ export async function handleStartRoom(req: ApiRequest, res: ApiResponse): Promis
     room.rounds = songs.map(toRound);
     for (const p of room.players) p.score = 0;
     room.players = room.players.filter((p) => p.leftAt === undefined);
+    room.startedWith = room.players.length;
+    room.pauses = [];
+    room.pauseRequest = undefined;
+    room.lastPauseRequestAt = undefined;
+    room.endedAt = undefined;
     return true;
   });
   if (outcome.result === false) {
@@ -370,6 +386,46 @@ export async function handleRoomBuzz(req: ApiRequest, res: ApiResponse): Promise
   sendView(res, outcome.room, playerId);
 }
 
+/** POST /api/rooms/[code]/pause — body { action }: request | approve | decline | pause | resume. */
+export async function handleRoomPause(req: ApiRequest, res: ApiResponse): Promise<void> {
+  const store = requireStore(res);
+  if (!store) return;
+  const code = roomCodeFrom(req, res);
+  if (!code) return;
+  const playerId = playerFrom(req, code, res);
+  if (!playerId) return;
+
+  const raw = (req.body as { action?: unknown } | null | undefined)?.action;
+  const action = PAUSE_ACTIONS.find((a) => a === raw) as PauseAction | undefined;
+  if (!action) {
+    res.status(400).json({ code: -400, message: 'Unknown pause action' });
+    return;
+  }
+
+  let rejected: string | null = null;
+  const outcome = await updateRoom(store, code, (room) => {
+    const applied = applyPauseAction(room, playerId, action, Date.now());
+    if (!applied.ok) {
+      rejected = applied.reason;
+      return false;
+    }
+    return true;
+  });
+  if (!outcome.room) {
+    res.status(404).json({ code: -404, message: 'Room not found' });
+    return;
+  }
+  if (outcome.result === false) {
+    res.status(409).json({
+      code: -409,
+      message: rejected ?? 'Pause not accepted',
+      data: { room: buildView(outcome.room, playerId, Date.now()) },
+    });
+    return;
+  }
+  sendView(res, outcome.room, playerId);
+}
+
 /** POST /api/rooms/[code]/leave */
 export async function handleLeaveRoom(req: ApiRequest, res: ApiResponse): Promise<void> {
   const store = requireStore(res);
@@ -379,17 +435,7 @@ export async function handleLeaveRoom(req: ApiRequest, res: ApiResponse): Promis
   const playerId = playerFrom(req, code, res);
   if (!playerId) return;
   await updateRoom(store, code, (room) => {
-    const player = room.players.find((p) => p.id === playerId);
-    if (!player || player.leftAt !== undefined) return false;
-    const now = Date.now();
-    player.leftAt = now;
-    if (room.hostId === playerId) {
-      const next = activePlayers(room)[0];
-      if (next) room.hostId = next.id; // hand the host role on so the room can continue
-    }
-    const pos = locate(room, now);
-    if (pos.phase === 'guessing' || pos.phase === 'countdown') closeRoundIfEveryoneDone(room, pos.roundIndex, now);
-    return true;
+    return applyLeave(room, playerId, Date.now());
   });
   res.json({ code: 0, message: 'ok' });
 }
