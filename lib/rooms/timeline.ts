@@ -5,7 +5,12 @@
  * A round's early end (`finishedAt`) is only ever written by a write request (answer, buzz
  * answer, leave). It is never re-derived from the current player list, so a player leaving
  * later cannot shift the timing of rounds that were already played.
+ *
+ * Durations (countdown, answer window, reveal) run on the game clock: they only advance outside
+ * freezes (stored pauses and buzz holds). A freeze only affects times after its `from`, so
+ * rounds that were already played never move.
  */
+import { activeElapsed, frozenAt, wallAfter, type Freeze } from './clock';
 import {
   ROOM_LIMITS,
   type RoomPhase,
@@ -49,6 +54,14 @@ export interface RoomRound {
   finishedAt?: number;
 }
 
+/** A host pause. `until` is the planned end, shortened to the resume time on an early resume. */
+export interface RoomPause {
+  from: number;
+  until: number;
+  byId: string;
+  requestedById?: string;
+}
+
 export interface RoomState {
   code: string;
   version: number;
@@ -59,6 +72,8 @@ export interface RoomState {
   status: 'lobby' | 'playing';
   startedAt?: number;
   rounds: RoomRound[];
+  /** Absent on rooms created before pausing existed. */
+  pauses?: RoomPause[];
 }
 
 export interface RoomPosition {
@@ -81,16 +96,26 @@ export function buzzState(round: RoomRound, now: number) {
   return { holder, lockedOut, last };
 }
 
-function roundEnd(room: RoomState, round: RoomRound, playAt: number): number {
-  const timerEnd = playAt + room.settings.answerSeconds * 1000;
-  let end = timerEnd;
-  if (room.settings.mode === 'buzzer') {
-    // A buzz pressed before the timer ran out still gets its full time to answer.
-    const last = round.buzzes?.[round.buzzes.length - 1];
-    if (last && last.at < timerEnd) end = Math.max(timerEnd, last.resolvedAt ?? last.deadline);
+/** Every interval the game clock stands still: stored pauses plus every buzz hold. */
+export function freezesOf(room: RoomState): Freeze[] {
+  const freezes: Freeze[] = (room.pauses ?? []).map((p) => ({ from: p.from, until: p.until }));
+  for (const round of room.rounds) {
+    for (const b of round.buzzes ?? []) freezes.push({ from: b.at, until: b.resolvedAt ?? b.deadline });
   }
-  if (round.finishedAt !== undefined) end = Math.min(end, Math.max(playAt, round.finishedAt));
-  return end;
+  return freezes.sort((a, b) => a.from - b.from);
+}
+
+/** Pauses only (not buzz holds): while one is active, answers and buzzes are rejected. */
+function pausedAt(room: RoomState, now: number): boolean {
+  return frozenAt(room.pauses ?? [], now) !== undefined;
+}
+
+function roundEnd(room: RoomState, round: RoomRound, playAt: number, freezes: Freeze[]): number {
+  // Buzz holds are freezes, so a buzz near the end of the timer still gets its full answer time.
+  const timerEnd = wallAfter(freezes, playAt, room.settings.answerSeconds * 1000);
+  // `finishedAt` is an early end in wall-clock time, written once by a write request.
+  if (round.finishedAt !== undefined) return Math.min(timerEnd, Math.max(playAt, round.finishedAt));
+  return timerEnd;
 }
 
 /** Where the game is at `now`. */
@@ -98,11 +123,12 @@ export function locate(room: RoomState, now: number): RoomPosition {
   if (room.status === 'lobby' || room.startedAt === undefined || room.rounds.length === 0) {
     return { phase: 'lobby', roundIndex: 0 };
   }
+  const freezes = freezesOf(room);
   let t = room.startedAt;
   for (let i = 0; i < room.rounds.length; i++) {
-    const playAt = t + ROOM_LIMITS.countdownMs;
-    const endsAt = roundEnd(room, room.rounds[i], playAt);
-    const revealEndsAt = endsAt + ROOM_LIMITS.revealMs;
+    const playAt = wallAfter(freezes, t, ROOM_LIMITS.countdownMs);
+    const endsAt = roundEnd(room, room.rounds[i], playAt, freezes);
+    const revealEndsAt = wallAfter(freezes, endsAt, ROOM_LIMITS.revealMs);
     if (now < playAt) return { phase: 'countdown', roundIndex: i, playAt, endsAt, revealEndsAt };
     if (now < endsAt) return { phase: 'guessing', roundIndex: i, playAt, endsAt, revealEndsAt };
     if (now < revealEndsAt) return { phase: 'reveal', roundIndex: i, playAt, endsAt, revealEndsAt };
@@ -123,9 +149,12 @@ function playerDone(room: RoomState, round: RoomRound, playerId: string, now: nu
   return Boolean(answer && answer.attempts >= ROOM_LIMITS.maxAttempts);
 }
 
-/** 1000 points for an instant answer, falling linearly to 100 at the end of the window. */
-export function scoreForAnswer(playAt: number, correctAt: number, answerSeconds: number): number {
-  const fraction = Math.min(1, Math.max(0, (correctAt - playAt) / (answerSeconds * 1000)));
+/**
+ * 1000 points for an instant answer, falling linearly to 100 at the end of the window.
+ * `elapsedMs` is active (unfrozen) time since play started.
+ */
+export function scoreForAnswer(elapsedMs: number, answerSeconds: number): number {
+  const fraction = Math.min(1, Math.max(0, elapsedMs / (answerSeconds * 1000)));
   return Math.round(1000 - 900 * fraction);
 }
 
@@ -141,7 +170,7 @@ export function closeRoundIfEveryoneDone(room: RoomState, roundIndex: number, no
 
 export type AnswerOutcome =
   | { ok: true; correct: boolean; points: number; attemptsLeft: number }
-  | { ok: false; reason: 'not-guessing' | 'already-done' | 'not-a-player' | 'not-your-turn' };
+  | { ok: false; reason: 'not-guessing' | 'already-done' | 'not-a-player' | 'not-your-turn' | 'paused' };
 
 function guessingRound(room: RoomState, now: number) {
   const pos = locate(room, now);
@@ -159,13 +188,14 @@ export function applyAnswer(room: RoomState, playerId: string, isCorrect: boolea
   if (!player) return { ok: false, reason: 'not-a-player' };
   const g = guessingRound(room, now);
   if (!g) return { ok: false, reason: 'not-guessing' };
+  if (pausedAt(room, now)) return { ok: false, reason: 'paused' };
   if (playerDone(room, g.round, playerId, now)) return { ok: false, reason: 'already-done' };
 
   const answer = g.round.answers[playerId] ?? { attempts: 0, points: 0 };
   answer.attempts += 1;
   if (isCorrect) {
     answer.correctAt = now;
-    answer.points = scoreForAnswer(g.playAt, now, room.settings.answerSeconds);
+    answer.points = scoreForAnswer(activeElapsed(freezesOf(room), g.playAt, now), room.settings.answerSeconds);
     player.score += answer.points;
   }
   g.round.answers[playerId] = answer;
@@ -180,15 +210,17 @@ export function applyAnswer(room: RoomState, playerId: string, isCorrect: boolea
 
 export type BuzzOutcome =
   | { ok: true; deadline: number }
-  | { ok: false; reason: 'not-guessing' | 'taken' | 'locked-out' | 'not-a-player' | 'too-late' };
+  | { ok: false; reason: 'not-guessing' | 'taken' | 'locked-out' | 'not-a-player' | 'too-late' | 'paused' };
 
 /** Buzzer mode: claims the buzzer if it is free. Mutates `room` on success. */
 export function applyBuzz(room: RoomState, playerId: string, now: number): BuzzOutcome {
   if (!findActive(room, playerId)) return { ok: false, reason: 'not-a-player' };
   const g = guessingRound(room, now);
   if (!g) return { ok: false, reason: 'not-guessing' };
-  // New buzzes only inside the answer window; a buzz near the end still gets its full time.
-  if (now >= g.playAt + room.settings.answerSeconds * 1000) return { ok: false, reason: 'too-late' };
+  if (pausedAt(room, now)) return { ok: false, reason: 'paused' };
+  // New buzzes only inside the answer window (game time). A buzz near the end still gets its
+  // full time to answer, because the hold freezes the clock.
+  if (g.pos.endsAt === undefined || now >= g.pos.endsAt) return { ok: false, reason: 'too-late' };
   const state = buzzState(g.round, now);
   if (state.lockedOut.has(playerId) || g.round.answers[playerId]?.correctAt !== undefined) {
     return { ok: false, reason: 'locked-out' };
@@ -205,6 +237,7 @@ export function applyBuzzAnswer(room: RoomState, playerId: string, isCorrect: bo
   if (!player) return { ok: false, reason: 'not-a-player' };
   const g = guessingRound(room, now);
   if (!g) return { ok: false, reason: 'not-guessing' };
+  if (pausedAt(room, now)) return { ok: false, reason: 'paused' };
   const { holder } = buzzState(g.round, now);
   if (!holder || holder.playerId !== playerId) return { ok: false, reason: 'not-your-turn' };
 
@@ -214,7 +247,7 @@ export function applyBuzzAnswer(room: RoomState, playerId: string, isCorrect: bo
   answer.attempts += 1;
   if (isCorrect) {
     answer.correctAt = now;
-    answer.points = scoreForAnswer(g.playAt, holder.at, room.settings.answerSeconds);
+    answer.points = scoreForAnswer(activeElapsed(freezesOf(room), g.playAt, holder.at), room.settings.answerSeconds);
     player.score += answer.points;
     g.round.finishedAt = now; // someone got it: the song is over
   } else {
@@ -224,12 +257,34 @@ export function applyBuzzAnswer(room: RoomState, playerId: string, isCorrect: bo
   return { ok: true, correct: isCorrect, points: answer.points, attemptsLeft: 0 };
 }
 
+/**
+ * Where the clip should be playing: from `fromSeconds` into the clip, starting at server time
+ * `at` (the end of the latest freeze since play started, or `playAt`). Undefined while frozen
+ * or once the clip has fully played.
+ */
+function audioCueFor(room: RoomState, freezes: Freeze[], playAt: number, now: number): RoomView['audioCue'] {
+  if (frozenAt(freezes, now)) return undefined;
+  let at = playAt;
+  for (const f of freezes) {
+    if (f.from >= playAt && f.from <= now) at = Math.max(at, f.until);
+  }
+  const fromSeconds = Math.round(activeElapsed(freezes, playAt, at) / 10) / 100;
+  if (fromSeconds >= room.settings.clipSeconds) return undefined;
+  return { at, fromSeconds };
+}
+
 /** The view one player is allowed to see. Never includes the answer before the reveal. */
 export function buildView(room: RoomState, viewerId: string, now: number): RoomView {
   const pos = locate(room, now);
   const round = room.status === 'playing' ? room.rounds[pos.roundIndex] : undefined;
   const showResults = pos.phase === 'reveal' || pos.phase === 'finished';
   const inRound = pos.phase === 'countdown' || pos.phase === 'guessing' || pos.phase === 'reveal';
+  const freezes = freezesOf(room);
+  const frozen = round !== undefined && inRound && frozenAt(freezes, now) !== undefined;
+  const audioCue =
+    round && (pos.phase === 'countdown' || pos.phase === 'guessing') && pos.playAt !== undefined
+      ? audioCueFor(room, freezes, pos.playAt, now)
+      : undefined;
 
   const players = room.players
     .map((p) => {
@@ -254,7 +309,7 @@ export function buildView(room: RoomState, viewerId: string, now: number): RoomV
     const state = buzzState(round, now);
     const holderName = state.holder ? room.players.find((p) => p.id === state.holder!.playerId)?.name : undefined;
     const lockedOut = state.lockedOut.has(viewerId);
-    const windowOpen = now < pos.playAt + room.settings.answerSeconds * 1000;
+    const windowOpen = pos.endsAt !== undefined && now < pos.endsAt && !pausedAt(room, now);
     buzz = {
       holderId: state.holder?.playerId,
       holderName,
@@ -287,5 +342,7 @@ export function buildView(room: RoomState, viewerId: string, now: number): RoomV
     },
     reveal: showResults && round ? round.reveal : undefined,
     ...(buzz ? { buzz } : {}),
+    ...(round && inRound ? { frozen } : {}),
+    ...(audioCue ? { audioCue } : {}),
   };
 }

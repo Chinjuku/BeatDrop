@@ -111,4 +111,11 @@ export interface RoomView {
     lockedOut: boolean;
     canBuzz: boolean;
   };
+  /** True inside any freeze (pause or buzz hold): audio stops. Input locking uses the pause, not this. */
+  frozen?: boolean;
+  /**
+   * Where the clip plays: start `fromSeconds` into the clip at server time `at`. Moves after
+   * each freeze so audio resumes where it stopped. Absent while frozen or once the clip is over.
+   */
+  audioCue?: { at: number; fromSeconds: number };
 }

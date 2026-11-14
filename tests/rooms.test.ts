@@ -23,6 +23,7 @@ globalThis.fetch = (async () => {
 
 const { ROOM_LIMITS, DEFAULT_ROOM_SETTINGS } = await import('../shared/roomTypes');
 const timeline = await import('../lib/rooms/timeline');
+const clock = await import('../lib/rooms/clock');
 const { getRoomStore } = await import('../lib/rooms/store');
 const { parsePlayerName, parseRoomSettings, parseClipSeconds } = await import('../lib/rooms/service');
 const roomsRoute = await import('../app/api/rooms/route');
@@ -82,9 +83,9 @@ describe('room timeline (pure)', () => {
   });
 
   it('scores 1000 → 100 across the answer window, measured from play time', () => {
-    assert.equal(timeline.scoreForAnswer(0, 0, 20), 1000);
-    assert.equal(timeline.scoreForAnswer(0, 10_000, 20), 550);
-    assert.equal(timeline.scoreForAnswer(0, 30_000, 20), 100);
+    assert.equal(timeline.scoreForAnswer(0, 20), 1000);
+    assert.equal(timeline.scoreForAnswer(10_000, 20), 550);
+    assert.equal(timeline.scoreForAnswer(30_000, 20), 100);
   });
 
   it('rejects answers during the countdown and ends the round early once everyone is done', () => {
@@ -109,6 +110,128 @@ describe('room timeline (pure)', () => {
     assert.equal(JSON.stringify(guessing).includes('Song 0'), false);
     const reveal = timeline.buildView(room, 'p', 1_000 + C + A + 10);
     assert.equal(reveal.reveal?.title, 'Song 0');
+  });
+});
+
+describe('game clock', () => {
+  const C = ROOM_LIMITS.countdownMs;
+  const playAt = 1_000 + C;
+
+  it('activeElapsed / wallAfter skip freezes', () => {
+    const f = [{ from: 10, until: 20 }, { from: 30, until: 35 }];
+    assert.equal(clock.activeElapsed(f, 0, 40), 25);
+    assert.equal(clock.wallAfter(f, 0, 25), 40);
+    assert.equal(clock.wallAfter(f, 0, 10), 10); // reached exactly when a freeze starts → before it
+    assert.equal(clock.activeElapsed(f, 15, 32), 10, 'starts inside a freeze');
+    assert.equal(clock.wallAfter(f, 15, 3), 23, 'start inside a freeze waits for its end');
+    assert.equal(clock.activeElapsed([{ from: 0, until: 10 }, { from: 5, until: 15 }], 0, 20), 5, 'overlaps count once');
+    assert.deepEqual(clock.frozenAt(f, 10), f[0]);
+    assert.equal(clock.frozenAt(f, 20), undefined);
+    assert.equal(clock.frozenAt(f, 9), undefined);
+  });
+
+  it('a pause shifts the current and later phases but not earlier rounds', () => {
+    const room = baseRoom();
+    const before = timeline.locate(room, 1_000 + C + 5_000);
+    const nextBefore = timeline.locate(room, before.revealEndsAt!);
+    room.pauses = [{ from: 1_000 + C + 5_000, until: 1_000 + C + 15_000, byId: 'h' }];
+    const after = timeline.locate(room, 1_000 + C + 15_000);
+    assert.equal(after.endsAt, before.endsAt! + 10_000);
+    assert.equal(after.revealEndsAt, before.revealEndsAt! + 10_000);
+    assert.equal(after.playAt, before.playAt);
+    assert.equal(timeline.locate(room, 1_000 + C + 10_000).phase, 'guessing', 'paused in the phase it was paused in');
+    const nextAfter = timeline.locate(room, before.revealEndsAt! + 10_000);
+    assert.deepEqual([nextAfter.roundIndex, nextAfter.playAt], [1, nextBefore.playAt! + 10_000]);
+
+    // A pause in round 2 never moves round 1.
+    const later = baseRoom();
+    const r1 = timeline.locate(later, playAt);
+    later.pauses = [{ from: nextBefore.playAt! + 1_000, until: nextBefore.playAt! + 5_000, byId: 'h' }];
+    assert.deepEqual(timeline.locate(later, playAt), r1);
+  });
+
+  it('scoring excludes frozen time', () => {
+    const room = baseRoom();
+    room.pauses = [{ from: playAt + 2_000, until: playAt + 12_000, byId: 'h' }];
+    const res = timeline.applyAnswer(room, 'h', true, playAt + 15_000);
+    assert.ok(res.ok);
+    assert.equal(res.points, timeline.scoreForAnswer(5_000, 20));
+  });
+
+  it('answer exactly at freeze boundaries', () => {
+    const room = baseRoom();
+    room.pauses = [{ from: playAt + 5_000, until: playAt + 15_000, byId: 'h' }];
+    assert.deepEqual(timeline.applyAnswer(room, 'h', true, playAt + 5_000), { ok: false, reason: 'paused' });
+    assert.deepEqual(timeline.applyAnswer(room, 'h', true, playAt + 14_999), { ok: false, reason: 'paused' });
+    const at = timeline.applyAnswer(room, 'h', true, playAt + 15_000);
+    assert.ok(at.ok && at.correct);
+    assert.equal(at.points, timeline.scoreForAnswer(5_000, 20));
+  });
+
+  it('a buzz is rejected while paused', () => {
+    const room = baseRoom({ settings: { ...DEFAULT_ROOM_SETTINGS, mode: 'buzzer', answerSeconds: ROOM_LIMITS.answerSeconds.buzzer } });
+    room.pauses = [{ from: playAt + 5_000, until: playAt + 15_000, byId: 'h' }];
+    assert.deepEqual(timeline.applyBuzz(room, 'p', playAt + 6_000), { ok: false, reason: 'paused' });
+    assert.ok(timeline.applyBuzz(room, 'p', playAt + 15_000).ok);
+  });
+
+  it('a buzz freezes the round clock and scores from the buzz', () => {
+    const A = ROOM_LIMITS.answerSeconds.buzzer * 1000;
+    const room = baseRoom({
+      settings: { ...DEFAULT_ROOM_SETTINGS, mode: 'buzzer', answerSeconds: ROOM_LIMITS.answerSeconds.buzzer },
+      players: [
+        { id: 'h', name: 'Host', joinedAt: 0, score: 0 },
+        { id: 'p', name: 'Pat', joinedAt: 0, score: 0 },
+        { id: 'q', name: 'Quinn', joinedAt: 0, score: 0 },
+      ],
+    });
+    assert.ok(timeline.applyBuzz(room, 'p', playAt + 5_000).ok);
+    assert.equal(timeline.buildView(room, 'h', playAt + 6_000).frozen, true, 'audio stops for everyone during a hold');
+    assert.ok(timeline.applyBuzzAnswer(room, 'p', false, playAt + 8_000).ok);
+    assert.equal(timeline.locate(room, playAt + 9_000).endsAt, playAt + A + 3_000);
+    assert.equal(timeline.buildView(room, 'h', playAt + 9_000).frozen, false);
+    // q buzzes after 7 s of active time (5 s + 2 s) and is scored from there.
+    assert.ok(timeline.applyBuzz(room, 'q', playAt + 10_000).ok);
+    const right = timeline.applyBuzzAnswer(room, 'q', true, playAt + 14_000);
+    assert.ok(right.ok && right.correct);
+    assert.equal(right.points, timeline.scoreForAnswer(7_000, 30));
+  });
+
+  it('room without pauses field still locates', () => {
+    const r = baseRoom();
+    delete (r as Partial<RoomState>).pauses;
+    assert.equal(timeline.locate(r, 1_000).phase, 'countdown');
+    assert.equal(timeline.applyAnswer(r, 'h', true, playAt + 1_000).ok, true);
+  });
+
+  it('audio cue resumes the clip after a freeze', () => {
+    const room = baseRoom({ settings: { ...DEFAULT_ROOM_SETTINGS, clipSeconds: 10 } });
+    assert.deepEqual(timeline.buildView(room, 'p', playAt + 1_000).audioCue, { at: playAt, fromSeconds: 0 });
+    room.pauses = [{ from: playAt + 4_000, until: playAt + 14_000, byId: 'h' }];
+    const during = timeline.buildView(room, 'p', playAt + 5_000);
+    assert.equal(during.audioCue, undefined);
+    assert.equal(during.frozen, true);
+    const afterPause = timeline.buildView(room, 'p', playAt + 15_000);
+    assert.deepEqual(afterPause.audioCue, { at: playAt + 14_000, fromSeconds: 4 });
+    assert.equal(afterPause.frozen, false);
+
+    const short = baseRoom({ settings: { ...DEFAULT_ROOM_SETTINGS, clipSeconds: 3 } });
+    short.pauses = [{ from: playAt + 4_000, until: playAt + 14_000, byId: 'h' }];
+    assert.equal(timeline.buildView(short, 'p', playAt + 15_000).audioCue, undefined, 'clip already over: no cue');
+  });
+
+  it('audio cue continues the clip after a wrong buzz', () => {
+    const room = baseRoom({
+      settings: { ...DEFAULT_ROOM_SETTINGS, mode: 'buzzer', answerSeconds: ROOM_LIMITS.answerSeconds.buzzer, clipSeconds: 10 },
+      players: [
+        { id: 'h', name: 'Host', joinedAt: 0, score: 0 },
+        { id: 'p', name: 'Pat', joinedAt: 0, score: 0 },
+        { id: 'q', name: 'Quinn', joinedAt: 0, score: 0 },
+      ],
+    });
+    timeline.applyBuzz(room, 'p', playAt + 2_345);
+    timeline.applyBuzzAnswer(room, 'p', false, playAt + 5_000);
+    assert.deepEqual(timeline.buildView(room, 'q', playAt + 6_000).audioCue, { at: playAt + 5_000, fromSeconds: 2.35 });
   });
 });
 
@@ -253,12 +376,12 @@ describe('room API flow', () => {
 
 describe('buzzer mode (pure)', () => {
   const C = ROOM_LIMITS.countdownMs;
-  const A = DEFAULT_ROOM_SETTINGS.answerSeconds * 1000;
+  const A = ROOM_LIMITS.answerSeconds.buzzer * 1000;
   const B = ROOM_LIMITS.buzzAnswerMs;
   const playAt = 1_000 + C;
   const buzzerRoom = () =>
     baseRoom({
-      settings: { ...DEFAULT_ROOM_SETTINGS, mode: 'buzzer' },
+      settings: { ...DEFAULT_ROOM_SETTINGS, mode: 'buzzer', answerSeconds: ROOM_LIMITS.answerSeconds.buzzer },
       players: [
         { id: 'h', name: 'Host', joinedAt: 0, score: 0 },
         { id: 'p', name: 'Pat', joinedAt: 0, score: 0 },
@@ -291,7 +414,7 @@ describe('buzzer mode (pure)', () => {
     timeline.applyBuzz(room, 'q', playAt + 2_000);
     const right = timeline.applyBuzzAnswer(room, 'q', true, playAt + 6_000);
     assert.ok(right.ok && right.correct);
-    assert.equal(right.points, timeline.scoreForAnswer(playAt, playAt + 2_000, 20), 'thinking time is not penalised');
+    assert.equal(right.points, timeline.scoreForAnswer(2_000, 30), 'thinking time is not penalised');
     assert.equal(timeline.locate(room, playAt + 6_001).phase, 'reveal');
     assert.equal(room.players.find((p) => p.id === 'q')!.score, right.points);
   });
@@ -305,13 +428,26 @@ describe('buzzer mode (pure)', () => {
     assert.equal(timeline.buildView(room, 'q', later).buzz?.canBuzz, true);
   });
 
-  it('a buzz just before the timer still gets its full answer time', () => {
+  it('a buzz just before the timer freezes it: the holder still gets full answer time', () => {
     const room = buzzerRoom();
     const buzzAt = playAt + A - 500;
     assert.ok(timeline.applyBuzz(room, 'p', buzzAt).ok);
-    assert.equal(timeline.locate(room, playAt + A + 1_000).phase, 'guessing');
-    assert.deepEqual(timeline.applyBuzz(room, 'q', playAt + A + 1_000), { ok: false, reason: 'too-late' }, 'no new buzzes after the timer');
+    const held = timeline.locate(room, playAt + A + 1_000);
+    assert.equal(held.phase, 'guessing');
+    assert.equal(held.endsAt, playAt + A + B, 'endsAt moves by the whole hold while unanswered');
     assert.ok(timeline.applyBuzzAnswer(room, 'p', true, buzzAt + B - 1).ok);
+  });
+
+  it('after a late wrong buzz only the remaining active time is left for new buzzes', () => {
+    const room = buzzerRoom();
+    const buzzAt = playAt + A - 500;
+    timeline.applyBuzz(room, 'p', buzzAt);
+    timeline.applyBuzzAnswer(room, 'p', false, buzzAt + 2_000);
+    const endsAt = timeline.locate(room, buzzAt + 2_000).endsAt!;
+    assert.equal(endsAt, playAt + A + 2_000, 'endsAt moves by the hold');
+    assert.equal(timeline.locate(room, endsAt).phase, 'reveal');
+    assert.deepEqual(timeline.applyBuzz(room, 'q', endsAt), { ok: false, reason: 'not-guessing' }, 'no new buzzes after the timer');
+    assert.ok(timeline.applyBuzz(room, 'q', endsAt - 1).ok);
   });
 
   it('ends early when every player has been locked out by wrong answers', () => {
