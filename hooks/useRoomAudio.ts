@@ -5,6 +5,7 @@
  * so `unlock()` must run from a user gesture (join / start / the "turn on sound" button).
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { isDeezerPreviewUrl, proxiedAudioUrl } from '../lib/audioProxyUtils';
 
 // A zero-length WAV: enough to "play" inside a tap and unlock the element.
 const SILENT_WAV = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=';
@@ -101,11 +102,14 @@ export function useRoomAudio({ enabled, audioUrl, playAt, clipSeconds, offsetMs 
       // Direct Apple CDN blocked (DNS / firewall): fall back to our audio proxy once.
       if (triedProxy.current || !audioUrl.startsWith('http')) return;
       triedProxy.current = true;
-      el.src = `/api/proxy/audio?url=${encodeURIComponent(audioUrl)}`;
+      el.src = proxiedAudioUrl(audioUrl);
       el.load();
     };
-    if (el.src !== audioUrl) {
-      el.src = audioUrl;
+    // Deezer links expire: start on the re-signing proxy instead of the stored link.
+    const initialSrc = isDeezerPreviewUrl(audioUrl) ? proxiedAudioUrl(audioUrl) : audioUrl;
+    if (isDeezerPreviewUrl(audioUrl)) triedProxy.current = true;
+    if (el.src !== initialSrc && !el.src.endsWith(initialSrc)) {
+      el.src = initialSrc;
       el.load();
     }
   }, [audioUrl, element, enabled]);

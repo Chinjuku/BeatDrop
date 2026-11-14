@@ -1,6 +1,7 @@
 'use client';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { MAX_SNIPPET_DURATION, MIN_SNIPPET_DURATION } from '../types';
+import { isDeezerPreviewUrl, proxiedAudioUrl } from '../lib/audioProxyUtils';
 
 export type AudioPlaybackState = 'idle' | 'loading' | 'ready' | 'playing' | 'paused' | 'ended' | 'error';
 
@@ -75,7 +76,8 @@ export async function prefetchAudio(url: string | null | undefined, ctx?: AudioC
   // Respect user's mobile Data Saver mode: skip eager background audio buffering
   if (isSaveDataEnabled()) return;
   try {
-    const res = await fetch(url);
+    // Deezer links expire; the proxy re-signs them, so never fetch the stored link directly.
+    const res = await fetch(isDeezerPreviewUrl(url) ? proxiedAudioUrl(url) : url);
     if (!res.ok) return;
     const arrBuf = await res.arrayBuffer();
     const context = ctx || getSharedAudioContext();
@@ -357,6 +359,12 @@ export function useAudioController({ audioUrl, volume }: UseAudioControllerOptio
 
       // Handover-resilient fetch: retry direct fetch with backoff, then fallback to server proxy
       const fetchBufferWithRetry = async (url: string, retries = 2, delayMs = 600): Promise<ArrayBuffer> => {
+        // 0. Deezer links are signed and expire: always go through the re-signing proxy.
+        if (isDeezerPreviewUrl(url)) {
+          const res = await fetch(proxiedAudioUrl(url));
+          if (!res.ok) throw new Error(`Deezer preview unavailable (HTTP ${res.status})`);
+          return await res.arrayBuffer();
+        }
         // 1. Try direct fetch with backoff
         for (let attempt = 0; attempt <= retries; attempt++) {
           if (cancelled) throw new Error('Cancelled');
@@ -375,7 +383,7 @@ export function useAudioController({ audioUrl, volume }: UseAudioControllerOptio
         // 2. Fallback to server audio proxy if direct Apple CDN fetch failed (e.g. DNS / firewall blocks)
         if (!cancelled && url.startsWith('http')) {
           try {
-            const proxyUrl = `/api/proxy/audio?url=${encodeURIComponent(url)}`;
+            const proxyUrl = proxiedAudioUrl(url);
             const proxyRes = await fetch(proxyUrl);
             if (proxyRes.ok) {
               return await proxyRes.arrayBuffer();
@@ -421,7 +429,7 @@ export function useAudioController({ audioUrl, volume }: UseAudioControllerOptio
           // Graceful HTML5 Audio fallback for slow 3G / decode issue / blocked CDN
           try {
             const audioSrc = audioUrl.startsWith('http')
-              ? `/api/proxy/audio?url=${encodeURIComponent(audioUrl)}`
+              ? proxiedAudioUrl(audioUrl)
               : audioUrl;
             const audio = new Audio(audioSrc);
             audio.preload = isSaveDataEnabled() ? 'metadata' : 'auto';
