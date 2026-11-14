@@ -27,11 +27,18 @@ export interface RoomSettings {
 export const ROOM_LIMITS = {
   maxPlayers: 12,
   rounds: [5, 10, 15],
-  clipSeconds: [2, 5, 10],
-  answerSeconds: 20,
+  /** Quick-pick clip lengths in seconds; any value in the snippet bounds is allowed. */
+  clipPresets: [0.5, 2, 5, 10, 15],
+  /** Answer window per mode, set by the server (never the client). */
+  answerSeconds: { answer: 20, buzzer: 30 },
   maxAttempts: 3,
   /** Buzzer mode: time the buzzing player has to answer. */
-  buzzAnswerMs: 8000,
+  buzzAnswerMs: 10_000,
+  /** Pause: total pause budget per game, resume countdown, request window, per-player cooldown. */
+  pauseMaxMs: 60_000,
+  pauseResumeMs: 3_000,
+  pauseRequestMs: 10_000,
+  pauseCooldownMs: 30_000,
   countdownMs: 3000,
   revealMs: 6000,
   nameMaxLength: 20,
@@ -46,7 +53,7 @@ export const DEFAULT_ROOM_SETTINGS: RoomSettings = {
   difficulty: 'easy',
   rounds: 10,
   clipSeconds: 5,
-  answerSeconds: ROOM_LIMITS.answerSeconds,
+  answerSeconds: ROOM_LIMITS.answerSeconds.answer,
 };
 
 export type RoomPhase = 'lobby' | 'countdown' | 'guessing' | 'reveal' | 'finished';

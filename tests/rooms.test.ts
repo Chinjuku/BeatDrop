@@ -24,7 +24,7 @@ globalThis.fetch = (async () => {
 const { ROOM_LIMITS, DEFAULT_ROOM_SETTINGS } = await import('../shared/roomTypes');
 const timeline = await import('../lib/rooms/timeline');
 const { getRoomStore } = await import('../lib/rooms/store');
-const { parsePlayerName, parseRoomSettings } = await import('../lib/rooms/service');
+const { parsePlayerName, parseRoomSettings, parseClipSeconds } = await import('../lib/rooms/service');
 const roomsRoute = await import('../app/api/rooms/route');
 const roomRoute = await import('../app/api/rooms/[code]/route');
 const joinRoute = await import('../app/api/rooms/[code]/join/route');
@@ -118,7 +118,25 @@ describe('room input validation', () => {
     assert.equal(parsePlayerName('   '), null);
     assert.equal(Array.from(parsePlayerName('ก'.repeat(50))!).length, ROOM_LIMITS.nameMaxLength);
     const s = parseRoomSettings({ rounds: 999, clipSeconds: 7, category: 'jazz', audio: 'host', difficulty: 'hard' });
-    assert.deepEqual([s.rounds, s.clipSeconds, s.category, s.audio, s.difficulty], [10, 5, 'all', 'host', 'hard']);
+    assert.deepEqual([s.rounds, s.clipSeconds, s.category, s.audio, s.difficulty], [10, 7, 'all', 'host', 'hard']);
+  });
+
+  it('parses clip seconds', () => {
+    assert.equal(parseClipSeconds(0.1), 0.1);
+    assert.equal(parseClipSeconds('7.25'), 7.3);
+    assert.equal(parseClipSeconds(0.05), 0.1);
+    assert.equal(parseClipSeconds(99), 15);
+    assert.equal(parseClipSeconds(-1), 0.1);
+    assert.equal(parseClipSeconds('abc'), 5);
+    assert.equal(parseClipSeconds(NaN), 5);
+  });
+
+  it('sets the answer window from the mode, ignoring the client', () => {
+    assert.equal(parseRoomSettings({ mode: 'buzzer', answerSeconds: 99 }).answerSeconds, ROOM_LIMITS.answerSeconds.buzzer);
+    assert.equal(parseRoomSettings({ mode: 'answer' }).answerSeconds, ROOM_LIMITS.answerSeconds.answer);
+    assert.equal(ROOM_LIMITS.answerSeconds.buzzer, 30);
+    assert.equal(ROOM_LIMITS.answerSeconds.answer, 20);
+    assert.equal(ROOM_LIMITS.buzzAnswerMs, 10_000);
   });
 });
 

@@ -5,6 +5,7 @@
 import type { ApiRequest, ApiResponse } from '../http/api';
 import { headerValue } from '../http/api';
 import type { CategoryType, DifficultyLevel, Song } from '../../shared/types';
+import { MAX_SNIPPET_DURATION, MIN_SNIPPET_DURATION } from '../../shared/types';
 import {
   DEFAULT_ROOM_SETTINGS,
   ROOM_LIMITS,
@@ -39,19 +40,28 @@ function pick<T>(value: unknown, allowed: readonly T[], fallback: T): T {
   return allowed.includes(value as T) ? (value as T) : fallback;
 }
 
+/** Clip length from an untrusted value: clamped to the snippet bounds, rounded to 0.1 s. */
+export function parseClipSeconds(raw: unknown): number {
+  const n = typeof raw === 'string' && raw.trim() === '' ? NaN : Number(raw);
+  if (!Number.isFinite(n)) return DEFAULT_ROOM_SETTINGS.clipSeconds;
+  const clamped = Math.min(MAX_SNIPPET_DURATION, Math.max(MIN_SNIPPET_DURATION, n));
+  return Math.round(clamped * 10) / 10;
+}
+
 /** Validates settings from an untrusted body; anything unknown falls back to the default. */
 export function parseRoomSettings(raw: unknown): RoomSettings {
   const b = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
   const artist = typeof b.artistName === 'string' ? b.artistName.trim().slice(0, 80) : '';
+  const mode = pick(b.mode, MODES, DEFAULT_ROOM_SETTINGS.mode);
   return {
-    mode: pick(b.mode, MODES, DEFAULT_ROOM_SETTINGS.mode),
+    mode,
     audio: pick(b.audio, AUDIO, DEFAULT_ROOM_SETTINGS.audio),
     category: pick(b.category, CATEGORIES, DEFAULT_ROOM_SETTINGS.category),
     difficulty: pick(b.difficulty, DIFFICULTIES, DEFAULT_ROOM_SETTINGS.difficulty),
     ...(artist && artist !== 'any' ? { artistName: artist } : {}),
     rounds: pick(Number(b.rounds), ROOM_LIMITS.rounds, DEFAULT_ROOM_SETTINGS.rounds),
-    clipSeconds: pick(Number(b.clipSeconds), ROOM_LIMITS.clipSeconds, DEFAULT_ROOM_SETTINGS.clipSeconds),
-    answerSeconds: ROOM_LIMITS.answerSeconds,
+    clipSeconds: parseClipSeconds(b.clipSeconds),
+    answerSeconds: ROOM_LIMITS.answerSeconds[mode],
   };
 }
 

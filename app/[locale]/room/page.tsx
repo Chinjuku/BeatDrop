@@ -191,7 +191,7 @@ export default function RoomHomePage() {
             <Segmented
               label={t('create.clip')}
               value={settings.clipSeconds}
-              options={ROOM_LIMITS.clipSeconds.map((s) => ({ value: s, label: t('create.seconds', { seconds: s }) }))}
+              options={ROOM_LIMITS.clipPresets.map((s) => ({ value: s, label: t('create.seconds', { seconds: s }) }))}
               onChange={(v) => update('clipSeconds', v)}
             />
           </div>
