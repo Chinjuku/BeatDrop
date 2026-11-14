@@ -59,6 +59,10 @@ export default function RoomPage({ params }: { params: Promise<{ code: string }>
 
   // Mid-game, leaving asks first. The dialog closes by itself if the game ends meanwhile.
   const [confirmLeave, setConfirmLeave] = useState(false);
+  // A game that ends while the dialog is open must not reopen it at the next rematch countdown.
+  useEffect(() => {
+    if (!inRound) setConfirmLeave(false);
+  }, [inRound]);
   const leave = async () => {
     setConfirmLeave(false);
     audio.stop();
@@ -95,8 +99,9 @@ export default function RoomPage({ params }: { params: Promise<{ code: string }>
       >
         <div className="flex flex-col gap-4">
           <div>
-            <h2 className="text-lg font-extrabold">{t('leaveConfirm.title')}</h2>
-            <p className="mt-2 text-sm" style={{ color: 'var(--modal-muted)' }}>{t('leaveConfirm.body')}</p>
+            {/* Modal names and describes the dialog (sr-only); hide the visible copy so it is read once. */}
+            <h2 aria-hidden="true" className="text-lg font-extrabold">{t('leaveConfirm.title')}</h2>
+            <p aria-hidden="true" className="mt-2 text-sm" style={{ color: 'var(--modal-muted)' }}>{t('leaveConfirm.body')}</p>
           </div>
           <div className="flex justify-end gap-2">
             <button
@@ -302,97 +307,100 @@ function Round({
     <>
       <RoomCard className="relative flex flex-col gap-4">
         {view.pause && <PausedOverlay pause={view.pause} now={now} isHost={view.me.isHost} busy={room.busy} onPause={room.pause} />}
-        <div className="flex items-center justify-between gap-3">
-          <p className="text-sm font-extrabold" style={{ color: 'var(--song-text)' }}>
-            {t('game.round', { current: view.roundIndex + 1, total: view.totalRounds })}
-          </p>
+        {/* The overlay blocks what is behind it: no focus, clicks or typing while paused. */}
+        <div className="flex flex-col gap-4" inert={paused}>
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-sm font-extrabold" style={{ color: 'var(--song-text)' }}>
+              {t('game.round', { current: view.roundIndex + 1, total: view.totalRounds })}
+            </p>
+            {view.phase === 'guessing' && (
+              <p className="text-sm font-black tabular-nums" style={{ color: remaining < 5000 ? '#f87171' : 'var(--song-accent-text)' }}>
+                {t('game.timeLeft', { seconds: Math.ceil(remaining / 1000) })}
+              </p>
+            )}
+          </div>
+
           {view.phase === 'guessing' && (
-            <p className="text-sm font-black tabular-nums" style={{ color: remaining < 5000 ? '#f87171' : 'var(--song-accent-text)' }}>
-              {t('game.timeLeft', { seconds: Math.ceil(remaining / 1000) })}
+            <div className="h-1.5 w-full rounded-full overflow-hidden" style={{ backgroundColor: 'var(--song-surface-soft)' }} aria-hidden="true">
+              <div className="h-full rounded-full" style={{ width: `${(remaining / windowMs) * 100}%`, backgroundColor: 'var(--song-accent)', transition: 'width 0.2s linear' }} />
+            </div>
+          )}
+
+          {view.phase === 'countdown' && (
+            <p className="text-center text-3xl font-black py-6" role="status" style={{ color: 'var(--song-accent-text)' }}>
+              {t('game.countdown', { seconds: secondsUntil(view.playAt, now) })}
             </p>
           )}
-        </div>
 
-        {view.phase === 'guessing' && (
-          <div className="h-1.5 w-full rounded-full overflow-hidden" style={{ backgroundColor: 'var(--song-surface-soft)' }} aria-hidden="true">
-            <div className="h-full rounded-full" style={{ width: `${(remaining / windowMs) * 100}%`, backgroundColor: 'var(--song-accent)', transition: 'width 0.2s linear' }} />
-          </div>
-        )}
-
-        {view.phase === 'countdown' && (
-          <p className="text-center text-3xl font-black py-6" role="status" style={{ color: 'var(--song-accent-text)' }}>
-            {t('game.countdown', { seconds: secondsUntil(view.playAt, now) })}
-          </p>
-        )}
-
-        {view.phase !== 'reveal' && (
-          <div className="flex flex-wrap items-center justify-center gap-2">
-            {!playsHere ? (
-              <p className="flex items-center gap-2 text-sm font-bold" style={{ color: 'var(--song-muted)' }}>
-                <Volume2 className="w-4 h-4" aria-hidden="true" /> {t('game.listenHost')}
-              </p>
-            ) : audio.needsTap ? (
-              <PrimaryButton onClick={() => { void audio.unlock().then(() => { if (!paused) void audio.replay(); }); }}>
-                <span className="flex items-center justify-center gap-2"><Volume2 className="w-4 h-4" aria-hidden="true" /> {t('game.enableSound')}</span>
-              </PrimaryButton>
-            ) : view.phase === 'guessing' ? (
-              <SecondaryButton onClick={() => void audio.replay()} disabled={paused}>
-                <span className="flex items-center gap-2"><Play className="w-4 h-4" aria-hidden="true" /> {t('game.replay')}</span>
-              </SecondaryButton>
-            ) : null}
-          </div>
-        )}
-
-        {view.phase === 'reveal' && view.reveal ? (
-          <div className="flex items-center gap-4">
-            {view.reveal.artworkUrl && (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={view.reveal.artworkUrl} alt="" width={72} height={72} className="w-[72px] h-[72px] rounded-xl object-cover" />
-            )}
-            <div className="min-w-0">
-              <p className="text-[11px] font-black uppercase tracking-wider" style={{ color: 'var(--song-muted)' }}>{t('game.theSongWas')}</p>
-              <p className="text-lg font-extrabold truncate" style={{ color: 'var(--song-text)' }}>{view.reveal.title}</p>
-              <p className="text-sm truncate" style={{ color: 'var(--song-muted)' }}>{view.reveal.artistName}</p>
-              <p className="text-xs mt-1 font-bold" style={{ color: 'var(--song-accent-text)' }}>{t('game.nextIn', { seconds: secondsUntil(view.revealEndsAt, now) })}</p>
-            </div>
-          </div>
-        ) : view.settings.mode === 'buzzer' ? (
-          <BuzzerArea view={view} now={now} room={room} paused={paused} />
-        ) : (
-          <>
-            {canGuess || view.phase === 'countdown' ? (
-              <GuessAutocomplete
-                category={view.settings.category}
-                mode={view.settings.artistName ? 'artist' : 'standard'}
-                artistFilter={view.settings.artistName}
-                onSelectGuess={(song) => void room.answer(song)}
-                nextStageSeconds={null}
-                disabled={!canGuess || paused}
-                submitting={room.busy}
-              />
-            ) : null}
-            <div role="status" aria-live="polite" className="text-center text-sm font-extrabold min-h-5">
-              {view.me.correct ? (
-                <span style={{ color: '#22c55e' }}>{t('game.correct', { points: view.me.points })}</span>
-              ) : outOfTries ? (
-                <span style={{ color: '#f87171' }}>{t('game.out')}</span>
-              ) : room.lastAnswer && !room.lastAnswer.correct && view.me.attempts > 0 ? (
-                <span className="inline-flex items-center gap-1" style={{ color: '#fbbf24' }}>
-                  <X className="w-4 h-4" aria-hidden="true" /> {t('game.wrong', { left: ROOM_LIMITS.maxAttempts - view.me.attempts })}
-                </span>
+          {view.phase !== 'reveal' && (
+            <div className="flex flex-wrap items-center justify-center gap-2">
+              {!playsHere ? (
+                <p className="flex items-center gap-2 text-sm font-bold" style={{ color: 'var(--song-muted)' }}>
+                  <Volume2 className="w-4 h-4" aria-hidden="true" /> {t('game.listenHost')}
+                </p>
+              ) : audio.needsTap ? (
+                <PrimaryButton onClick={() => { void audio.unlock().then(() => { if (!paused) void audio.replay(); }); }}>
+                  <span className="flex items-center justify-center gap-2"><Volume2 className="w-4 h-4" aria-hidden="true" /> {t('game.enableSound')}</span>
+                </PrimaryButton>
+              ) : view.phase === 'guessing' ? (
+                <SecondaryButton onClick={() => void audio.replay()} disabled={paused}>
+                  <span className="flex items-center gap-2"><Play className="w-4 h-4" aria-hidden="true" /> {t('game.replay')}</span>
+                </SecondaryButton>
               ) : null}
             </div>
-            {(view.me.correct || outOfTries) && (
-              <p className="text-center text-xs font-bold" style={{ color: 'var(--song-muted)' }}>{t('game.waiting')}</p>
-            )}
-          </>
-        )}
+          )}
 
-        {!view.pause && (
-          <div className="flex justify-center border-t pt-3" style={{ borderColor: 'var(--song-border)' }}>
-            <PauseButton view={view} busy={room.busy} onPause={room.pause} />
-          </div>
-        )}
+          {view.phase === 'reveal' && view.reveal ? (
+            <div className="flex items-center gap-4">
+              {view.reveal.artworkUrl && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={view.reveal.artworkUrl} alt="" width={72} height={72} className="w-[72px] h-[72px] rounded-xl object-cover" />
+              )}
+              <div className="min-w-0">
+                <p className="text-[11px] font-black uppercase tracking-wider" style={{ color: 'var(--song-muted)' }}>{t('game.theSongWas')}</p>
+                <p className="text-lg font-extrabold truncate" style={{ color: 'var(--song-text)' }}>{view.reveal.title}</p>
+                <p className="text-sm truncate" style={{ color: 'var(--song-muted)' }}>{view.reveal.artistName}</p>
+                <p className="text-xs mt-1 font-bold" style={{ color: 'var(--song-accent-text)' }}>{t('game.nextIn', { seconds: secondsUntil(view.revealEndsAt, now) })}</p>
+              </div>
+            </div>
+          ) : view.settings.mode === 'buzzer' ? (
+            <BuzzerArea view={view} now={now} room={room} paused={paused} />
+          ) : (
+            <>
+              {canGuess || view.phase === 'countdown' ? (
+                <GuessAutocomplete
+                  category={view.settings.category}
+                  mode={view.settings.artistName ? 'artist' : 'standard'}
+                  artistFilter={view.settings.artistName}
+                  onSelectGuess={(song) => void room.answer(song)}
+                  nextStageSeconds={null}
+                  disabled={!canGuess || paused}
+                  submitting={room.busy}
+                />
+              ) : null}
+              <div role="status" aria-live="polite" className="text-center text-sm font-extrabold min-h-5">
+                {view.me.correct ? (
+                  <span style={{ color: '#22c55e' }}>{t('game.correct', { points: view.me.points })}</span>
+                ) : outOfTries ? (
+                  <span style={{ color: '#f87171' }}>{t('game.out')}</span>
+                ) : room.lastAnswer && !room.lastAnswer.correct && view.me.attempts > 0 ? (
+                  <span className="inline-flex items-center gap-1" style={{ color: '#fbbf24' }}>
+                    <X className="w-4 h-4" aria-hidden="true" /> {t('game.wrong', { left: ROOM_LIMITS.maxAttempts - view.me.attempts })}
+                  </span>
+                ) : null}
+              </div>
+              {(view.me.correct || outOfTries) && (
+                <p className="text-center text-xs font-bold" style={{ color: 'var(--song-muted)' }}>{t('game.waiting')}</p>
+              )}
+            </>
+          )}
+
+          {!view.pause && (
+            <div className="flex justify-center border-t pt-3" style={{ borderColor: 'var(--song-border)' }}>
+              <PauseButton view={view} busy={room.busy} onPause={room.pause} />
+            </div>
+          )}
+        </div>
       </RoomCard>
 
       {view.me.isHost && <PauseRequestDialog request={view.pauseRequest} now={now} busy={room.busy} onPause={room.pause} />}
@@ -426,8 +434,11 @@ function BuzzerArea({ view, now, room, paused }: { view: RoomView; now: number; 
     if (!canBuzz) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.code !== 'Space' || e.repeat) return;
-      const tag = (e.target as HTMLElement)?.tagName;
+      const target = e.target as HTMLElement | null;
+      const tag = target?.tagName;
       if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+      // Never buzz from inside, or behind, an open dialog (e.g. the host's break request).
+      if (target?.closest?.('[role="dialog"]') || document.querySelector('[data-modal-root]')) return;
       e.preventDefault();
       void buzz();
     };

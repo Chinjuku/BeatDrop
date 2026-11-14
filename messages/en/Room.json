@@ -102,7 +102,6 @@
     "ask": "Ask for a break",
     "status": {
       "pending": "Asked the host for a break…",
-      "approved": "The host said yes. Break time!",
       "declined": "The host wants to keep playing",
       "expired": "The host didn't answer in time"
     },

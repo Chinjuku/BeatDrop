@@ -51,7 +51,9 @@ export function PauseButton({ view, busy, onPause }: { view: RoomView; busy: boo
     setHint(ok ? null : hintFor(reason));
   };
 
-  const status = view.myPauseRequest ? t(`status.${view.myPauseRequest}`) : null;
+  // 'approved' never shows here: an approved request starts a pause, which hides this button.
+  const req = view.myPauseRequest;
+  const status = req && req !== 'approved' ? t(`status.${req}`) : null;
   const message = hint ? t(`hint.${hint}`) : buzzHold ? t('hint.buzzHold') : status;
 
   return (
@@ -93,6 +95,10 @@ export function PauseRequestDialog({
   // Keep the last request's name while the dialog closes, so the text does not blank out.
   const lastName = useRef('');
   if (request) lastName.current = request.playerName;
+  // Escape / swipe-down / backdrop only hide the dialog on this device; the request then expires
+  // on its own. Only the explicit "Not now" button declines. Keyed by `expiresAt` (one per request).
+  const [dismissedFor, setDismissedFor] = useState<number | null>(null);
+  const open = Boolean(request) && request?.expiresAt !== dismissedFor;
 
   const answer = async (action: 'approve' | 'decline') => {
     const { ok, reason } = await onPause(action);
@@ -105,15 +111,20 @@ export function PauseRequestDialog({
 
   return (
     <Modal
-      open={Boolean(request)}
-      // Escape / swipe-down counts as "Not now".
-      onClose={() => { if (!busy) void answer('decline'); }}
+      open={open}
+      onClose={() => setDismissedFor(request?.expiresAt ?? null)}
       title={title}
       dismissOnBackdrop={false}
       panelClassName="!w-[calc(100vw-24px)] sm:!max-w-sm !p-5 sm:!p-6"
     >
-      <div className="flex flex-col gap-4">
-        <h2 className="text-lg font-extrabold flex items-center gap-2">
+      {/*
+        The request arrives unasked, so focus lands on this neutral wrapper, not on an action:
+        a host mid-guess pressing Enter or Space must not approve it by accident. The dialog's
+        name comes from Modal's sr-only title; the visible heading is hidden from assistive tech
+        so it is not announced twice.
+      */}
+      <div data-autofocus tabIndex={-1} className="flex flex-col gap-4 outline-none">
+        <h2 aria-hidden="true" className="text-lg font-extrabold flex items-center gap-2">
           <Coffee className="w-5 h-5" aria-hidden="true" /> {title}
         </h2>
         <div>
@@ -148,7 +159,6 @@ export function PauseRequestDialog({
           </button>
           <button
             type="button"
-            data-autofocus
             onClick={() => void answer('approve')}
             disabled={busy}
             className="min-h-11 rounded-xl px-4 text-sm font-extrabold disabled:opacity-50"
