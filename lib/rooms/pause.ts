@@ -3,12 +3,12 @@
  * with no write. Every end (manual or automatic) includes a final resuming countdown.
  */
 import { frozenAt } from './clock';
-import { ROOM_LIMITS } from '../../shared/roomTypes';
+import { ROOM_LIMITS, type PauseAction } from '../../shared/roomTypes';
 import { activePause, freezesOf, locate, pendingPauseRequest, type RoomState } from './timeline';
 
 export { activePause, pendingPauseRequest, PAUSE_OUTCOME_VISIBLE_MS } from './timeline';
 
-export type PauseAction = 'request' | 'approve' | 'decline' | 'pause' | 'resume';
+export type { PauseAction };
 export const PAUSE_ACTIONS: readonly PauseAction[] = ['request', 'approve', 'decline', 'pause', 'resume'];
 
 export type PauseFailure =

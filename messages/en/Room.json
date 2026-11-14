@@ -90,10 +90,45 @@
     "heading": "Final results",
     "winner": "{name} wins!",
     "playAgain": "Play again",
-    "waitRematch": "Waiting for the host to start another game…"
+    "waitRematch": "Waiting for the host to start another game…",
+    "endedEarly": "Everyone else left, so the game ended early."
   },
   "mode": {
     "answer": "Everyone answers",
     "buzzer": "Buzzer"
+  },
+  "pause": {
+    "pause": "Pause",
+    "ask": "Ask for a break",
+    "status": {
+      "pending": "Asked the host for a break…",
+      "approved": "The host said yes. Break time!",
+      "declined": "The host wants to keep playing",
+      "expired": "The host didn't answer in time"
+    },
+    "hint": {
+      "cooldown": "You asked recently. Try again in a bit.",
+      "pending": "Someone has already asked for a break.",
+      "buzzHold": "Wait until the buzzed answer is in.",
+      "generic": "You can't pause right now."
+    },
+    "dialog": {
+      "title": "{name} wants a break",
+      "allow": "Allow",
+      "notNow": "Not now",
+      "expires": "{seconds}s to answer"
+    },
+    "overlay": {
+      "pausedBy": "Paused by {name}",
+      "timeLeft": "Back in {seconds}s at most",
+      "resuming": "Resuming in {seconds}",
+      "resume": "Resume"
+    }
+  },
+  "leaveConfirm": {
+    "title": "Leave the game?",
+    "body": "The game is still going. If you leave now, you're out of this game.",
+    "leave": "Leave game",
+    "stay": "Keep playing"
   }
 }

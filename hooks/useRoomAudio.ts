@@ -16,14 +16,19 @@ interface Options {
   /** Should this device play at all? (false for guests when only the host plays) */
   enabled: boolean;
   audioUrl?: string;
-  /** Server time the clip starts. */
-  playAt?: number;
+  /**
+   * Server time the clip (re)starts, from `view.audioCue`. Moves after every freeze (pause or
+   * buzz hold) so playback resumes where it stopped. Undefined while frozen or once the clip is over.
+   */
+  cueAt?: number;
+  /** Seconds into the clip to start from at `cueAt`. */
+  cueFromSeconds: number;
   clipSeconds: number;
   /** serverClock − localClock (ms). */
   offsetMs: number;
 }
 
-export function useRoomAudio({ enabled, audioUrl, playAt, clipSeconds, offsetMs }: Options) {
+export function useRoomAudio({ enabled, audioUrl, cueAt, cueFromSeconds, clipSeconds, offsetMs }: Options) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const startTimer = useRef<number | undefined>(undefined);
   const stopTimer = useRef<number | undefined>(undefined);
@@ -55,7 +60,7 @@ export function useRoomAudio({ enabled, audioUrl, playAt, clipSeconds, offsetMs 
   const playClip = useCallback(
     async (fromSeconds = 0) => {
       const el = element();
-      if (!audioUrl) return;
+      if (!audioUrl || fromSeconds >= clipSeconds) return;
       clearTimers();
       try {
         el.currentTime = fromSeconds;
@@ -114,18 +119,18 @@ export function useRoomAudio({ enabled, audioUrl, playAt, clipSeconds, offsetMs 
     }
   }, [audioUrl, element, enabled]);
 
-  // Schedule the start at playAt, translated into this device's clock.
+  // Schedule the (re)start at the cue, translated into this device's clock. A device that sees
+  // the cue a little late starts part-way in, so every device stays on the same spot.
   useEffect(() => {
-    if (!enabled || !audioUrl || playAt === undefined) return;
-    const localPlayAt = playAt - offsetMs;
-    const delay = localPlayAt - Date.now();
+    if (!enabled || !audioUrl || cueAt === undefined) return;
+    const delay = cueAt - offsetMs - Date.now();
     if (delay > 0) {
-      startTimer.current = window.setTimeout(() => void playClip(0), delay);
+      startTimer.current = window.setTimeout(() => void playClip(cueFromSeconds), delay);
     } else if (-delay < LATE_START_GRACE_MS) {
-      void playClip(-delay / 1000);
+      void playClip(cueFromSeconds - delay / 1000);
     }
     return () => window.clearTimeout(startTimer.current);
-  }, [audioUrl, enabled, offsetMs, playAt, playClip]);
+  }, [audioUrl, cueAt, cueFromSeconds, enabled, offsetMs, playClip]);
 
   // Stop when this device should not play, and on unmount.
   useEffect(() => {

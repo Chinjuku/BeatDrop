@@ -56,6 +56,9 @@ export const DEFAULT_ROOM_SETTINGS: RoomSettings = {
   answerSeconds: ROOM_LIMITS.answerSeconds.answer,
 };
 
+/** Body of POST /api/rooms/[code]/pause. Host: pause/approve/decline/resume; others: request. */
+export type PauseAction = 'request' | 'approve' | 'decline' | 'pause' | 'resume';
+
 export type RoomPhase = 'lobby' | 'countdown' | 'guessing' | 'reveal' | 'finished';
 
 export interface RoomRevealSong {

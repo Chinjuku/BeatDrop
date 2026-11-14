@@ -14,6 +14,8 @@ import {
   textInputClass,
   textInputStyle,
 } from '../../../../components/room/RoomControls';
+import { Modal } from '../../../../components/Modal';
+import { PauseButton, PausedOverlay, PauseRequestDialog } from '../../../../components/room/PauseControls';
 import { useRoom, useServerNow } from '../../../../hooks/useRoom';
 import { useRoomAudio } from '../../../../hooks/useRoomAudio';
 import { ROOM_LIMITS, type RoomPlayerView, type RoomView } from '../../../../shared/roomTypes';
@@ -33,10 +35,12 @@ export default function RoomPage({ params }: { params: Promise<{ code: string }>
   const now = useServerNow(room.offsetMs, Boolean(inRound));
   const playsHere = Boolean(view && (view.settings.audio === 'everyone' || view.me.isHost));
   const audio = useRoomAudio({
-    // Buzzer: the clip stops while someone holds the buzzer, so they can think.
-    enabled: playsHere && (view?.phase === 'countdown' || view?.phase === 'guessing') && !view?.buzz?.holderId,
+    // Any freeze (a pause, or a buzz hold so the holder can think) stops the clip; the next
+    // `audioCue` resumes it from where it stopped on every playing device.
+    enabled: playsHere && (view?.phase === 'countdown' || view?.phase === 'guessing') && !view?.frozen,
     audioUrl: view?.audioUrl,
-    playAt: view?.playAt,
+    cueAt: view?.audioCue?.at,
+    cueFromSeconds: view?.audioCue?.fromSeconds ?? 0,
     clipSeconds: view?.settings.clipSeconds ?? 5,
     offsetMs: room.offsetMs,
   });
@@ -53,7 +57,10 @@ export default function RoomPage({ params }: { params: Promise<{ code: string }>
     };
   }, [audio.unlock, playsHere]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Mid-game, leaving asks first. The dialog closes by itself if the game ends meanwhile.
+  const [confirmLeave, setConfirmLeave] = useState(false);
   const leave = async () => {
+    setConfirmLeave(false);
     audio.stop();
     await room.leave();
     router.push('/room');
@@ -76,8 +83,42 @@ export default function RoomPage({ params }: { params: Promise<{ code: string }>
       ) : view.phase === 'finished' ? (
         <Finished view={view} busy={room.busy} onStart={() => { void audio.unlock(); void room.start(); }} onLeave={leave} />
       ) : (
-        <Round view={view} now={now} room={room} audio={audio} playsHere={playsHere} />
+        <Round view={view} now={now} room={room} audio={audio} playsHere={playsHere} onLeave={() => setConfirmLeave(true)} />
       )}
+
+      <Modal
+        open={confirmLeave && inRound}
+        onClose={() => setConfirmLeave(false)}
+        title={t('leaveConfirm.title')}
+        description={t('leaveConfirm.body')}
+        panelClassName="!w-[calc(100vw-24px)] sm:!max-w-sm !p-5 sm:!p-6"
+      >
+        <div className="flex flex-col gap-4">
+          <div>
+            <h2 className="text-lg font-extrabold">{t('leaveConfirm.title')}</h2>
+            <p className="mt-2 text-sm" style={{ color: 'var(--modal-muted)' }}>{t('leaveConfirm.body')}</p>
+          </div>
+          <div className="flex justify-end gap-2">
+            <button
+              type="button"
+              data-autofocus
+              onClick={() => setConfirmLeave(false)}
+              className="min-h-11 rounded-xl border px-4 text-sm font-bold"
+              style={{ backgroundColor: 'var(--modal-elevated)', borderColor: 'var(--modal-border)' }}
+            >
+              {t('leaveConfirm.stay')}
+            </button>
+            <button
+              type="button"
+              onClick={() => void leave()}
+              disabled={room.busy}
+              className="min-h-11 rounded-xl bg-rose-600 px-4 text-sm font-extrabold text-white disabled:opacity-50"
+            >
+              {t('leaveConfirm.leave')}
+            </button>
+          </div>
+        </div>
+      </Modal>
 
       {view && room.error && room.error !== 'network' && <ErrorText>{t(`errors.${room.error}`)}</ErrorText>}
     </div>
@@ -232,18 +273,35 @@ function Lobby({ view, busy, onStart, onLeave }: { view: RoomView; busy: boolean
   );
 }
 
-function Round({ view, now, room, audio, playsHere }: { view: RoomView; now: number; room: RoomApi; audio: AudioApi; playsHere: boolean }) {
+function Round({
+  view,
+  now,
+  room,
+  audio,
+  playsHere,
+  onLeave,
+}: {
+  view: RoomView;
+  now: number;
+  room: RoomApi;
+  audio: AudioApi;
+  playsHere: boolean;
+  onLeave: () => void;
+}) {
   const t = useTranslations('Room');
   const active = view.players.filter((p) => !p.left);
   const doneCount = active.filter((p) => p.done).length;
   const outOfTries = !view.me.correct && view.me.attempts >= ROOM_LIMITS.maxAttempts;
   const canGuess = view.phase === 'guessing' && !view.me.correct && !outOfTries;
+  // Inputs lock on a pause only: during a buzz hold (also `frozen`) the holder must still answer.
+  const paused = Boolean(view.pause);
   const windowMs = view.settings.answerSeconds * 1000;
   const remaining = view.endsAt !== undefined ? Math.max(0, view.endsAt - now) : 0;
 
   return (
     <>
-      <RoomCard className="flex flex-col gap-4">
+      <RoomCard className="relative flex flex-col gap-4">
+        {view.pause && <PausedOverlay pause={view.pause} now={now} isHost={view.me.isHost} busy={room.busy} onPause={room.pause} />}
         <div className="flex items-center justify-between gap-3">
           <p className="text-sm font-extrabold" style={{ color: 'var(--song-text)' }}>
             {t('game.round', { current: view.roundIndex + 1, total: view.totalRounds })}
@@ -274,11 +332,11 @@ function Round({ view, now, room, audio, playsHere }: { view: RoomView; now: num
                 <Volume2 className="w-4 h-4" aria-hidden="true" /> {t('game.listenHost')}
               </p>
             ) : audio.needsTap ? (
-              <PrimaryButton onClick={() => { void audio.unlock().then(() => audio.replay()); }}>
+              <PrimaryButton onClick={() => { void audio.unlock().then(() => { if (!paused) void audio.replay(); }); }}>
                 <span className="flex items-center justify-center gap-2"><Volume2 className="w-4 h-4" aria-hidden="true" /> {t('game.enableSound')}</span>
               </PrimaryButton>
             ) : view.phase === 'guessing' ? (
-              <SecondaryButton onClick={() => void audio.replay()}>
+              <SecondaryButton onClick={() => void audio.replay()} disabled={paused}>
                 <span className="flex items-center gap-2"><Play className="w-4 h-4" aria-hidden="true" /> {t('game.replay')}</span>
               </SecondaryButton>
             ) : null}
@@ -299,7 +357,7 @@ function Round({ view, now, room, audio, playsHere }: { view: RoomView; now: num
             </div>
           </div>
         ) : view.settings.mode === 'buzzer' ? (
-          <BuzzerArea view={view} now={now} room={room} />
+          <BuzzerArea view={view} now={now} room={room} paused={paused} />
         ) : (
           <>
             {canGuess || view.phase === 'countdown' ? (
@@ -309,7 +367,7 @@ function Round({ view, now, room, audio, playsHere }: { view: RoomView; now: num
                 artistFilter={view.settings.artistName}
                 onSelectGuess={(song) => void room.answer(song)}
                 nextStageSeconds={null}
-                disabled={!canGuess}
+                disabled={!canGuess || paused}
                 submitting={room.busy}
               />
             ) : null}
@@ -329,7 +387,15 @@ function Round({ view, now, room, audio, playsHere }: { view: RoomView; now: num
             )}
           </>
         )}
+
+        {!view.pause && (
+          <div className="flex justify-center border-t pt-3" style={{ borderColor: 'var(--song-border)' }}>
+            <PauseButton view={view} busy={room.busy} onPause={room.pause} />
+          </div>
+        )}
       </RoomCard>
+
+      {view.me.isHost && <PauseRequestDialog request={view.pauseRequest} now={now} busy={room.busy} onPause={room.pause} />}
 
       <RoomCard>
         <div className="flex items-center justify-between mb-2">
@@ -339,15 +405,20 @@ function Round({ view, now, room, audio, playsHere }: { view: RoomView; now: num
           )}
         </div>
         <PlayerList players={view.players} showRound={view.phase === 'reveal'} />
+        <div className="mt-3 flex justify-center">
+          <SecondaryButton onClick={onLeave}>
+            <span className="flex items-center gap-2"><LogOut className="w-4 h-4" aria-hidden="true" /> {t('lobby.leave')}</span>
+          </SecondaryButton>
+        </div>
       </RoomCard>
     </>
   );
 }
 
-function BuzzerArea({ view, now, room }: { view: RoomView; now: number; room: RoomApi }) {
+function BuzzerArea({ view, now, room, paused }: { view: RoomView; now: number; room: RoomApi; paused: boolean }) {
   const t = useTranslations('Room');
   const b = view.buzz;
-  const canBuzz = Boolean(b?.canBuzz);
+  const canBuzz = Boolean(b?.canBuzz) && !paused;
   const { buzz } = room;
 
   // Space buzzes (unless typing in a field).
@@ -380,6 +451,7 @@ function BuzzerArea({ view, now, room }: { view: RoomView; now: number; room: Ro
           artistFilter={view.settings.artistName}
           onSelectGuess={(song) => void room.answer(song)}
           nextStageSeconds={null}
+          disabled={paused}
           submitting={room.busy}
         />
       </div>
@@ -420,6 +492,9 @@ function Finished({ view, busy, onStart, onLeave }: { view: RoomView; busy: bool
           <p className="text-2xl font-black mt-1 flex items-center justify-center gap-2" style={{ color: 'var(--song-text)' }}>
             <Crown className="w-6 h-6" style={{ color: '#fbbf24' }} aria-hidden="true" /> {t('finished.winner', { name: winner.name })}
           </p>
+        )}
+        {view.endedEarly && (
+          <p className="text-sm font-bold mt-2" style={{ color: 'var(--song-muted)' }}>{t('finished.endedEarly')}</p>
         )}
       </div>
       <PlayerList players={view.players} />

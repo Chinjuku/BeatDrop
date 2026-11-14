@@ -935,3 +935,25 @@ describe('leaving', () => {
     assert.equal(again.pauses?.length ?? 0, 0);
   });
 });
+
+describe('correct feed', () => {
+  it('correct feed ignores stale entries', async () => {
+    const { newCorrectEntries } = await import('../hooks/useCorrectFeed');
+    const now = 100_000;
+    const seen = new Set<string>();
+    const entries = [
+      { playerId: 'old', name: 'Old', points: 500, at: now - 5_000 },
+      { playerId: 'a', name: 'A', points: 900, at: now - 1_000 },
+    ];
+    const fresh = newCorrectEntries(seen, 2, entries, now);
+    assert.deepEqual(fresh.map((e) => e.playerId), ['a']);
+    // The stale entry is marked seen too, so it never pops up later.
+    assert.ok(seen.has('2:old'));
+    assert.ok(seen.has('2:a'));
+    // A repeat poll yields nothing new.
+    assert.deepEqual(newCorrectEntries(seen, 2, entries, now + 500), []);
+    // Same player in a later round is new.
+    const next = newCorrectEntries(seen, 3, [{ playerId: 'a', name: 'A', points: 700, at: now + 2_000 }], now + 2_100);
+    assert.equal(next.length, 1);
+  });
+});
