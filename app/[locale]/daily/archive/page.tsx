@@ -20,6 +20,7 @@ import {
   type RoundActionResponse,
   type RoundStartResponse,
   type Song,
+  type SongSuggestion,
 } from '../../../../shared/types';
 
 interface ArchiveDay {
@@ -295,7 +296,7 @@ function ArchivePlayer({
     }
   };
 
-  const guess = async (song: Song) => {
+  const guess = async (song: SongSuggestion) => {
     const data = await act('/api/round/guess', {
       candidateTrackId: song.id,
       candidateTitle: song.title,

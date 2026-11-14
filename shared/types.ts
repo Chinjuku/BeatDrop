@@ -38,6 +38,12 @@ export interface Song {
   popularityScore?: number;
 }
 
+/**
+ * A song as autocomplete returns it: no preview link, so a round's audio cannot be matched
+ * against suggestions to identify the song before the reveal.
+ */
+export type SongSuggestion = Omit<Song, 'previewUrl'>;
+
 export interface Artist {
   id: string;
   itunesArtistId?: string;

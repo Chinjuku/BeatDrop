@@ -13,6 +13,7 @@ import {
   RoundActionResponse,
   RoundStartResponse,
   Song,
+  SongSuggestion,
 } from '../../shared/types';
 import { signRoundToken, verifyRoundToken } from '../token';
 import { parseGuessDTO, parseSkipDTO } from '../../shared/validation';
@@ -585,8 +586,17 @@ export async function handleAutocomplete(req: ApiRequest, res: ApiResponse): Pro
   res.json({
     code: 0,
     message: 'ok',
-    data: uniqueMatches,
+    // No preview URLs: the guess box never plays them, and a round's audio URL could otherwise be
+    // matched against them to identify the song before the reveal.
+    data: uniqueMatches.map(toSongSuggestion),
   });
+}
+
+/** A song as the guess box sees it: everything but the preview link. */
+export function toSongSuggestion(song: Song): SongSuggestion {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const { previewUrl: _previewUrl, ...suggestion } = song;
+  return suggestion;
 }
 
 function dailySessionMatches(req: ApiRequest, active: ActiveRoundState): boolean {
