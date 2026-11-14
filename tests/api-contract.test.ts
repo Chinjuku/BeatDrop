@@ -21,7 +21,7 @@ for (const key of [
   'SUPABASE_SERVICE_ROLE_KEY',
   'SUPABASE_ANON_KEY',
   'UPSTASH_REDIS_REST_URL',
-  'UPSTASH_REDIS_REST_TOKEN',
+  'UPSTASH_REDIS_REST_TOKEN', 'KV_REST_API_URL', 'KV_REST_API_TOKEN',
   'VERCEL',
 ]) {
   delete process.env[key];
