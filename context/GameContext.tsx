@@ -760,7 +760,7 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       playedIdsRef.current = validPlayed;
       const path = typeof window !== 'undefined' ? window.location.pathname : '/';
       // Pages that are not a solo game must not start (and play) a round on load.
-      if (path.startsWith('/categories') || path.startsWith('/admin') || /^(\/en)?\/room(\/|$)/.test(path)) {
+      if (path.startsWith('/categories') || path.startsWith('/admin') || /^(\/en)?\/(room|daily\/archive)(\/|$)/.test(path)) {
         return;
       }
       const initialMode: GameMode = path.startsWith('/daily')
@@ -847,7 +847,7 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       const tag = (e.target as HTMLElement)?.tagName;
       if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
       // Live rooms own the Space key (buzzer) and have no solo round to play.
-      if (/^(\/en)?\/room(\/|$)/.test(window.location.pathname)) return;
+      if (/^(\/en)?\/(room|daily\/archive)(\/|$)/.test(window.location.pathname)) return;
       if (e.code === 'Space') {
         e.preventDefault();
         if (outcome) {

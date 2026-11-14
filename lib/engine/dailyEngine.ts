@@ -111,6 +111,15 @@ function chooseDailySongs(
   return picked.slice(0, DAILY_ROUND_COUNT);
 }
 
+/** Songs for stored ids, in order: from memory first, then the cloud catalog. */
+export async function resolveSongs(ids: string[]): Promise<Song[]> {
+  const missing = ids.filter((id) => !songPool.has(id));
+  if (missing.length > 0 && isSupabaseConfigured() && !isDbLocal()) {
+    for (const song of await supabaseAdmin.getSongsByIds(missing)) songPool.set(String(song.id), song);
+  }
+  return ids.map((id) => songPool.get(id)).filter((song): song is Song => Boolean(song));
+}
+
 async function getDailySongs(
   dateKey: string,
   category: CategoryType,
@@ -125,8 +134,22 @@ async function getDailySongs(
         }
         return remoteSongs;
       }
+      return chooseDailySongs(dateKey, category, difficulty);
     }
-    return chooseDailySongs(dateKey, category, difficulty);
+    // Harder levels: persist the sequence on first play so the date stays replayable even
+    // after the catalog changes (archive). Older databases without the difficulty column
+    // return [] and keep today's computed behaviour.
+    const computed = chooseDailySongs(dateKey, category, difficulty);
+    if (computed.length !== DAILY_ROUND_COUNT) return computed;
+    const storedIds = await supabaseAdmin.getOrCreateDailyChallengeIdsForDifficulty(
+      dateKey,
+      category,
+      difficulty,
+      computed.map((song) => String(song.id))
+    );
+    if (storedIds.length !== DAILY_ROUND_COUNT) return computed;
+    const resolved = await resolveSongs(storedIds);
+    return resolved.length === DAILY_ROUND_COUNT ? resolved : computed;
   }
 
   const selected = chooseDailySongs(dateKey, category, difficulty);

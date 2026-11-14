@@ -28,5 +28,9 @@
   "room": {
     "title": "ห้องเล่นกับเพื่อน — ทายเพลงพร้อมกัน",
     "description": "สร้างห้อง BeatDrop แชร์รหัสให้เพื่อน แล้วแข่งกันทายเพลงแบบเรียลไทม์"
+  },
+  "dailyArchive": {
+    "title": "Daily Challenge ย้อนหลัง",
+    "description": "เล่น Daily Challenge ของ BeatDrop ย้อนหลังได้ทุกระดับความยาก เพื่อฝึกซ้อม"
   }
 }

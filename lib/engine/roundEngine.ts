@@ -441,6 +441,42 @@ export async function handleStartRound(req: ApiRequest, res: ApiResponse): Promi
   });
 }
 
+/**
+ * Starts a plain (non-competitive) round for a known track, e.g. replaying a past Daily
+ * Challenge. Mode 'standard' means guesses and skips never touch Daily progress or scores.
+ */
+export function issuePracticeRound(
+  track: Song,
+  opts: { stages: number[]; difficulty: DifficultyLevel; category: CategoryType }
+): RoundStartResponse {
+  const roundState: ActiveRoundState = {
+    track,
+    difficulty: opts.difficulty,
+    stages: [...opts.stages],
+    stage: 0,
+    clipSeconds: opts.stages[0],
+    mistakes: 0,
+    category: opts.category,
+    mode: 'standard',
+    startedAt: Date.now(),
+  };
+  const roundToken = signRoundToken(roundState);
+  activeRounds.set(roundToken, roundState);
+  return {
+    roundToken,
+    roundKey: `rk_${crypto.randomUUID()}`,
+    audioUrl: track.previewUrl,
+    difficulty: opts.difficulty,
+    stages: [...opts.stages],
+    stage: 0,
+    clipSeconds: opts.stages[0],
+    category: opts.category,
+    mode: 'standard',
+    poolSize: 1,
+    expiresAt: Date.now() + 15 * 60 * 1000,
+  };
+}
+
 export async function handleAutocomplete(req: ApiRequest, res: ApiResponse): Promise<void> {
   const q = ((req.query.q as string) || '').trim();
   const category = ((req.query.category as CategoryType) || 'all') as CategoryType;

@@ -2,7 +2,7 @@ import { DatabaseSync, type SQLInputValue } from 'node:sqlite';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { Artist, ArtistRole, ArtistSyncJob, CategoryType, DailyLeaderboardEntry, DailyRoundProgress, LeaderboardEntry, Song, TrackArtistCredit } from '../shared/types';
+import { Artist, ArtistRole, ArtistSyncJob, CategoryType, DailyLeaderboardEntry, DifficultyLevel, DailyRoundProgress, LeaderboardEntry, Song, TrackArtistCredit } from '../shared/types';
 import { isDbLocal, isSupabaseConfigured, supabaseAdmin } from './supabase';
 import type { GuesserRoundClaim } from '../shared/supabase';
 import { getArtistCandidateTokens, normalizeText } from './itunes';
@@ -397,6 +397,79 @@ export const dbService = {
       return Array.isArray(ids) ? ids.map(String) : [];
     } catch (err) {
       console.error('Failed to get/create local daily challenge:', err);
+      return [];
+    }
+  },
+
+  /**
+   * Daily archive: stored challenge dates before `beforeDateKey`, newest first.
+   * SQLite keeps Easy under "YYYY-MM-DD" and other difficulties under "YYYY-MM-DD:<difficulty>".
+   */
+  async listDailyChallengeDates(
+    category: CategoryType,
+    difficulty: DifficultyLevel,
+    beforeDateKey: string,
+    limit: number
+  ): Promise<string[]> {
+    if (isSupabaseConfigured() && !isDbLocal()) {
+      return supabaseAdmin.listDailyChallengeDates(category, difficulty, beforeDateKey, limit);
+    }
+    try {
+      const rows = db.prepare('SELECT date_key FROM daily_challenges WHERE category = ?').all(category) as Array<{ date_key: string }>;
+      const suffix = difficulty === 'easy' ? '' : `:${difficulty}`;
+      return rows
+        .map((r) => String(r.date_key))
+        .filter((key) => (suffix ? key.endsWith(suffix) : /^\d{4}-\d{2}-\d{2}$/.test(key)))
+        .map((key) => key.slice(0, 10))
+        .filter((d) => d < beforeDateKey)
+        .sort((a, b) => (a < b ? 1 : -1))
+        .slice(0, limit);
+    } catch (err) {
+      console.error('Failed to list daily challenge dates:', err);
+      return [];
+    }
+  },
+
+  /** Daily archive: the stored 5 song ids for a past date, or null. Never creates a row. */
+  async getStoredDailyChallengeIds(
+    dateKey: string,
+    category: CategoryType,
+    difficulty: DifficultyLevel
+  ): Promise<string[] | null> {
+    if (isSupabaseConfigured() && !isDbLocal()) {
+      return supabaseAdmin.getStoredDailyChallengeIds(dateKey, category, difficulty);
+    }
+    try {
+      const seedKey = difficulty === 'easy' ? dateKey : `${dateKey}:${difficulty}`;
+      const row = db.prepare('SELECT song_ids FROM daily_challenges WHERE date_key = ? AND category = ?').get(seedKey, category) as
+        | { song_ids: string }
+        | undefined;
+      const ids = row ? JSON.parse(row.song_ids) : null;
+      return Array.isArray(ids) && ids.length === 5 ? ids.map(String) : null;
+    } catch (err) {
+      console.error('Failed to read daily challenge:', err);
+      return null;
+    }
+  },
+
+  /** Daily archive: a player's official rounds on the given dates (read-only). */
+  async getDailyProgressForDates(
+    playerId: string,
+    category: CategoryType,
+    dateKeys: string[]
+  ): Promise<Array<{ dateKey: string; status: string; score: number }>> {
+    if (dateKeys.length === 0) return [];
+    if (isSupabaseConfigured() && !isDbLocal()) {
+      return supabaseAdmin.getDailyProgressForDates(playerId, category, dateKeys);
+    }
+    try {
+      const marks = dateKeys.map(() => '?').join(',');
+      const rows = db.prepare(
+        `SELECT date_key, status, score FROM daily_round_progress WHERE player_id = ? AND category = ? AND date_key IN (${marks})`
+      ).all(playerId, category, ...dateKeys) as Array<{ date_key: string; status: string; score: number }>;
+      return rows.map((r) => ({ dateKey: String(r.date_key), status: String(r.status), score: Number(r.score) || 0 }));
+    } catch (err) {
+      console.error('Failed to read daily progress for dates:', err);
       return [];
     }
   },

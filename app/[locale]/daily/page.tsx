@@ -16,6 +16,7 @@ import {
   Share2,
   Check,
   Clock,
+  History,
 } from 'lucide-react';
 import { StatusMark } from '../../../components/StatusMark';
 import { DAILY_TIME_STAGES, DIFFICULTY_PRESETS, DifficultyLevel } from '../../../types';
@@ -25,6 +26,7 @@ import { getPreference } from '../../../lib/preferenceStorage';
 const DailyChallengePage: React.FC = () => {
   const router = useRouter(); const navigate = (p: string) => router.push(p);
   const t = useTranslations('Daily');
+  const ta = useTranslations('Archive');
   const tc = useTranslations('Common');
   const tgame = useTranslations('Game');
   const tshare = useTranslations('Share');
@@ -176,6 +178,11 @@ const DailyChallengePage: React.FC = () => {
           >
             <Trophy className="w-3.5 h-3.5 text-amber-400" />
             <span>{t('rankings')}</span>
+          </HeroPillButton>
+
+          <HeroPillButton onClick={() => navigate('/daily/archive')} title={ta('openTitle')}>
+            <History className="w-3.5 h-3.5" aria-hidden="true" />
+            <span>{ta('open')}</span>
           </HeroPillButton>
 
           <HeroPillButton
