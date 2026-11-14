@@ -34,7 +34,7 @@ export const ROOM_LIMITS = {
   maxAttempts: 3,
   /** Buzzer mode: time the buzzing player has to answer. */
   buzzAnswerMs: 10_000,
-  /** Pause: total pause budget per game, resume countdown, request window, per-player cooldown. */
+  /** Pause: longest a single pause may last, resume countdown, request window, per-player cooldown. */
   pauseMaxMs: 60_000,
   pauseResumeMs: 3_000,
   pauseRequestMs: 10_000,

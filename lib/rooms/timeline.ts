@@ -109,6 +109,8 @@ export function buzzState(round: RoomRound, now: number) {
  */
 export function freezesOf(room: RoomState): Freeze[] {
   const freezes: Freeze[] = (room.pauses ?? []).map((p) => ({ from: p.from, until: p.until }));
+  // Rooms created before buzz holds froze the clock have no `pauses` field: keep their timing.
+  if (room.pauses === undefined) return freezes.sort((a, b) => a.from - b.from);
   for (const round of room.rounds) {
     const roundOver = round.finishedAt ?? Infinity;
     for (const b of round.buzzes ?? []) {

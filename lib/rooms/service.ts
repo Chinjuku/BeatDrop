@@ -43,7 +43,7 @@ function pick<T>(value: unknown, allowed: readonly T[], fallback: T): T {
 
 /** Clip length from an untrusted value: clamped to the snippet bounds, rounded to 0.1 s. */
 export function parseClipSeconds(raw: unknown): number {
-  const n = typeof raw === 'string' && raw.trim() === '' ? NaN : Number(raw);
+  const n = typeof raw === 'number' ? raw : typeof raw === 'string' && raw.trim() !== '' ? Number(raw) : NaN;
   if (!Number.isFinite(n)) return DEFAULT_ROOM_SETTINGS.clipSeconds;
   const clamped = Math.min(MAX_SNIPPET_DURATION, Math.max(MIN_SNIPPET_DURATION, n));
   return Math.round(clamped * 10) / 10;

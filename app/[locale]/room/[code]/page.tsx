@@ -17,11 +17,12 @@ import {
 import { Modal } from '../../../../components/Modal';
 import { PauseButton, PausedOverlay, PauseRequestDialog } from '../../../../components/room/PauseControls';
 import { useRoom, useServerNow } from '../../../../hooks/useRoom';
+import { roundRemainingMs, roundProgress } from '../../../../shared/roomTimer';
 import { useRoomAudio } from '../../../../hooks/useRoomAudio';
 import { CORRECT_POP_MS, useCorrectFeed } from '../../../../hooks/useCorrectFeed';
 import { CorrectToast } from '../../../../components/room/CorrectToast';
 import { CorrectBurst } from '../../../../components/room/CorrectBurst';
-import { playerColor } from '../../../../shared/roomColors';
+import { playerColor, colorSlotOf } from '../../../../shared/roomColors';
 import { ROOM_LIMITS, type RoomPlayerView, type RoomView } from '../../../../shared/roomTypes';
 
 const secondsUntil = (target: number | undefined, now: number) =>
@@ -196,7 +197,7 @@ function PlayerList({ players, showRound, pops }: { players: RoomPlayerView[]; s
   return (
     <ol className="flex flex-col gap-1.5">
       {players.map((p, idx) => {
-        const color = playerColor(p.colorIndex, p.isMe);
+        const color = playerColor(colorSlotOf(players, p.id, players.find((q) => q.isMe)?.id ?? ''), p.isMe);
         const pop = pops?.get(p.id);
         return (
         <li
@@ -319,12 +320,12 @@ function Round({
   const paused = Boolean(view.pause);
   const windowMs = view.settings.answerSeconds * 1000;
   const feed = useCorrectFeed(view, now);
-  const colorIndexOf = (id: string) => view.players.find((p) => p.id === id)?.colorIndex ?? 0;
+  const colorIndexOf = (id: string) => colorSlotOf(view.players, id, view.me.id);
   const isBuzzer = view.settings.mode === 'buzzer';
   // Row pop (everyone-answers mode): derived from the feed, no extra timers.
   const pops = new Map<string, { points: number; at: number }>();
   if (!isBuzzer) for (const e of feed) if (now - e.at < CORRECT_POP_MS) pops.set(e.playerId, { points: e.points, at: e.at });
-  const remaining = view.endsAt !== undefined ? Math.max(0, view.endsAt - now) : 0;
+  const remaining = roundRemainingMs(view, now);
 
   return (
     <>
@@ -358,7 +359,7 @@ function Round({
 
           {view.phase === 'guessing' && (
             <div className="h-1.5 w-full rounded-full overflow-hidden" style={{ backgroundColor: 'var(--song-surface-soft)' }} aria-hidden="true">
-              <div className="h-full rounded-full" style={{ width: `${(remaining / windowMs) * 100}%`, backgroundColor: 'var(--song-accent)', transition: 'width 0.2s linear' }} />
+              <div className="h-full rounded-full" style={{ width: `${roundProgress(remaining, windowMs) * 100}%`, backgroundColor: 'var(--song-accent)', transition: 'width 0.2s linear' }} />
             </div>
           )}
 
@@ -375,11 +376,11 @@ function Round({
                   <Volume2 className="w-4 h-4" aria-hidden="true" /> {t('game.listenHost')}
                 </p>
               ) : audio.needsTap ? (
-                <PrimaryButton onClick={() => { void audio.unlock().then(() => { if (!paused) void audio.replay(); }); }}>
+                <PrimaryButton onClick={() => { void audio.unlock().then(() => { if (!paused && !view.frozen) void audio.replay(); }); }}>
                   <span className="flex items-center justify-center gap-2"><Volume2 className="w-4 h-4" aria-hidden="true" /> {t('game.enableSound')}</span>
                 </PrimaryButton>
               ) : view.phase === 'guessing' ? (
-                <SecondaryButton onClick={() => void audio.replay()} disabled={paused}>
+                <SecondaryButton onClick={() => void audio.replay()} disabled={paused || view.frozen}>
                   <span className="flex items-center gap-2"><Play className="w-4 h-4" aria-hidden="true" /> {t('game.replay')}</span>
                 </SecondaryButton>
               ) : null}

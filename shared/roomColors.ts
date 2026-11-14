@@ -20,3 +20,13 @@ export function playerColor(colorIndex: number, isMe: boolean): string {
   const n = ROOM_PLAYER_COLORS.length;
   return ROOM_PLAYER_COLORS[((colorIndex % n) + n) % n];
 }
+
+/**
+ * Palette slot for a player on one viewer's device: the rank of the player's join index among
+ * everyone except the viewer, so up to 11 others always get distinct colours.
+ */
+export function colorSlotOf(players: readonly { id: string; colorIndex: number }[], playerId: string, viewerId: string): number {
+  const me = players.find((p) => p.id === playerId);
+  if (!me) return 0;
+  return players.filter((p) => p.id !== viewerId && p.colorIndex < me.colorIndex).length;
+}

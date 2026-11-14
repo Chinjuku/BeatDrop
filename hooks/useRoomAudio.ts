@@ -60,7 +60,7 @@ export function useRoomAudio({ enabled, audioUrl, cueAt, cueFromSeconds, clipSec
   const playClip = useCallback(
     async (fromSeconds = 0) => {
       const el = element();
-      if (!audioUrl || fromSeconds >= clipSeconds) return;
+      if (!enabled || !audioUrl || fromSeconds >= clipSeconds) return;
       clearTimers();
       try {
         el.currentTime = fromSeconds;
@@ -76,7 +76,7 @@ export function useRoomAudio({ enabled, audioUrl, cueAt, cueFromSeconds, clipSec
         setPlaying(false);
       }
     },
-    [audioUrl, clipSeconds, element]
+    [audioUrl, clipSeconds, element, enabled]
   );
 
   /** Call from a tap. Unlocks playback for later scheduled starts. */

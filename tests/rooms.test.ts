@@ -64,6 +64,8 @@ function baseRoom(overrides: Partial<RoomState> = {}): RoomState {
       reveal: { id: `s${i}`, title: `Song ${i}`, artistName: 'Artist' },
       answers: {},
     })),
+    // Rooms started since buzz holds froze the clock always carry `pauses` (see handleStartRoom).
+    ...(overrides.settings?.mode === 'buzzer' && !('pauses' in overrides) ? { pauses: [] } : {}),
     ...overrides,
   };
 }
@@ -157,6 +159,39 @@ describe('correct-answer feed and colours', () => {
     assert.equal(new Set(ROOM_PLAYER_COLORS).size, 11);
     assert.equal(playerColor(3, true), 'var(--song-accent)');
     assert.equal(playerColor(13, false), ROOM_PLAYER_COLORS[2]);
+  });
+
+  it('colorSlotOf skips the viewer so 11 others are always distinct', async () => {
+    const { ROOM_PLAYER_COLORS, playerColor, colorSlotOf } = await import('../shared/roomColors');
+    const players = Array.from({ length: 12 }, (_, i) => ({ id: `u${i}`, colorIndex: i }));
+    for (const viewer of ['u0', 'u5', 'u11']) {
+      const colours = players.filter((p) => p.id !== viewer).map((p) => playerColor(colorSlotOf(players, p.id, viewer), false));
+      assert.equal(new Set(colours).size, 11, `viewer ${viewer}`);
+      assert.ok(colours.every((c) => ROOM_PLAYER_COLORS.includes(c)));
+    }
+    assert.equal(colorSlotOf(players, 'u3', 'u0'), 2);
+    assert.equal(colorSlotOf(players, 'u3', 'u9'), 3);
+    // Shuffled order (scoreboard sorts by score) gives the same slots.
+    assert.equal(colorSlotOf([...players].reverse(), 'u3', 'u0'), 2);
+  });
+});
+
+describe('round timer', () => {
+  it('holds steady while frozen and resumes counting after', async () => {
+    const { roundRemainingMs, roundProgress } = await import('../shared/roomTimer');
+    // endsAt already includes a planned 10 s hold ending at 20_000.
+    const v = { endsAt: 35_000, buzz: { holderId: 'p', deadline: 20_000 } };
+    assert.equal(roundRemainingMs(v, 10_000), 15_000);
+    assert.equal(roundRemainingMs(v, 15_000), 15_000);
+    assert.equal(roundRemainingMs(v, 20_000), 15_000);
+    assert.equal(roundRemainingMs(v, 25_000), 10_000);
+    const paused = { endsAt: 50_000, pause: { until: 30_000 } };
+    assert.equal(roundRemainingMs(paused, 12_000), 20_000);
+    assert.equal(roundRemainingMs({ endsAt: 10_000 }, 12_000), 0);
+    assert.equal(roundRemainingMs({}, 12_000), 0);
+    assert.equal(roundProgress(15_000, 20_000), 0.75);
+    assert.equal(roundProgress(25_000, 20_000), 1);
+    assert.equal(roundProgress(5, 0), 0);
   });
 });
 
@@ -302,6 +337,16 @@ describe('game clock', () => {
     assert.deepEqual(timeline.buildView(room, 'p', playAt + 10_000).audioCue, { at: playAt + 9_000, fromSeconds: 4 });
   });
 
+  it('a room without a pauses field (pre-upgrade) keeps the old, non-freezing buzz timing', () => {
+    const room = baseRoom({
+      settings: { ...DEFAULT_ROOM_SETTINGS, mode: 'buzzer', answerSeconds: ROOM_LIMITS.answerSeconds.buzzer },
+    });
+    delete (room as Partial<RoomState>).pauses;
+    assert.ok(timeline.applyBuzz(room, 'p', playAt + 5_000).ok);
+    assert.deepEqual(timeline.freezesOf(room), []);
+    assert.equal(timeline.buildView(room, 'h', playAt + 6_000).frozen, false);
+  });
+
   it('room without pauses field still locates', () => {
     const r = baseRoom();
     delete (r as Partial<RoomState>).pauses;
@@ -357,6 +402,7 @@ describe('room input validation', () => {
     assert.equal(parseClipSeconds(-1), 0.1);
     assert.equal(parseClipSeconds('abc'), 5);
     assert.equal(parseClipSeconds(NaN), 5);
+    for (const bad of [null, false, true, [], {}, undefined, '', '  ']) assert.equal(parseClipSeconds(bad), 5, String(bad));
   });
 
   it('sets the answer window from the mode, ignoring the client', () => {
@@ -826,6 +872,7 @@ describe('leaving', () => {
   it('buzz holder leaving ends the hold and frees the buzzer', () => {
     const room = threePlayers();
     room.settings = { ...room.settings, mode: 'buzzer' };
+    room.pauses = [];
     const before = timeline.locate(room, T).endsAt!;
     assert.equal(timeline.applyBuzz(room, 'p', T).ok, true);
     assert.equal(timeline.buzzState(room.rounds[0], T + 500).holder?.playerId, 'p');
