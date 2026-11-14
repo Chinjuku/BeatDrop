@@ -402,7 +402,8 @@ export function buildView(room: RoomState, viewerId: string, now: number): RoomV
   const pauseEntry = inRound ? activePause(room, now) : undefined;
   const pause: RoomView['pause'] = pauseEntry
     ? {
-        byName: room.players.find((p) => p.id === pauseEntry.byId)?.name ?? '',
+        // An approved break is shown as the asking player's; a direct pause as the host's.
+        byName: room.players.find((p) => p.id === (pauseEntry.requestedById ?? pauseEntry.byId))?.name ?? '',
         until: pauseEntry.until,
         resumingAt: pauseEntry.until - ROOM_LIMITS.pauseResumeMs,
       }
