@@ -26,6 +26,7 @@ const { songPool, ensureCatalogLoaded } = await import('../lib/engine/songPool')
 const { getBangkokDateKey } = await import('../lib/token');
 const { getDailyPlayerId } = await import('../lib/engine/dailySession');
 const { scopePlayerIdByDifficulty } = await import('../lib/engine/dailyEngine');
+const { verifyAudioToken } = await import('../lib/engine/audioToken');
 const archiveRoute = await import('../app/api/daily/archive/route');
 const archiveRoundRoute = await import('../app/api/daily/archive/round/route');
 const guessRoute = await import('../app/api/round/guess/route');
@@ -113,6 +114,11 @@ describe('daily archive listing', () => {
   });
 });
 
+/** The clients get an opaque audio path; decode it server-side to see which song it is. */
+function audioSource(audioUrl: string): string | null {
+  return verifyAudioToken(new URL(audioUrl, 'http://localhost').searchParams.get('t'));
+}
+
 describe('daily archive rounds', () => {
   it('starts practice rounds for a stored past date with the Daily clip stages', async () => {
     const r0 = await post(archiveRoundRoute.POST, '/api/daily/archive/round', { dateKey: PAST, category: 'all', difficulty: 'easy', roundIndex: 0 });
@@ -120,10 +126,10 @@ describe('daily archive rounds', () => {
     assert.equal(r0.json.data.mode, 'standard', 'practice, not a Daily round');
     assert.deepEqual(r0.json.data.stages, [0.5, 2, 6, 8, 15]);
     assert.equal(r0.json.data.totalRounds, 5);
-    assert.equal(r0.json.data.audioUrl, songPool.get(ids[0])!.previewUrl, 'round 1 is the stored first song');
+    assert.equal(audioSource(r0.json.data.audioUrl), songPool.get(ids[0])!.previewUrl, 'round 1 is the stored first song');
 
     const hard = await post(archiveRoundRoute.POST, '/api/daily/archive/round', { dateKey: PAST, category: 'all', difficulty: 'hard', roundIndex: 0 });
-    assert.equal(hard.json.data.audioUrl, songPool.get(ids[4])!.previewUrl, 'hard uses its own stored order');
+    assert.equal(audioSource(hard.json.data.audioUrl), songPool.get(ids[4])!.previewUrl, 'hard uses its own stored order');
   });
 
   it("refuses today's challenge, unknown dates and bad input", async () => {

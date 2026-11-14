@@ -16,6 +16,7 @@ import {
   SongSuggestion,
 } from '../../shared/types';
 import { signRoundToken, verifyRoundToken } from '../token';
+import { roundAudioPath } from './audioToken';
 import { parseGuessDTO, parseSkipDTO } from '../../shared/validation';
 import { dbService } from '../db';
 import { checkArtistStrictMatch, isJunkTrack } from '../itunes';
@@ -419,7 +420,7 @@ export async function handleStartRound(req: ApiRequest, res: ApiResponse): Promi
 
   const responsePayload: RoundStartResponse = {
     roundToken,
-    audioUrl: selectedTrack.previewUrl,
+    audioUrl: roundAudioPath(selectedTrack.previewUrl),
     difficulty,
     stages: roundStages,
     stage: 0,
@@ -466,7 +467,7 @@ export function issuePracticeRound(
   return {
     roundToken,
     roundKey: `rk_${crypto.randomUUID()}`,
-    audioUrl: track.previewUrl,
+    audioUrl: roundAudioPath(track.previewUrl),
     difficulty: opts.difficulty,
     stages: [...opts.stages],
     stage: 0,

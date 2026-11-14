@@ -11,10 +11,9 @@ know the song before the reveal (seen in a browser on `feat/room-upgrades`).
   for both "host" and "everyone" audio set-ups, including Deezer links that need re-signing.
 - Goal: autocomplete stops returning `previewUrl` (no client reads it).
 - Non-goal: audio fingerprinting (Shazam-style) — inherent to any audio game.
-- Non-goal (follow-up): solo rounds and Daily Challenge also send the raw `previewUrl` as
-  `audioUrl` (`lib/engine/roundEngine.ts`, `lib/engine/dailyEngine.ts`). Removing it from
-  autocomplete closes the easy in-app correlation for them, but the iTunes Search API still
-  allows it. They need the same opaque-URL treatment in a separate change.
+- Goal (added): solo rounds, Daily Challenge and Daily practice get the same protection.
+  `/api/daily` also sent all five rounds' preview URLs up front; rounds not yet reached now
+  carry no audio at all (otherwise a player could listen before the round's timer starts).
 
 ## Approaches
 1. **Opaque, round-scoped room audio route (chosen).** `RoomView.audioUrl` becomes
@@ -37,3 +36,13 @@ know the song before the reveal (seen in a browser on `feat/room-upgrades`).
 - `Cache-Control: private` (per-room URL, not shareable through a CDN).
 - Rate-limited per IP like the Deezer proxy.
 - `useRoomAudio` drops its own proxy fallback: the server always proxies room audio.
+
+## Solo / Daily / practice
+- These have no shared room state, and must work on any serverless instance, so the audio link
+  is a stateless encrypted token: `/api/round/audio?t=ba1.<iv>.<ciphertext>.<tag>`
+  (AES-256-GCM, random IV, key domain-separated from the round token, 6 h expiry). The same
+  song never yields the same URL, so tokens cannot be matched across players or rounds.
+- Daily: only the current round (and finished ones) carry an audio link; the client's
+  next-round prefetch is skipped as a result (small extra load time per round, by design).
+- After the reveal the client still plays `reveal.previewUrl` via the existing proxy; the song
+  is public at that point.
