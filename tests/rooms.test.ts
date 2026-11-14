@@ -756,6 +756,9 @@ describe('leaving', () => {
     const paused = baseRoom({ startedWith: 2, pauses: [{ from: T, until: T + 60_000, byId: 'h' }] });
     timeline.applyLeave(paused, 'p', T + 1_000);
     assert.equal(timeline.locate(paused, T + 1_000).phase, 'finished');
+    const pausedView = timeline.buildView(paused, 'h', T + 2_000);
+    assert.equal(pausedView.pause, undefined, 'no pause overlay over the results');
+    assert.equal(pausedView.frozen, undefined);
 
     const three = threePlayers();
     timeline.applyLeave(three, 'p', T);
@@ -822,6 +825,33 @@ describe('leaving', () => {
     assert.ok(other.pauseRequest, 'an unrelated leave keeps the request');
     assert.deepEqual(pauseRules.applyPauseAction(other, 'h', 'pause', T + 200), { ok: true });
     assert.equal(other.pauseRequest, undefined);
+  });
+
+  it('a pending request is not shown after the game ends', () => {
+    const room = baseRoom({ startedWith: 2 });
+    pauseRules.applyPauseAction(room, 'p', 'request', T);
+    assert.ok(timeline.buildView(room, 'h', T + 10).pauseRequest);
+    // The host leaves: the request is dropped; also check a request that outlives the end.
+    const other = baseRoom({ startedWith: 2 });
+    pauseRules.applyPauseAction(other, 'p', 'request', T);
+    other.endedAt = T + 100; // e.g. state written by another path
+    const hostView = timeline.buildView(other, 'h', T + 200);
+    assert.equal(hostView.phase, 'finished');
+    assert.equal(hostView.pauseRequest, undefined);
+    assert.equal(timeline.buildView(other, 'p', T + 200).myPauseRequest, undefined);
+  });
+
+  it('rejoining after the game ended leaves the room finished', async () => {
+    const created = await call(roomsRoute.POST as Handler, 'POST', '', { body: { name: 'Host' } });
+    const code = created.json.data.room.code as string;
+    const host = created.json.data.playerToken as string;
+    const pat = (await call(joinRoute.POST as Handler, 'POST', code, { body: { name: 'Pat' } })).json.data.playerToken as string;
+    await call(startRoute.POST as Handler, 'POST', code, { token: host });
+    await call(leaveRoute.POST as Handler, 'POST', code, { token: pat });
+    const again = await call(joinRoute.POST as Handler, 'POST', code, { token: pat, body: { name: 'Pat' } });
+    assert.equal(again.status, 200);
+    assert.equal(again.json.data.room.phase, 'finished');
+    assert.equal(again.json.data.room.endedEarly, true);
   });
 
   it('leaving later does not change finished rounds', () => {

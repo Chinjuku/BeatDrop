@@ -383,7 +383,8 @@ export function buildView(room: RoomState, viewerId: string, now: number): RoomV
     };
   }
 
-  const pauseEntry = activePause(room, now);
+  // Pause state only matters while a round is running; a finished game shows results.
+  const pauseEntry = inRound ? activePause(room, now) : undefined;
   const pause: RoomView['pause'] = pauseEntry
     ? {
         byName: room.players.find((p) => p.id === pauseEntry.byId)?.name ?? '',
@@ -392,10 +393,10 @@ export function buildView(room: RoomState, viewerId: string, now: number): RoomV
       }
     : undefined;
   const req = room.pauseRequest;
-  const reqPending = pendingPauseRequest(room, now);
+  const reqPending = inRound ? pendingPauseRequest(room, now) : undefined;
   const reqName = req ? room.players.find((p) => p.id === req.playerId)?.name ?? '' : '';
   let myPauseRequest: RoomView['myPauseRequest'];
-  if (req && req.playerId === viewerId) {
+  if (inRound && req && req.playerId === viewerId) {
     const outcomeAt = req.decision ? req.decidedAt ?? req.at : req.at + ROOM_LIMITS.pauseRequestMs;
     if (reqPending) myPauseRequest = 'pending';
     else if (now < outcomeAt + PAUSE_OUTCOME_VISIBLE_MS) myPauseRequest = req.decision ?? 'expired';
