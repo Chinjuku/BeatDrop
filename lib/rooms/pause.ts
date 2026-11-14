@@ -25,9 +25,19 @@ export type PauseFailure =
 
 export type PauseOutcome = { ok: true } | { ok: false; reason: PauseFailure };
 
-function startPause(room: RoomState, byId: string, now: number, requestedById?: string): PauseOutcome {
+/**
+ * Can this room be paused right now? A buzzer room started before pauses existed has no `pauses`
+ * field, and its buzzes do not freeze the clock (`freezesOf`). Writing a first pause would turn all
+ * its past buzzes into freezes and shift the schedule mid-game, so such rooms cannot be paused.
+ */
+function pausablePhase(room: RoomState, now: number): boolean {
+  if (room.pauses === undefined && room.settings.mode === 'buzzer') return false;
   const phase = locate(room, now).phase;
-  if (phase !== 'countdown' && phase !== 'guessing' && phase !== 'reveal') return { ok: false, reason: 'wrong-phase' };
+  return phase === 'countdown' || phase === 'guessing' || phase === 'reveal';
+}
+
+function startPause(room: RoomState, byId: string, now: number, requestedById?: string): PauseOutcome {
+  if (!pausablePhase(room, now)) return { ok: false, reason: 'wrong-phase' };
   if (activePause(room, now)) return { ok: false, reason: 'already-paused' };
   if (frozenAt(freezesOf(room), now)) return { ok: false, reason: 'buzz-hold' };
   room.pauses = [
@@ -50,8 +60,7 @@ export function applyPauseAction(room: RoomState, playerId: string, action: Paus
   if (action === 'request') {
     // The host pauses directly; a host "request" is not a request.
     if (isHost) return { ok: false, reason: 'is-host' };
-    const phase = locate(room, now).phase;
-    if (phase !== 'countdown' && phase !== 'guessing' && phase !== 'reveal') return { ok: false, reason: 'wrong-phase' };
+    if (!pausablePhase(room, now)) return { ok: false, reason: 'wrong-phase' };
     if (activePause(room, now)) return { ok: false, reason: 'already-paused' };
     if (frozenAt(freezesOf(room), now)) return { ok: false, reason: 'buzz-hold' };
     if (pendingPauseRequest(room, now)) return { ok: false, reason: 'pending' };
