@@ -9,6 +9,7 @@ import {
   MIN_SNIPPET_DURATION,
   TIME_RANGE_PRESETS,
   TimeRangePresetId,
+  resolveTimeRangePreset,
 } from '../types';
 
 interface TimeRangeSelectorProps {
@@ -79,7 +80,7 @@ export const TimeRangeSelector: React.FC<TimeRangeSelectorProps> = ({
 
     setValidationError(null);
     setModalOpen(false);
-    onChangePreset('custom', sorted);
+    onChangePreset(resolveTimeRangePreset(sorted), sorted);
   };
 
   const handleSliderChange = (index: number, value: number) => {
@@ -415,7 +416,7 @@ export const TimeRangeSelector: React.FC<TimeRangeSelectorProps> = ({
             {/* Validation Error Message */}
             {validationError && (
               <div className="text-xs font-semibold text-red-400 bg-red-950/40 border border-red-800/60 px-3 py-2 rounded-xl">
-                ⚠️ {validationError}
+                {validationError}
               </div>
             )}
 

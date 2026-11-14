@@ -43,6 +43,33 @@ export function isSaveDataEnabled(): boolean {
   return Boolean(conn?.saveData || conn?.effectiveType === 'slow-2g');
 }
 
+/**
+ * One AudioContext for the whole app. Browsers cap how many can exist at once (iOS Safari
+ * allows only a handful) and each one holds an audio output. Previously every prefetch
+ * created its own context and never closed it, so after several rounds new contexts
+ * failed or the playing one got starved and the game went silent.
+ */
+let sharedAudioContext: AudioContext | null = null;
+
+export function getSharedAudioContext(): AudioContext {
+  if (!sharedAudioContext || sharedAudioContext.state === 'closed') {
+    const Ctx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+    sharedAudioContext = new Ctx({ latencyHint: 'interactive' });
+  }
+  return sharedAudioContext;
+}
+
+/**
+ * Resume a context that is not running. iOS reports 'interrupted' (not 'suspended') after
+ * a phone call, Siri, the app going to the background or another tab taking audio; such a
+ * context stays silent until resume() is called again from a user gesture.
+ */
+function resumeIfNeeded(ctx: AudioContext): void {
+  if ((ctx.state as string) !== 'running' && ctx.state !== 'closed') {
+    ctx.resume().catch(() => {});
+  }
+}
+
 export async function prefetchAudio(url: string | null | undefined, ctx?: AudioContext): Promise<void> {
   if (!url || typeof window === 'undefined' || audioBufferCache.has(url)) return;
   // Respect user's mobile Data Saver mode: skip eager background audio buffering
@@ -51,8 +78,7 @@ export async function prefetchAudio(url: string | null | undefined, ctx?: AudioC
     const res = await fetch(url);
     if (!res.ok) return;
     const arrBuf = await res.arrayBuffer();
-    const Ctx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-    const context = ctx || new Ctx({ latencyHint: 'interactive' });
+    const context = ctx || getSharedAudioContext();
     const decoded = await context.decodeAudioData(arrBuf.slice(0));
     const soundOffset = findAudibleIntroOffset(decoded);
 
@@ -89,23 +115,21 @@ export function useAudioController({ audioUrl, volume }: UseAudioControllerOptio
   const soundStartOffsetRef = useRef<number>(0);
 
   const getContext = useCallback((): AudioContext => {
-    if (!audioCtxRef.current) {
-      const Ctx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-      audioCtxRef.current = new Ctx({ latencyHint: 'interactive' });
-    }
-    if (audioCtxRef.current.state === 'suspended') {
-      audioCtxRef.current.resume().catch(() => {});
-    }
-    return audioCtxRef.current;
+    const ctx = getSharedAudioContext();
+    audioCtxRef.current = ctx;
+    resumeIfNeeded(ctx);
+    return ctx;
   }, []);
+
+  // Volume is read at play time through a ref so changing it never rebuilds loadAudio,
+  // which would tear down and reload the current clip.
+  const volumeRef = useRef(volume);
+  volumeRef.current = volume;
 
   // Pre-warm / unlock AudioContext on touch or click (iOS/iPadOS & Android mobile policy)
   useEffect(() => {
     const unlock = () => {
-      const ctx = getContext();
-      if (ctx.state === 'suspended') {
-        ctx.resume().catch(() => {});
-      }
+      getContext();
     };
     window.addEventListener('touchstart', unlock, { passive: true });
     window.addEventListener('touchend', unlock, { passive: true });
@@ -170,7 +194,7 @@ export function useAudioController({ audioUrl, volume }: UseAudioControllerOptio
 
           activeClipLimitRef.current = cappedMax;
           offsetSecondsRef.current = safeOffset;
-          audio.volume = Math.min(1, Math.max(0, volume / 100));
+          audio.volume = Math.min(1, Math.max(0, volumeRef.current / 100));
           audio.currentTime = safeOffset;
 
           const startPerf = performance.now();
@@ -220,7 +244,7 @@ export function useAudioController({ audioUrl, volume }: UseAudioControllerOptio
 
       const source = ctx.createBufferSource();
       const gain = ctx.createGain();
-      const targetVolume = Math.min(1, Math.max(0, volume / 100));
+      const targetVolume = Math.min(1, Math.max(0, volumeRef.current / 100));
       const now = ctx.currentTime;
 
       // Anti-pop hardware micro-ramps (Fade-in 5ms, Fade-out 20ms) - sample-accurate under battery saver / low power mode
@@ -279,10 +303,11 @@ export function useAudioController({ audioUrl, volume }: UseAudioControllerOptio
       source.start(now, safeOffset, remainingPlayTime);
       source.stop(now + remainingPlayTime);
     },
-    [getContext, stopInternal, volume]
+    [getContext, stopInternal]
   );
 
   const pendingAutoPlayRef = useRef<{ clipSeconds?: number; isFull?: boolean } | null>(null);
+  const loadingRef = useRef(false);
 
   // Load and decode audio buffer with Wi-Fi <-> Cellular handover retry and auto-heal
   const loadAudio = useCallback(
@@ -320,6 +345,14 @@ export function useAudioController({ audioUrl, volume }: UseAudioControllerOptio
 
       let cancelled = false;
       stopInternal(true);
+      // Drop the previous track so a tap while this one downloads can never replay the
+      // old song; playSnippet queues the request instead (see loadingRef).
+      bufferRef.current = null;
+      if (htmlAudioRef.current) {
+        htmlAudioRef.current.src = '';
+        htmlAudioRef.current = null;
+      }
+      loadingRef.current = true;
       setState('loading');
 
       // Handover-resilient fetch: retry direct fetch with backoff, then fallback to server proxy
@@ -360,6 +393,7 @@ export function useAudioController({ audioUrl, volume }: UseAudioControllerOptio
         })
         .then((decoded) => {
           if (cancelled) return;
+          loadingRef.current = false;
           const soundOffset = findAudibleIntroOffset(decoded);
           if (audioBufferCache.size >= MAX_AUDIO_CACHE) {
             const oldest = audioBufferCache.keys().next().value;
@@ -383,6 +417,7 @@ export function useAudioController({ audioUrl, volume }: UseAudioControllerOptio
         })
         .catch((err) => {
           if (cancelled) return;
+          loadingRef.current = false;
           // Graceful HTML5 Audio fallback for slow 3G / decode issue / blocked CDN
           try {
             const audioSrc = audioUrl.startsWith('http')
@@ -390,7 +425,7 @@ export function useAudioController({ audioUrl, volume }: UseAudioControllerOptio
               : audioUrl;
             const audio = new Audio(audioSrc);
             audio.preload = isSaveDataEnabled() ? 'metadata' : 'auto';
-            audio.volume = Math.min(1, Math.max(0, volume / 100));
+            audio.volume = Math.min(1, Math.max(0, volumeRef.current / 100));
             htmlAudioRef.current = audio;
             audio.oncanplay = () => {
               if (!cancelled) {
@@ -422,10 +457,11 @@ export function useAudioController({ audioUrl, volume }: UseAudioControllerOptio
 
       return () => {
         cancelled = true;
+        loadingRef.current = false;
         stopInternal(true);
       };
     },
-    [audioUrl, getContext, stopInternal, volume, startPlaybackFrom]
+    [audioUrl, getContext, stopInternal, startPlaybackFrom]
   );
 
   useEffect(() => {
@@ -435,10 +471,21 @@ export function useAudioController({ audioUrl, volume }: UseAudioControllerOptio
     };
   }, [loadAudio]);
 
+  // Coming back to the tab/app: wake a context the OS interrupted while we were hidden.
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState === 'visible' && audioCtxRef.current) {
+        resumeIfNeeded(audioCtxRef.current);
+      }
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
+  }, []);
+
   // Auto-heal when network reconnects (e.g. mobile Wi-Fi <-> Cellular handover)
   useEffect(() => {
     const handleOnline = () => {
-      if (!bufferRef.current && audioUrl && (state === 'error' || state === 'loading')) {
+      if (!bufferRef.current && audioUrl && !loadingRef.current && state === 'error') {
         loadAudio();
       }
     };
@@ -467,6 +514,11 @@ export function useAudioController({ audioUrl, volume }: UseAudioControllerOptio
         Math.max(MIN_SNIPPET_DURATION, Number(clipSeconds) || MIN_SNIPPET_DURATION)
       );
       if (!bufferRef.current && !htmlAudioRef.current) {
+        if (loadingRef.current) {
+          // Still downloading: play as soon as it is ready instead of starting a second fetch.
+          pendingAutoPlayRef.current = { clipSeconds: clampedClip, isFull: false };
+          return;
+        }
         // In error or unloaded state, trigger recovery reload with autoplay
         loadAudio(true, clampedClip, false);
         return;
@@ -481,6 +533,10 @@ export function useAudioController({ audioUrl, volume }: UseAudioControllerOptio
   const playFullPreview = useCallback(() => {
     const buffer = bufferRef.current;
     if (!buffer && !htmlAudioRef.current) {
+      if (loadingRef.current) {
+        pendingAutoPlayRef.current = { isFull: true };
+        return;
+      }
       loadAudio(true, undefined, true);
       return;
     }

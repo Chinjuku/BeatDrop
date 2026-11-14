@@ -6,7 +6,6 @@
     "points": "{points} คะแนน",
     "kicker": "MUSIC CHALLENGE",
     "noSpoilers": "ไม่มีสปอยล์",
-    "gameOverLine": "{seconds}s (จบเกม)",
     "shareTitle": "BeatDrop Music Ticket",
     "dialogTitle": "ตั๋วเพลงของคุณ",
     "close": "ปิดหน้าต่างตั๋ว",
@@ -20,8 +19,18 @@
     "footnote": "เพื่อนจะได้เริ่มรอบใหม่ของตัวเอง"
   },
   "daily": {
-    "modeLine": "โหมด: {category} ({difficulty})",
     "scoreLine": "คะแนน: {score} pts (ถูก {correct}/{total})",
     "title": "ผล BeatDrop Daily Challenge"
+  },
+  "result": {
+    "header": "BeatDrop · {category} · {difficulty}",
+    "dailyHeader": "BeatDrop Daily · {date}",
+    "modeLine": "{category} · {difficulty}",
+    "won": "ทายถูกใน {seconds} วินาที",
+    "wonPoints": "ทายถูกใน {seconds} วินาที · {points} คะแนน",
+    "lost": "รอบนี้ทายไม่ออก",
+    "streak": "สตรีค {count}",
+    "song": "{title} — {artist} ({year})",
+    "tag": "#beatdrop"
   }
 }

@@ -31,14 +31,14 @@ const MusicCategoriesPage: React.FC = () => {
   );
 
   const genres = [
-    { name: 'T-Pop', icon: '🇹🇭', desc: t('genres.tpop') },
-    { name: 'Pop', icon: '✨', desc: t('genres.pop') },
-    { name: 'Rock', icon: '⚡', desc: t('genres.rock') },
-    { name: 'Indie', icon: '🌿', desc: t('genres.indie') },
-    { name: 'R&B', icon: '🌙', desc: t('genres.rnb') },
-    { name: 'Hip-Hop/Rap', icon: '🔥', desc: t('genres.hiphop') },
-    { name: 'K-Pop', icon: '💜', desc: t('genres.kpop') },
-    { name: 'EDM', icon: '🎛️', desc: t('genres.edm') },
+    { name: 'T-Pop', desc: t('genres.tpop') },
+    { name: 'Pop', desc: t('genres.pop') },
+    { name: 'Rock', desc: t('genres.rock') },
+    { name: 'Indie', desc: t('genres.indie') },
+    { name: 'R&B', desc: t('genres.rnb') },
+    { name: 'Hip-Hop/Rap', desc: t('genres.hiphop') },
+    { name: 'K-Pop', desc: t('genres.kpop') },
+    { name: 'EDM', desc: t('genres.edm') },
   ];
 
   const eras = [
@@ -304,7 +304,6 @@ const MusicCategoriesPage: React.FC = () => {
                       : { color: 'var(--song-muted)' }
                   }
                 >
-                  <span>🇹🇭</span>
                   <span>{t('filter.thai')}</span>
                 </button>
                 <button
@@ -320,7 +319,6 @@ const MusicCategoriesPage: React.FC = () => {
                       : { color: 'var(--song-muted)' }
                   }
                 >
-                  <span>🌍</span>
                   <span>{t('filter.international')}</span>
                 </button>
               </div>
@@ -400,14 +398,14 @@ const MusicCategoriesPage: React.FC = () => {
                 {otherCategoryMatches.length > 0 ? (
                   <div className="pt-1">
                     <p className="text-xs text-emerald-400 mb-2">
-                      💡 {t('empty.otherCategory', { count: otherCategoryMatches.length, category: t(artistCategoryFilter === 'thai' ? 'filter.international' : 'filter.thai'), names: otherCategoryMatches.map((m) => m.name).join(', ') })}
+                      {t('empty.otherCategory', { count: otherCategoryMatches.length, category: t(artistCategoryFilter === 'thai' ? 'filter.international' : 'filter.thai'), names: otherCategoryMatches.map((m) => m.name).join(', ') })}
                     </p>
                     <button
                       type="button"
                       onClick={() => setArtistCategoryFilter(artistCategoryFilter === 'thai' ? 'international' : 'thai')}
                       className="px-3.5 py-1.5 text-xs font-semibold rounded-xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 hover:bg-emerald-500/30 transition-colors cursor-pointer"
                     >
-                      {t('empty.switchTo', { category: artistCategoryFilter === 'thai' ? `🌍 ${t('filter.international')}` : `🇹🇭 ${t('filter.thai')}` })}
+                      {t('empty.switchTo', { category: artistCategoryFilter === 'thai' ? t('filter.international') : t('filter.thai') })}
                     </button>
                   </div>
                 ) : (
@@ -451,10 +449,7 @@ const MusicCategoriesPage: React.FC = () => {
               }}
             >
               <div>
-                <div className="flex items-center gap-2 text-lg sm:text-xl mb-1 sm:mb-1.5">
-                  <span>{g.icon}</span>
-                  <span className="font-extrabold text-sm sm:text-base">{g.name}</span>
-                </div>
+                <h3 className="font-extrabold text-sm sm:text-base mb-1 sm:mb-1.5">{g.name}</h3>
                 <p className="text-[11px] sm:text-xs opacity-75 line-clamp-2" style={{ color: 'var(--song-muted)' }}>
                   {g.desc}
                 </p>

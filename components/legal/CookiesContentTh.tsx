@@ -40,6 +40,14 @@ export function CookiesContentTh() {
             </tr>
             <tr>
               <td>
+                <code>beatdrop_locale</code>
+              </td>
+              <td>คุกกี้ (first-party)</td>
+              <td>จำภาษาที่คุณเลือกจากเมนูภาษา</td>
+              <td>1 ปี</td>
+            </tr>
+            <tr>
+              <td>
                 <code>beatdrop_admin_key</code>
               </td>
               <td>sessionStorage</td>

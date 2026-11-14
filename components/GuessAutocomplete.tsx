@@ -1,7 +1,8 @@
 'use client';
 import { useTranslations } from 'next-intl';
 import React, { useEffect, useRef, useState } from 'react';
-import { Loader2, Search, SkipForward, Check, Flag, ChevronLeft, X } from 'lucide-react';
+import { flushSync } from 'react-dom';
+import { Loader2, Search, SkipForward, Check, Flag, ChevronLeft, X, Mic2 } from 'lucide-react';
 import { CategoryType, GameMode, Song } from '../types';
 import { Modal } from './Modal';
 
@@ -96,6 +97,20 @@ export const GuessAutocomplete: React.FC<GuessAutocompleteProps> = ({
 
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const sheetInputRef = useRef<HTMLInputElement>(null);
+
+  // Open the mobile search sheet and focus its field in the same tap. iOS only raises the
+  // keyboard when focus() runs synchronously inside the user gesture, so render the sheet
+  // with flushSync and focus right away instead of waiting for an effect or autoFocus.
+  const openMobileSearch = () => {
+    flushSync(() => setMobileOpen(true));
+    const field = sheetInputRef.current;
+    if (field) {
+      field.focus({ preventScroll: true });
+      const end = field.value.length;
+      field.setSelectionRange(end, end);
+    }
+  };
 
   const isArtistScoped = Boolean(artistFilter && artistFilter !== 'any');
 
@@ -239,14 +254,15 @@ export const GuessAutocomplete: React.FC<GuessAutocompleteProps> = ({
               >
                 <Search className="w-4 h-4 mr-2 shrink-0" style={{ color: 'var(--song-muted)' }} />
                 <input
-                  autoFocus
+                  ref={sheetInputRef}
+                  data-autofocus
                   type="text"
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
                   onKeyDown={handleKeyDown}
                   placeholder={isArtistScoped ? t('mobilePlaceholderArtist', { artist: artistFilter ?? '' }) : t('mobilePlaceholder')}
-                  className="w-full bg-transparent outline-none text-base font-semibold"
-                  style={{ color: 'var(--song-text)' }}
+                  className="w-full bg-transparent outline-none focus-visible:outline-none text-base font-semibold"
+                  style={{ color: 'var(--song-text)', outline: 'none' }}
                 />
                 {query ? (
                   <button
@@ -357,7 +373,8 @@ export const GuessAutocomplete: React.FC<GuessAutocompleteProps> = ({
                   className="px-3 py-1 text-[10px] font-extrabold uppercase tracking-wider border-b mb-1 flex items-center justify-between"
                   style={{ borderColor: 'var(--song-border)', color: 'var(--song-accent-text)' }}
                 >
-                  <span>🎤 {t('artistOnly', { artist: artistFilter ?? '' })}</span>
+                  <Mic2 className="w-3 h-3 shrink-0" aria-hidden="true" />
+                <span>{t('artistOnly', { artist: artistFilter ?? '' })}</span>
                   <span>{t('keyboardHint')}</span>
                 </div>
               )}
@@ -433,7 +450,7 @@ export const GuessAutocomplete: React.FC<GuessAutocompleteProps> = ({
             onFocus={(e) => {
               if (window.innerWidth < 640) {
                 e.currentTarget.blur();
-                setMobileOpen(true);
+                openMobileSearch();
                 return;
               }
               if (isArtistScoped || suggestions.length > 0) {

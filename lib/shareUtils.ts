@@ -6,6 +6,8 @@
  * 3. Legacy document.execCommand('copy') (In-app webviews: LINE, FB, IG, non-secure origins)
  */
 
+import { HAS_PUBLIC_ORIGIN, SITE_URL } from './siteConfig';
+
 export async function copyToClipboard(text: string): Promise<boolean> {
   if (typeof window === 'undefined') return false;
 
@@ -88,3 +90,75 @@ export async function shareOrCopy(options: ShareOptions): Promise<ShareResult> {
   return copied ? 'copied' : 'failed';
 }
 
+
+// ---------------------------------------------------------------------------
+// Result text shared by every "copy / share result" button, so all of them read
+// the same way and point at one canonical link.
+// ---------------------------------------------------------------------------
+
+
+export type ShareStageStatus = 'correct' | 'wrong' | 'skipped' | 'expired' | 'pending' | 'unused';
+
+/** One square per clip stage. Same legend everywhere: green hit, yellow skip, red miss. */
+const SHARE_SQUARES: Record<ShareStageStatus, string> = {
+  correct: '🟩',
+  skipped: '🟨',
+  wrong: '🟥',
+  expired: '🟥',
+  pending: '⬜',
+  unused: '⬜',
+};
+
+export function buildShareGrid(statuses: readonly ShareStageStatus[]): string {
+  return statuses.map((status) => SHARE_SQUARES[status]).join('');
+}
+
+/**
+ * Status of every stage from a round's guess history (stages never reached are 'unused').
+ * Giving up is not written to history, so on a lost round the first stage that has no
+ * entry is where the player gave up: mark it as a miss rather than as unplayed.
+ */
+export function stageStatusesFromHistory(
+  stageCount: number,
+  history: ReadonlyArray<{ stageIndex: number; status: 'correct' | 'wrong' | 'skipped' }>,
+  lost = false
+): ShareStageStatus[] {
+  const statuses: ShareStageStatus[] = Array.from({ length: stageCount }, (_, idx) => {
+    const item = history.find((h) => h.stageIndex === idx);
+    return item ? item.status : 'unused';
+  });
+  if (lost && !statuses.includes('wrong')) {
+    const gaveUpAt = statuses.indexOf('unused');
+    if (gaveUpAt >= 0) statuses[gaveUpAt] = 'wrong';
+  }
+  return statuses;
+}
+
+/**
+ * Public link for shared results. Uses the configured production origin, never the
+ * address the player happens to be on (a LAN IP, a preview deployment, a locale prefix).
+ */
+export function shareLink(path = '/play'): string {
+  const origin =
+    HAS_PUBLIC_ORIGIN || typeof window === 'undefined' ? SITE_URL : window.location.origin;
+  return `${origin}${path}`;
+}
+
+/** Host shown on the ticket artwork, e.g. `beatdrop.app`. */
+export function shareHost(): string {
+  try {
+    return new URL(shareLink('/')).host;
+  } catch {
+    return 'BeatDrop';
+  }
+}
+
+/** Plain-text clipboard version: the message, then the link on its own last line. */
+export function withShareLink(text: string, url: string): string {
+  return `${text}\n${url}`;
+}
+
+/** Display name for a difficulty id: `easy` -> `Easy`. */
+export function difficultyName(id: string): string {
+  return id ? id.charAt(0).toUpperCase() + id.slice(1) : id;
+}

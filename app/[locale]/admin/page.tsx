@@ -513,7 +513,7 @@ export default function AdminDashboardPage() {
                     <div className="min-w-0">
                       <div className="text-xs font-bold truncate">{art.name}</div>
                       <div className="text-[10px]" style={{ color: 'var(--song-muted)' }}>
-                        {art.category === 'thai' ? '🇹🇭 เพลงไทย' : '🌍 สากล'} • {art.mainGenre}
+                        {art.category === 'thai' ? 'เพลงไทย' : 'สากล'} • {art.mainGenre}
                       </div>
                     </div>
                   </div>
@@ -579,8 +579,8 @@ export default function AdminDashboardPage() {
               }}
             >
               <option value="all">ทุกหมวดหมู่</option>
-              <option value="thai">🇹🇭 เพลงไทย</option>
-              <option value="international">🌍 เพลงสากล</option>
+              <option value="thai">เพลงไทย</option>
+              <option value="international">เพลงสากล</option>
             </select>
           </div>
         </div>
@@ -623,7 +623,7 @@ export default function AdminDashboardPage() {
                     <div className="min-w-0">
                       <div className="text-xs font-extrabold truncate">{artist.name}</div>
                       <div className="text-[10px] flex items-center gap-1.5" style={{ color: 'var(--song-muted)' }}>
-                        <span>{artist.category === 'thai' ? '🇹🇭' : '🌍'} {artist.mainGenre}</span>
+                        <span>{artist.category === 'thai' ? 'เพลงไทย' : 'สากล'} • {artist.mainGenre}</span>
                         <span>•</span>
                         <span className="font-extrabold text-emerald-400">{artist.trackCount || 0} เพลง</span>
                       </div>

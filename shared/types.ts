@@ -107,6 +107,23 @@ export const TIME_RANGE_PRESETS: Record<Exclude<TimeRangePresetId, 'custom'>, Ti
   },
 };
 
+/**
+ * Named preset whose stages exactly equal `stages`, otherwise 'custom'.
+ * Keeps the selected chip honest: applying Standard's own numbers from the Custom
+ * editor (or restoring them from storage) must still read as Standard.
+ */
+export function resolveTimeRangePreset(stages: readonly number[]): TimeRangePresetId {
+  for (const preset of Object.values(TIME_RANGE_PRESETS)) {
+    if (
+      preset.stages.length === stages.length &&
+      preset.stages.every((value, index) => value === stages[index])
+    ) {
+      return preset.id;
+    }
+  }
+  return 'custom';
+}
+
 // Daily Challenge clip stages are fixed for every player (Standard, 0.5s -> 15s) and
 // are never taken from the client, so the same date always means the same rules.
 export const DAILY_TIME_STAGES: readonly number[] = TIME_RANGE_PRESETS.standard.stages;

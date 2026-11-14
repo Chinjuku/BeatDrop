@@ -1,8 +1,5 @@
 {
   "share": {
-    "wonLine": "ทายถูกใน {seconds} วินาที! ({difficulty})",
-    "lostLine": "รอบนี้เกือบได้! ({difficulty})",
-    "songLine": "เพลง: {title} — {artist} ({year})",
     "title": "ผลการทายเพลง BeatDrop"
   },
   "vinylPause": "คลิกเพื่อหยุดชั่วคราว",

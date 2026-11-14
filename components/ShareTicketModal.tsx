@@ -11,7 +11,16 @@ import {
 } from 'lucide-react';
 import { CategoryType, DifficultyLevel, GameMode, GuessHistoryItem, Song } from '../types';
 import { BeatDropLogo } from './BeatDropLogo';
-import { copyToClipboard, shareOrCopy } from '../lib/shareUtils';
+import {
+  buildShareGrid,
+  copyToClipboard,
+  difficultyName,
+  shareHost,
+  shareLink,
+  shareOrCopy,
+  stageStatusesFromHistory,
+  withShareLink,
+} from '../lib/shareUtils';
 
 export interface ShareTicketModalProps {
   isOpen: boolean;
@@ -70,26 +79,23 @@ export const ShareTicketModal: React.FC<ShareTicketModalProps> = ({
   const kicker = t('ticket.kicker');
   const noSpoilers = t('ticket.noSpoilers');
 
-  // Emoji summary line
-  const emojiBoxes = stages.map((_, idx) => {
-    if (isWon) {
-      if (idx < activeIdx) return '⬛';
-      if (idx === activeIdx) return '🟩';
-      return '⬜';
-    }
-    return '⬛';
-  });
-
+  // Spoiler-free result: no song title, just how the round went.
+  const categoryLabel =
+    category === 'thai'
+      ? tc('category.thai')
+      : category === 'international'
+        ? tc('category.international')
+        : tc('category.mixed');
+  const link = shareLink('/play');
   const shareText = [
-    `BeatDrop • ${category === 'thai' ? `🇹🇭 ${tc('category.thai')}` : `🌍 ${tc('category.international')}`}`,
-    `HEAR LESS. KNOW MORE.`,
-    isWon ? `🟩 ${guessedAtSeconds}s • ${pointsLabel}` : `❌ ${t('ticket.gameOverLine', { seconds: stages[stages.length - 1] })}`,
-    emojiBoxes.join(''),
-    `https://beatdrop-self.vercel.app #beatdrop`,
+    t('result.header', { category: categoryLabel, difficulty: difficultyName(difficulty) }),
+    buildShareGrid(stageStatusesFromHistory(stages.length, history, !isWon)),
+    isWon ? t('result.wonPoints', { seconds: guessedAtSeconds, points }) : t('result.lost'),
+    t('result.tag'),
   ].join('\n');
 
   const handleCopyResult = async () => {
-    const success = await copyToClipboard(shareText);
+    const success = await copyToClipboard(withShareLink(shareText, link));
     if (success) {
       setCopied(true);
       setTimeout(() => setCopied(false), 2200);
@@ -100,7 +106,7 @@ export const ShareTicketModal: React.FC<ShareTicketModalProps> = ({
     const result = await shareOrCopy({
       title: t('ticket.shareTitle'),
       text: shareText,
-      url: typeof window !== 'undefined' ? window.location.origin : undefined,
+      url: link,
     });
     if (result === 'copied') {
       setCopied(true);
@@ -250,7 +256,7 @@ export const ShareTicketModal: React.FC<ShareTicketModalProps> = ({
 
       ctx.fillStyle = '#008349';
       ctx.font = '800 16px Poppins, sans-serif';
-      ctx.fillText('beatdrop-self.vercel.app', 32, 510);
+      ctx.fillText(shareHost(), 32, 510);
 
       ctx.fillStyle = '#535d51';
       ctx.font = '600 12px Poppins, sans-serif';
@@ -382,7 +388,7 @@ export const ShareTicketModal: React.FC<ShareTicketModalProps> = ({
             <div className="sst-stub-copy">
               <p>{headlineCopy}</p>
               <div className="sst-signoff">
-                <strong>beatdrop-self.vercel.app</strong>
+                <strong>{shareHost()}</strong>
                 <span>#beatdrop</span>
               </div>
             </div>

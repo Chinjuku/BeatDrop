@@ -17,8 +17,9 @@ import {
   Check,
   Clock,
 } from 'lucide-react';
+import { StatusMark } from '../../../components/StatusMark';
 import { DAILY_TIME_STAGES, DIFFICULTY_PRESETS, DifficultyLevel } from '../../../types';
-import { shareOrCopy } from '../../../lib/shareUtils';
+import { buildShareGrid, difficultyName, shareLink, shareOrCopy } from '../../../lib/shareUtils';
 import { getPreference } from '../../../lib/preferenceStorage';
 
 const DailyChallengePage: React.FC = () => {
@@ -121,28 +122,19 @@ const DailyChallengePage: React.FC = () => {
     (!outcome || dailyIndex >= 5);
 
   const handleShareDailyResult = async () => {
-    const emojiMap: Record<string, string> = {
-      correct: '🟩',
-      wrong: '🟥',
-      skipped: '🟧',
-      expired: '⬛',
-      pending: '⬜',
-    };
-    const emojiRow = dailyResults.map((r) => emojiMap[r] || '⬛').join(' ');
-    const catLabel = config.category === 'thai' ? `${tc('category.thai')} 🇹🇭` : config.category === 'international' ? `${tc('category.international')} 🌍` : `${tc('category.mixed')} 🔥`;
-    const diffLabel = config.difficulty.toUpperCase();
+    const catLabel = config.category === 'thai' ? tc('category.thai') : config.category === 'international' ? tc('category.international') : tc('category.mixed');
     const shareText = [
-      `BeatDrop Daily #${dailyInfo?.dateKey || 'Challenge'}`,
-      tshare('daily.modeLine', { category: catLabel, difficulty: diffLabel }),
-      emojiRow,
+      dailyInfo?.dateKey ? tshare('result.dailyHeader', { date: dailyInfo.dateKey }) : 'BeatDrop Daily',
+      tshare('result.modeLine', { category: catLabel, difficulty: difficultyName(config.difficulty) }),
+      buildShareGrid(dailyResults),
       tshare('daily.scoreLine', { score: dailyScore, correct: dailyCorrectCount, total: 5 }),
-      'https://beatdrop.app/daily',
+      tshare('result.tag'),
     ].join('\n');
 
     const result = await shareOrCopy({
       title: tshare('daily.title'),
       text: shareText,
-      url: typeof window !== 'undefined' ? window.location.href : undefined,
+      url: shareLink('/daily'),
     });
     if (result === 'copied') {
       setCopiedShareText(true);
@@ -196,10 +188,10 @@ const DailyChallengePage: React.FC = () => {
           >
             <span>
               {config.category === 'thai'
-                ? `🇹🇭 ${tc('category.thai')}`
+                ? tc('category.thai')
                 : config.category === 'international'
-                  ? `🌍 ${tc('category.international')}`
-                  : `🔥 ${tc('category.mixed')}`}
+                  ? tc('category.international')
+                  : tc('category.mixed')}
             </span>
           </HeroPillButton>
       </PageHero>
@@ -514,9 +506,7 @@ const DailyChallengePage: React.FC = () => {
                     }}
                   >
                     <div className="flex items-center gap-2 truncate">
-                      <span className="font-bold">
-                        {item.status === 'correct' ? '🟩' : item.status === 'wrong' ? '🟥' : '🟨'}
-                      </span>
+                      <StatusMark status={item.status} />
                       <span className="truncate">{item.trackId === 'skipped' ? tgame('history.skipped') : item.title}</span>
                       {item.artistName && item.artistName !== '—' && (
                         <span className="opacity-60 text-[11px] truncate">• {item.artistName}</span>

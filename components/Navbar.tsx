@@ -1,5 +1,6 @@
 'use client';
 import { Link, usePathname, useRouter } from '../i18n/navigation';
+import { saveLocalePreference } from '../i18n/localePreference';
 import React, { useEffect, useRef, useState } from 'react';
 import { useLocale, useTranslations } from 'next-intl';
 import { routing, type AppLocale } from '../i18n/routing';
@@ -75,6 +76,8 @@ export const Navbar: React.FC<NavbarProps> = ({
     setActiveMenu(null);
     if (next === locale) return;
     const search = typeof window !== 'undefined' ? window.location.search : '';
+    // Save before navigating so middleware sees the new choice on this very request.
+    saveLocalePreference(next);
     router.replace(`${pathname}${search}`, { locale: next });
   };
 
@@ -163,9 +166,9 @@ export const Navbar: React.FC<NavbarProps> = ({
   }, []);
 
   const categories: Array<{ id: CategoryType; label: string; badge: string }> = [
-    { id: 'thai', label: t('catalog.thai'), badge: '🇹🇭' },
-    { id: 'international', label: t('catalog.international'), badge: '🌍' },
-    { id: 'all', label: t('catalog.all'), badge: '🔥' },
+    { id: 'thai', label: t('catalog.thai'), badge: 'TH' },
+    { id: 'international', label: t('catalog.international'), badge: 'INTL' },
+    { id: 'all', label: t('catalog.all'), badge: 'ALL' },
   ];
 
   const currentCategoryObj =
@@ -539,9 +542,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               aria-expanded={activeMenu === 'locale'}
             >
               <Globe className="w-3.5 h-3.5" style={{ color: 'var(--song-accent-text)' }} />
-              <span className="hidden xl:inline font-bold">
-                {currentCategoryObj.badge} {currentCategoryObj.label}
-              </span>
+              <span className="hidden xl:inline font-bold">{currentCategoryObj.label}</span>
               <span className="xl:hidden font-bold">{currentCategoryObj.badge}</span>
               <ChevronDown className="w-3 h-3 opacity-60" />
             </button>
@@ -583,10 +584,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                             }
                       }
                     >
-                      <span className="flex items-center gap-2">
-                        <span>{cat.badge}</span>
-                        <span>{cat.label}</span>
-                      </span>
+                      <span>{cat.label}</span>
                       {isSelected && <Check className="w-4 h-4" />}
                     </button>
                   );
@@ -1014,7 +1012,6 @@ export const Navbar: React.FC<NavbarProps> = ({
                               }
                         }
                       >
-                        <span aria-hidden="true">{cat.badge}</span>
                         <span>{cat.label}</span>
                       </button>
                     );

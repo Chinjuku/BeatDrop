@@ -42,6 +42,14 @@ export function CookiesContentEn() {
               </tr>
               <tr>
                 <td>
+                  <code>beatdrop_locale</code>
+                </td>
+                <td>Cookie (first-party)</td>
+                <td>Remembers the language you picked in the language menu</td>
+                <td>1 year</td>
+              </tr>
+              <tr>
+                <td>
                   <code>beatdrop_admin_key</code>
                 </td>
                 <td>sessionStorage</td>

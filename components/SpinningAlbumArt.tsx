@@ -11,7 +11,10 @@ import {
   Volume2,
   VolumeX,
   Disc3,
+  Calendar,
+  Guitar,
 } from 'lucide-react';
+import { StageSquares, type GuessStatus } from './StatusMark';
 import {
   DifficultyLevel,
   GuessHistoryItem,
@@ -20,7 +23,14 @@ import {
 import { AudioPlaybackState } from '../hooks/useAudioController';
 import { useTranslations } from 'next-intl';
 import { useAudioProgress } from '../context/GameContext';
-import { copyToClipboard, shareOrCopy } from '../lib/shareUtils';
+import {
+  buildShareGrid,
+  copyToClipboard,
+  difficultyName,
+  shareLink,
+  shareOrCopy,
+  stageStatusesFromHistory,
+} from '../lib/shareUtils';
 
 interface SpinningAlbumArtProps {
   song: Song;
@@ -67,6 +77,7 @@ export const SpinningAlbumArt: React.FC<SpinningAlbumArtProps> = ({
   onOpenTicket,
 }) => {
   const t = useTranslations('Reveal');
+  const ts = useTranslations('Share');
   const tc = useTranslations('Common');
   const audioProgress = useAudioProgress();
   const currentTime = audioProgress ? audioProgress.currentTime : propCurrentTime;
@@ -86,32 +97,29 @@ export const SpinningAlbumArt: React.FC<SpinningAlbumArtProps> = ({
     button.scrollIntoView({ block: 'nearest', behavior: reduceMotion ? 'auto' : 'smooth' });
   }, [song.id]);
 
-  // Build Emoji Summary Grid (🟩 / 🟨 / 🟥 / ⬜)
-  const emojiBoxes = stages.map((_, idx) => {
-    const item = history.find((h) => h.stageIndex === idx);
-    if (!item) return '⬜';
-    if (item.status === 'correct') return '🟩';
-    if (item.status === 'skipped') return '🟨';
-    return '🟥';
-  });
+  // Per-stage result: drawn as squares on screen, and as the classic square grid in the
+  // copied share text (the one place colored squares are the expected format).
+  const stageStatuses: GuessStatus[] = stageStatusesFromHistory(stages.length, history, !isWon);
 
   const handleCopyShare = async () => {
-    const grid = emojiBoxes.join('');
-    const resultLine = isWon
-      ? t('share.wonLine', { seconds: guessedAtSeconds, difficulty: difficulty.toUpperCase() })
-      : t('share.lostLine', { difficulty: difficulty.toUpperCase() });
-    const shareText = [
-      `🎧 BeatDrop • ${song.category === 'thai' ? `🇹🇭 ${tc('category.thai')}` : `🌍 ${tc('category.international')}`}`,
-      `${grid}`,
-      `${resultLine} | 🔥 Streak: ${streak}`,
-      `🎵 ${t('share.songLine', { title: song.title, artist: song.artistName, year: String(song.releaseYear) })}`,
-      `https://beatdrop.app #beatdrop`,
-    ].join('\n');
+    const lines = [
+      ts('result.header', {
+        category: song.category === 'thai' ? tc('category.thai') : tc('category.international'),
+        difficulty: difficultyName(difficulty),
+      }),
+      buildShareGrid(stageStatuses),
+      isWon ? ts('result.won', { seconds: guessedAtSeconds }) : ts('result.lost'),
+      ts('result.song', { title: song.title, artist: song.artistName, year: String(song.releaseYear) }),
+    ];
+    if (streak > 0) lines.push(ts('result.streak', { count: streak }));
+    lines.push(ts('result.tag'));
 
+    // Link passed separately: the share sheet attaches it, the clipboard fallback appends
+    // it once on the last line (it used to appear twice, plus the player's own address).
     const result = await shareOrCopy({
       title: t('share.title'),
-      text: shareText,
-      url: typeof window !== 'undefined' ? window.location.href : undefined,
+      text: lines.join('\n'),
+      url: shareLink('/play'),
     });
     if (result === 'copied') {
       setCopied(true);
@@ -226,7 +234,8 @@ export const SpinningAlbumArt: React.FC<SpinningAlbumArtProps> = ({
             color: 'var(--song-muted)',
           }}
         >
-          💿 {t('album')} <strong style={{ color: 'var(--song-text)' }}>{song.albumName}</strong>
+          <Disc3 className="inline w-3.5 h-3.5 mr-1 -mt-0.5" aria-hidden="true" />
+          {t('album')} <strong style={{ color: 'var(--song-text)' }}>{song.albumName}</strong>
         </span>
         <span
           className="px-2.5 py-1 rounded-lg border"
@@ -236,7 +245,8 @@ export const SpinningAlbumArt: React.FC<SpinningAlbumArtProps> = ({
             color: 'var(--song-muted)',
           }}
         >
-          📅 {t('released')} <strong style={{ color: 'var(--song-text)' }}>{song.releaseYear}</strong>
+          <Calendar className="inline w-3.5 h-3.5 mr-1 -mt-0.5" aria-hidden="true" />
+          {t('released')} <strong style={{ color: 'var(--song-text)' }}>{song.releaseYear}</strong>
         </span>
         <span
           className="px-2.5 py-1 rounded-lg border"
@@ -246,7 +256,8 @@ export const SpinningAlbumArt: React.FC<SpinningAlbumArtProps> = ({
             color: 'var(--song-muted)',
           }}
         >
-          🎸 {t('genre')} <strong style={{ color: 'var(--song-text)' }}>{song.genre}</strong>
+          <Guitar className="inline w-3.5 h-3.5 mr-1 -mt-0.5" aria-hidden="true" />
+          {t('genre')} <strong style={{ color: 'var(--song-text)' }}>{song.genre}</strong>
         </span>
       </div>
 
@@ -325,8 +336,8 @@ export const SpinningAlbumArt: React.FC<SpinningAlbumArtProps> = ({
 
       {/* Emoji Result Summary Grid & Share / Next Actions */}
       <div className="w-full mt-4 flex flex-col items-center">
-        <div className="flex items-center gap-2 text-lg mb-3" title={t('attemptSummary')}>
-          <span>{emojiBoxes.join(' ')}</span>
+        <div className="flex items-center gap-2 mb-3" title={t('attemptSummary')}>
+          <StageSquares statuses={stageStatuses} label={t('attemptSummary')} />
           {song.trackViewUrl && (
             <a
               href={song.trackViewUrl}

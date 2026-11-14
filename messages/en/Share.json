@@ -6,7 +6,6 @@
     "points": "{points} points",
     "kicker": "MUSIC CHALLENGE",
     "noSpoilers": "No spoilers",
-    "gameOverLine": "{seconds}s (Game Over)",
     "shareTitle": "BeatDrop Music Ticket",
     "dialogTitle": "Your music ticket",
     "close": "Close ticket dialog",
@@ -20,8 +19,18 @@
     "footnote": "Friends start a fresh round."
   },
   "daily": {
-    "modeLine": "Mode: {category} ({difficulty})",
     "scoreLine": "Score: {score} pts ({correct}/{total} correct)",
     "title": "BeatDrop Daily Challenge result"
+  },
+  "result": {
+    "header": "BeatDrop · {category} · {difficulty}",
+    "dailyHeader": "BeatDrop Daily · {date}",
+    "modeLine": "{category} · {difficulty}",
+    "won": "Got it in {seconds}s",
+    "wonPoints": "Got it in {seconds}s · {points} points",
+    "lost": "Couldn’t name it this time",
+    "streak": "Streak: {count}",
+    "song": "{title} — {artist} ({year})",
+    "tag": "#beatdrop"
   }
 }

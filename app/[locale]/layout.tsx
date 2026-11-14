@@ -172,7 +172,6 @@ export default async function LocaleLayout({
                 backgroundColor: 'rgba(255, 255, 255, 0.03)',
               }}
             >
-              <div style={{ fontSize: '2.5rem', marginBottom: '1rem' }}>🎧</div>
               <h1 style={{ fontSize: '1.5rem', fontWeight: 800, marginBottom: '0.75rem', color: '#4ade80' }}>
                 {t('noscriptTitle')}
               </h1>

@@ -185,7 +185,7 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
             aria-label={t('footerNav')}
             className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1.5 text-[11px]"
           >
-            <span className="opacity-60">🇹🇭 {t('footerTagline')}</span>
+            <span className="opacity-60">{t('footerTagline')}</span>
             <span aria-hidden="true" className="opacity-25">
               •
             </span>

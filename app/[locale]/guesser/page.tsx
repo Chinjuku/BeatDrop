@@ -99,10 +99,10 @@ const SongGuesserPage: React.FC = () => {
           <HeroPill color="var(--song-muted)">{t('skips', { count: guesserSkipCount })}</HeroPill>
           <HeroPill color="var(--song-accent-text)">
             {config.category === 'thai'
-              ? `🇹🇭 ${tc('category.thai')}`
+              ? tc('category.thai')
               : config.category === 'international'
-                ? `🌍 ${tc('category.international')}`
-                : `🔥 ${tc('category.mixed')}`}
+                ? tc('category.international')
+                : tc('category.mixed')}
           </HeroPill>
       </PageHero>
 

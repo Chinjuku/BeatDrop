@@ -1873,3 +1873,90 @@ html {
   visibility: hidden;
   pointer-events: none;
 }
+
+/* ------------------------------------------------------------------
+ * Bottom sheet (components/Modal.tsx) — phones and tablets (< 1024px).
+ * Centered/bottom dialogs slide up from the bottom edge with a grab
+ * handle; swipe down or tap the backdrop to dismiss.
+ * ------------------------------------------------------------------ */
+@keyframes bd-sheet-in {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+@keyframes bd-sheet-backdrop-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.bd-sheet-root {
+  animation: bd-sheet-backdrop-in 180ms ease-out;
+}
+
+.bd-sheet {
+  width: 100% !important;
+  max-width: none !important;
+  max-height: 94dvh !important;
+  margin: 0 !important;
+  border-radius: 28px 28px 0 0 !important;
+  animation: bd-sheet-in 300ms cubic-bezier(0.32, 0.72, 0, 1);
+  will-change: transform;
+}
+
+/* The panel itself is the card. */
+.bd-sheet--panel {
+  overflow: hidden;
+  border-style: solid;
+  border-width: 1px 1px 0 !important;
+  padding-top: 18px;
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  box-shadow: 0 -12px 40px rgb(0 0 0 / 35%);
+}
+
+/* The feature draws its own card inside a transparent panel: style that card. */
+.bd-sheet--wrapped {
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  overflow: visible !important;
+}
+.bd-sheet--wrapped > :not(.bd-sheet-handle):not(.sr-only) {
+  width: 100% !important;
+  max-width: none !important;
+  max-height: 94dvh !important;
+  margin: 0 !important;
+  align-self: stretch !important;
+  border-radius: 28px 28px 0 0 !important;
+  padding-top: 22px !important;
+  /* Transparent bottom border reserves the home-indicator area; the card
+   * background still paints underneath it (background-clip: border-box). */
+  border-bottom: env(safe-area-inset-bottom, 0px) solid transparent !important;
+  box-shadow: 0 -12px 40px rgb(0 0 0 / 35%) !important;
+  animation: none !important;
+}
+
+.bd-sheet-handle {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 5;
+  display: flex;
+  justify-content: center;
+  padding-top: 8px;
+  height: 22px;
+  pointer-events: none;
+}
+.bd-sheet-handle > span {
+  display: block;
+  width: 40px;
+  height: 5px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--modal-text, currentColor) 30%, transparent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bd-sheet,
+  .bd-sheet-root {
+    animation: none;
+  }
+}

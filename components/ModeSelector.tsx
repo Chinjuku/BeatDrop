@@ -544,7 +544,7 @@ const ArtistPickerModal: React.FC<{
                   : { color: 'var(--song-muted)' }
               }
             >
-              <span>🇹🇭 {t('artistModal.tabThai', { count: thaiCount })}</span>
+              <span>{t('artistModal.tabThai', { count: thaiCount })}</span>
             </button>
             <button
               type="button"
@@ -556,7 +556,7 @@ const ArtistPickerModal: React.FC<{
                   : { color: 'var(--song-muted)' }
               }
             >
-              <span>🌍 {t('artistModal.tabIntl', { count: intlCount })}</span>
+              <span>{t('artistModal.tabIntl', { count: intlCount })}</span>
             </button>
           </div>
         </div>
@@ -640,7 +640,7 @@ const ArtistPickerModal: React.FC<{
                     <div className="min-w-0">
                       <div className="text-xs font-bold truncate">{artist.name}</div>
                       <div className="text-[10px] truncate" style={{ color: 'var(--song-muted)' }}>
-                        {artist.category === 'thai' ? '🇹🇭' : '🌍'} {artist.mainGenre}
+                        {artist.mainGenre}
                         {artist.trackCount ? ` • ${t('artistModal.trackCount', { count: artist.trackCount })}` : ''}
                       </div>
                     </div>

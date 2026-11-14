@@ -474,7 +474,7 @@ export const AddArtistModal: React.FC<AddArtistModalProps> = ({
                           <div className="min-w-0">
                             <div className="text-xs font-bold truncate">{art.name}</div>
                             <div className="text-[10px]" style={{ color: 'var(--song-muted)' }}>
-                              {art.category === 'thai' ? `🇹🇭 ${t('category.thai')}` : `🌍 ${t('category.international')}`} • {art.mainGenre}
+                              {art.category === 'thai' ? t('category.thai') : t('category.international')} • {art.mainGenre}
                             </div>
                           </div>
                         </div>
@@ -576,7 +576,7 @@ export const AddArtistModal: React.FC<AddArtistModalProps> = ({
                       <div className="min-w-0">
                         <div className="text-xs font-bold truncate">{artist.name}</div>
                         <div className="text-[10px] whitespace-nowrap truncate" style={{ color: 'var(--song-muted)' }}>
-                          {artist.category === 'thai' ? '🇹🇭' : '🌍'} {artist.mainGenre} •{' '}
+                          {artist.category === 'thai' ? t('category.thai') : t('category.international')} • {artist.mainGenre} •{' '}
                           <span className="font-bold" style={{ color: 'var(--song-accent-text)' }}>
                             {t('trackCount', { count: trackCount })}
                           </span>

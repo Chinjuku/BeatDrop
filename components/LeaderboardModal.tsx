@@ -282,7 +282,7 @@ export const LeaderboardModal: React.FC<LeaderboardModalProps> = ({
                       }
                 }
               >
-                {cat === 'thai' ? `🇹🇭 ${t('category.thai')}` : cat === 'international' ? `🌍 ${t('category.international')}` : `🔥 ${t('category.mix')}`}
+                {cat === 'thai' ? t('category.thai') : cat === 'international' ? t('category.international') : t('category.mix')}
               </button>
             ))}
             <button
@@ -468,12 +468,12 @@ export const LeaderboardModal: React.FC<LeaderboardModalProps> = ({
                           {diffPreset.label}
                         </span>
                         {entry.category === 'thai' ? (
-                          <span className="text-[10px]" title={t('category.thaiSongs')}>
-                            🇹🇭
+                          <span className="text-[9px] font-extrabold tracking-wider" style={{ color: 'var(--song-muted)' }} title={t('category.thaiSongs')}>
+                            TH
                           </span>
                         ) : entry.category === 'international' ? (
-                          <span className="text-[10px]" title={t('category.internationalSongs')}>
-                            🌍
+                          <span className="text-[9px] font-extrabold tracking-wider" style={{ color: 'var(--song-muted)' }} title={t('category.internationalSongs')}>
+                            INTL
                           </span>
                         ) : null}
                         {rank <= 3 && <Flame className="w-3 h-3 text-orange-400 fill-orange-400 shrink-0" />}

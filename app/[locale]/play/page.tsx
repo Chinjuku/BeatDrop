@@ -7,7 +7,8 @@ import { ModeSelector } from '../../../components/ModeSelector';
 import { AudioPlayer } from '../../../components/AudioPlayer';
 import { GuessAutocomplete } from '../../../components/GuessAutocomplete';
 import { SpinningAlbumArt } from '../../../components/SpinningAlbumArt';
-import { Flame, Loader2, Trophy, X, Zap } from 'lucide-react';
+import { Calendar, Flame, Guitar, Loader2, Mic2, Trophy, X, Zap } from 'lucide-react';
+import { StatusMark } from '../../../components/StatusMark';
 
 const PlayPage: React.FC = () => {
   const t = useTranslations('Play');
@@ -99,14 +100,15 @@ const PlayPage: React.FC = () => {
 
           <HeroPill color="var(--song-accent-text)">
             {config.category === 'thai'
-              ? `🇹🇭 ${t('categoryMode.thai')}`
+              ? t('categoryMode.thai')
               : config.category === 'international'
-                ? `🌍 ${t('categoryMode.international')}`
-                : `🔥 ${t('categoryMode.mixed')}`}
+                ? t('categoryMode.international')
+                : t('categoryMode.mixed')}
           </HeroPill>
           {config.artistName && config.artistName !== 'any' && (
             <HeroPill borderColor="var(--song-accent)">
-              <span>🎤 {t('filter.artist', { value: config.artistName })}</span>
+              <Mic2 className="w-3 h-3" aria-hidden="true" />
+              <span>{t('filter.artist', { value: config.artistName })}</span>
               <button
                 type="button"
                 onClick={() => handleConfigChange({ ...config, artistName: undefined }, true)}
@@ -120,7 +122,8 @@ const PlayPage: React.FC = () => {
           )}
           {config.yearFilter && config.yearFilter !== 'any' && (
             <HeroPill borderColor="var(--song-accent)">
-              <span>📅 {t('filter.era', { value: config.yearFilter })}</span>
+              <Calendar className="w-3 h-3" aria-hidden="true" />
+              <span>{t('filter.era', { value: config.yearFilter })}</span>
               <button
                 type="button"
                 onClick={() => handleConfigChange({ ...config, yearFilter: 'any' }, true)}
@@ -134,7 +137,8 @@ const PlayPage: React.FC = () => {
           )}
           {config.genreFilter && config.genreFilter !== 'any' && (
             <HeroPill borderColor="var(--song-accent)">
-              <span>🎸 {t('filter.genre', { value: config.genreFilter })}</span>
+              <Guitar className="w-3 h-3" aria-hidden="true" />
+              <span>{t('filter.genre', { value: config.genreFilter })}</span>
               <button
                 type="button"
                 onClick={() => handleConfigChange({ ...config, genreFilter: 'any' }, true)}
@@ -167,7 +171,10 @@ const PlayPage: React.FC = () => {
           borderColor: 'var(--song-border)',
         }}
       >
-        {loadingRound ? (
+        {/* Spinner only before the very first round. Between songs the game view stays
+            mounted (controls disabled) so the card does not collapse to a spinner and
+            back, which read as the screen flashing on every song change. */}
+        {loadingRound && !round ? (
           <div className="py-20 flex flex-col items-center justify-center gap-3">
             <Loader2
               className="w-10 h-10 animate-spin"
@@ -177,7 +184,7 @@ const PlayPage: React.FC = () => {
               {t('loading')}
             </p>
           </div>
-        ) : outcome && revealSong ? (
+        ) : outcome && revealSong && !loadingRound ? (
           <SpinningAlbumArt
             song={revealSong}
             outcome={outcome}
@@ -197,7 +204,11 @@ const PlayPage: React.FC = () => {
             onOpenTicket={() => setTicketModalOpen(true)}
           />
         ) : (
-          <div className="flex flex-col items-center">
+          <div
+            className="flex flex-col items-center transition-opacity duration-150"
+            style={{ opacity: loadingRound ? 0.55 : 1 }}
+            aria-busy={loadingRound}
+          >
             {/* Audio Snippet Controller */}
             <AudioPlayer
               stages={stages}
@@ -207,7 +218,7 @@ const PlayPage: React.FC = () => {
               onTogglePlay={handleToggleSnippetPlay}
               volume={volume}
               onVolumeChange={setVolume}
-              disabled={Boolean(outcome)}
+              disabled={Boolean(outcome) || loadingRound}
             />
 
             {/* Guess Attempts History */}
@@ -239,9 +250,7 @@ const PlayPage: React.FC = () => {
                     }}
                   >
                     <div className="flex items-center gap-2 truncate">
-                      <span className="font-bold">
-                        {item.status === 'correct' ? '🟩' : item.status === 'wrong' ? '🟥' : '🟨'}
-                      </span>
+                      <StatusMark status={item.status} />
                       <span className="truncate">{item.trackId === 'skipped' ? tgame('history.skipped') : item.title}</span>
                       {item.artistName && item.artistName !== '—' && (
                         <span className="opacity-60 text-[11px] truncate">• {item.artistName}</span>

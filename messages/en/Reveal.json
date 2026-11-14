@@ -1,8 +1,5 @@
 {
   "share": {
-    "wonLine": "Got it in {seconds} seconds! ({difficulty})",
-    "lostLine": "So close this round! ({difficulty})",
-    "songLine": "Song: {title} — {artist} ({year})",
     "title": "BeatDrop guess result"
   },
   "vinylPause": "Click to pause",

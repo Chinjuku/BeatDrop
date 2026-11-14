@@ -24,6 +24,9 @@ import {
   Song,
   TIME_RANGE_PRESETS,
   TimeRangePresetId,
+  MAX_SNIPPET_DURATION,
+  MIN_SNIPPET_DURATION,
+  resolveTimeRangePreset,
 } from '../types';
 import { DailyChallengeLoadError, readDailyChallengeResponse } from '../shared/dailyChallengeClient';
 import { useTheme } from './ThemeContext';
@@ -291,7 +294,13 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       const raw = getPreference(STORAGE_CUSTOM_STAGES_KEY);
       if (raw) {
         const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed) && parsed.length >= 2) {
+        if (
+          Array.isArray(parsed) &&
+          parsed.length >= 2 &&
+          parsed.every(
+            (n) => typeof n === 'number' && n >= MIN_SNIPPET_DURATION && n <= MAX_SNIPPET_DURATION
+          )
+        ) {
           savedStages = parsed;
         }
       }
@@ -300,7 +309,8 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           p === 'custom' ? savedStages : (TIME_RANGE_PRESETS[p]?.stages || DEFAULT_TIME_STAGES);
         setConfig((prev) => ({
           ...prev,
-          timeRangePreset: p,
+          // A saved 'custom' whose stages equal a named preset is that preset.
+          timeRangePreset: p === 'custom' ? resolveTimeRangePreset(stages) : p,
           customStages: stages,
         }));
       }
@@ -807,13 +817,14 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   // Toggle snippet play during active round
   const handleToggleSnippetPlay = useCallback(() => {
-    if (!round) return;
+    // The previous round stays on screen while the next one loads; never replay it.
+    if (!round || loadingRound) return;
     if (audioState === 'playing') {
       stop();
     } else {
       playSnippet(activeClipSeconds);
     }
-  }, [round, audioState, stop, playSnippet, activeClipSeconds]);
+  }, [round, loadingRound, audioState, stop, playSnippet, activeClipSeconds]);
 
   // Toggle 30s full preview during post-game reveal
   const handleToggleFullPreview = useCallback(() => {

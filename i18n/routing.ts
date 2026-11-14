@@ -2,8 +2,9 @@ import { defineRouting } from 'next-intl/routing';
 
 /**
  * Thai is the default and keeps its existing, prefix-free URLs (`/play`).
- * English lives under `/en/...`. The locale comes from the URL only: no Accept-Language
- * redirect and no locale cookie (so nothing new needs cookie consent).
+ * English lives under `/en/...`. No Accept-Language redirect and next-intl's own cookie
+ * stays off; the language the user picks in the menu is remembered by the strictly
+ * necessary `beatdrop_locale` cookie (i18n/localePreference.ts, read in middleware.ts).
  */
 export const routing = defineRouting({
   locales: ['th', 'en'],
