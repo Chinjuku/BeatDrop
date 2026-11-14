@@ -23,6 +23,7 @@ import {
   Shield,
   Sparkles,
   Trophy,
+  Users,
   X,
   Zap,
 } from 'lucide-react';
@@ -112,6 +113,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   const isPlayActive = location.pathname === '/' || location.pathname === '/play';
   const isDailyActive = location.pathname === '/daily';
   const isGuesserActive = location.pathname === '/guesser';
+  const isRoomActive = location.pathname === '/room' || location.pathname.startsWith('/room/');
   const isCategoriesActive =
     location.pathname === '/categories' || location.pathname === '/quizzes';
 
@@ -404,6 +406,17 @@ export const Navbar: React.FC<NavbarProps> = ({
             onClick={() => setActiveMenu(null)}
           >
             Daily Challenge
+          </Link>
+
+          {/* 3b. Live room (play with friends) */}
+          <Link
+            href="/room"
+            className="songspot-site-nav-link"
+            aria-current={isRoomActive ? 'page' : undefined}
+            data-section={isRoomActive ? 'active' : undefined}
+            onClick={() => setActiveMenu(null)}
+          >
+            {t('room')}
           </Link>
 
           {/* 4. Song Guesser (Unified Pill with Dropdown) */}
@@ -889,6 +902,23 @@ export const Navbar: React.FC<NavbarProps> = ({
                   <span className="flex items-center gap-2">
                     <ListChecks className="w-4 h-4" />
                     <span>{t('mobile.guesser')}</span>
+                  </span>
+                  <ArrowRight className="w-4 h-4 opacity-70" />
+                </Link>
+
+                <Link
+                  href="/room"
+                  onClick={() => setActiveMenu(null)}
+                  className="w-full px-3 py-2.5 rounded-xl text-left text-sm font-bold flex items-center justify-between transition hover:brightness-110"
+                  style={
+                    isRoomActive
+                      ? { backgroundColor: 'var(--song-accent)', color: 'var(--song-accent-on)' }
+                      : { backgroundColor: 'var(--song-surface-soft)', color: 'var(--song-text)' }
+                  }
+                >
+                  <span className="flex items-center gap-2">
+                    <Users className="w-4 h-4" />
+                    <span>{t('mobile.room')}</span>
                   </span>
                   <ArrowRight className="w-4 h-4 opacity-70" />
                 </Link>

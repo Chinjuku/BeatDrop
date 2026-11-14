@@ -11,7 +11,8 @@ interface GuessAutocompleteProps {
   mode: GameMode;
   artistFilter?: string;
   onSelectGuess: (song: Song) => void;
-  onSkip: () => void;
+  /** Omit to hide the Skip button (e.g. live rooms). */
+  onSkip?: () => void;
   onGiveUp?: () => void;
   nextStageSeconds: number | null;
   disabled?: boolean;
@@ -496,6 +497,7 @@ export const GuessAutocomplete: React.FC<GuessAutocompleteProps> = ({
         {/* Action Buttons: Skip & Give Up */}
         <div className="flex items-center gap-2">
           {/* Skip / Unlock More Time Button */}
+          {onSkip && (
           <button
             type="button"
             onClick={onSkip}
@@ -520,6 +522,7 @@ export const GuessAutocomplete: React.FC<GuessAutocompleteProps> = ({
                   : t('giveUpReveal')}
             </span>
           </button>
+          )}
 
           {/* Dedicated Give Up Button */}
           {onGiveUp && (

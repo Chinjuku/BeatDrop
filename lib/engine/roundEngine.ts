@@ -50,7 +50,21 @@ let cachedValidLibraryPool: Song[] = [];
 let lastValidPoolSize = -1;
 let lastValidArtistsCount = -1;
 
-function getValidLibraryPool(): Song[] {
+/**
+ * Narrows a candidate list by difficulty using popularity: easy keeps the top hits, harder
+ * levels drop them. Shared by solo rounds and live rooms so both follow the same rules.
+ */
+export function sliceByDifficulty(candidates: Song[], difficulty: DifficultyLevel): Song[] {
+  if (candidates.length <= 8) return candidates;
+  const sorted = [...candidates].sort((a, b) => (b.popularityScore || 50) - (a.popularityScore || 50));
+  if (difficulty === 'easy') return sorted.slice(0, Math.max(8, Math.ceil(sorted.length * 0.25)));
+  if (difficulty === 'medium') return sorted.slice(0, Math.max(12, Math.ceil(sorted.length * 0.60)));
+  if (difficulty === 'hard') return sorted.slice(Math.floor(sorted.length * 0.15));
+  if (difficulty === 'expert' || difficulty === 'impossible') return sorted.slice(Math.floor(sorted.length * 0.35));
+  return candidates;
+}
+
+export function getValidLibraryPool(): Song[] {
   const libraryArtists = getAllArtists(songPool);
   if (
     cachedValidLibraryPool.length > 0 &&
@@ -364,20 +378,7 @@ export async function handleStartRound(req: ApiRequest, res: ApiResponse): Promi
   }
 
   // 4. Slice unplayed pool by difficulty (automatically advances through deeper catalog as top hits are played)
-  if (candidates.length > 8) {
-    const sorted = [...candidates].sort(
-      (a, b) => (b.popularityScore || 50) - (a.popularityScore || 50)
-    );
-    if (difficulty === 'easy') {
-      candidates = sorted.slice(0, Math.max(8, Math.ceil(sorted.length * 0.25)));
-    } else if (difficulty === 'medium') {
-      candidates = sorted.slice(0, Math.max(12, Math.ceil(sorted.length * 0.60)));
-    } else if (difficulty === 'hard') {
-      candidates = sorted.slice(Math.floor(sorted.length * 0.15));
-    } else if (difficulty === 'expert' || difficulty === 'impossible') {
-      candidates = sorted.slice(Math.floor(sorted.length * 0.35));
-    }
-  }
+  candidates = sliceByDifficulty(candidates, difficulty);
 
   let selectedTrack = candidates[Math.floor(Math.random() * candidates.length)];
   let choices: Array<{ id: string; title: string; artistName: string; artworkUrl?: string }> | undefined;

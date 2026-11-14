@@ -16,6 +16,7 @@ const ROUTES: Entry[] = [
   { path: '/daily', priority: 0.9, changeFrequency: 'daily' },
   { path: '/guesser', priority: 0.8, changeFrequency: 'weekly' },
   { path: '/categories', priority: 0.8, changeFrequency: 'weekly' },
+  { path: '/room', priority: 0.7, changeFrequency: 'monthly' },
   { path: '/privacy', priority: 0.3, changeFrequency: 'yearly' },
   { path: '/cookies', priority: 0.3, changeFrequency: 'yearly' },
 ];

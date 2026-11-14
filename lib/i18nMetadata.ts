@@ -27,7 +27,7 @@ export function localizedAlternates(path: string, locale: AppLocale) {
  */
 export async function buildPageMetadata(
   rawLocale: string,
-  page: 'play' | 'daily' | 'guesser' | 'categories' | 'privacy' | 'cookies',
+  page: 'play' | 'daily' | 'guesser' | 'categories' | 'privacy' | 'cookies' | 'room',
   path: string
 ): Promise<Metadata> {
   const locale: AppLocale = isAppLocale(rawLocale) ? rawLocale : routing.defaultLocale;

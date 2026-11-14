@@ -62,15 +62,25 @@
     "play": "Play (clip quiz)",
     "daily": "Daily Challenge (5 songs)",
     "guesser": "Song Guesser (4 choices)",
-    "topics": "Play by topic"
+    "topics": "Play by topic",
+    "room": "Live room (play with friends)"
   },
   "leaderboard": "Leaderboard",
   "manageLibrary": "Manage artist library",
   "artistCount": "{count, plural, one {# artist} other {# artists}}",
   "themes": {
-    "songspot-dark": { "description": "Original Songspot emerald stage & spotlight theme" },
-    "spotify-green": { "description": "Deep matte carbon with vibrant #1DB954 studio accents" },
-    "neon-cyber": { "description": "Synthwave electric cyan & magenta midnight glow" },
-    "sunset": { "description": "Warm analog amber, coral orange & vintage vinyl tones" }
-  }
+    "songspot-dark": {
+      "description": "Original Songspot emerald stage & spotlight theme"
+    },
+    "spotify-green": {
+      "description": "Deep matte carbon with vibrant #1DB954 studio accents"
+    },
+    "neon-cyber": {
+      "description": "Synthwave electric cyan & magenta midnight glow"
+    },
+    "sunset": {
+      "description": "Warm analog amber, coral orange & vintage vinyl tones"
+    }
+  },
+  "room": "Play with friends"
 }

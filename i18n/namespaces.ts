@@ -26,6 +26,7 @@ export const MESSAGE_NAMESPACES = [
   'Categories',
   'Leaderboard',
   'Artists',
+  'Room',
 ] as const;
 
 export type MessageNamespace = (typeof MESSAGE_NAMESPACES)[number];

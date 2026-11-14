@@ -24,5 +24,9 @@
   "cookies": {
     "title": "Cookie Policy",
     "description": "How BeatDrop uses cookies and browser storage: the full list, their purpose and lifetime, and how to change or withdraw your consent."
+  },
+  "room": {
+    "title": "Live room — play with friends",
+    "description": "Create a BeatDrop room, share the code, and race your friends to name the song."
   }
 }

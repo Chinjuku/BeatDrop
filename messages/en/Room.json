@@ -1,0 +1,99 @@
+{
+  "title": "Live room",
+  "tagline": "Play with friends",
+  "create": {
+    "heading": "Create a room",
+    "name": "Your name",
+    "namePlaceholder": "Name your friends will see",
+    "where": "Where are you playing?",
+    "audioHost": "Same place",
+    "audioHostHint": "Only the host's device plays the song",
+    "audioEveryone": "Apart",
+    "audioEveryoneHint": "Every phone plays the song at the same moment",
+    "songs": "Songs",
+    "difficulty": "Difficulty",
+    "rounds": "Rounds",
+    "clip": "Clip length",
+    "seconds": "{seconds}s",
+    "submit": "Create room",
+    "creating": "Creating…",
+    "mode": "How is a song won?",
+    "modeAnswer": "Everyone answers",
+    "modeAnswerHint": "Everyone guesses; faster correct answers score more",
+    "modeBuzzer": "Buzzer",
+    "modeBuzzerHint": "First to buzz answers; a wrong answer locks you out"
+  },
+  "join": {
+    "heading": "Join a room",
+    "code": "Room code",
+    "codePlaceholder": "ABCDE",
+    "submit": "Join",
+    "joining": "Joining…",
+    "headingCode": "Join room {code}",
+    "playersIn": "{count, plural, one {# player} other {# players}} in the room",
+    "inProgress": "A game is in progress. You will join from the next song."
+  },
+  "categories": {
+    "all": "All songs",
+    "thai": "Thai",
+    "international": "International"
+  },
+  "errors": {
+    "generic": "Something went wrong. Please try again.",
+    "notFound": "That room doesn't exist or has expired.",
+    "full": "This room is full.",
+    "name": "Enter a name.",
+    "code": "Enter the 5-character room code.",
+    "unavailable": "Live rooms aren't available on this server yet.",
+    "noSongs": "No songs match these room settings.",
+    "network": "Connection lost. Reconnecting…"
+  },
+  "lobby": {
+    "code": "Room code",
+    "copyLink": "Copy invite link",
+    "copied": "Link copied",
+    "players": "Players ({count})",
+    "host": "Host",
+    "you": "You",
+    "left": "Left",
+    "waitHost": "Waiting for the host to start…",
+    "start": "Start game",
+    "starting": "Starting…",
+    "leave": "Leave room",
+    "summary": "{mode} · {rounds} songs · {clip}s clips · {where}"
+  },
+  "game": {
+    "round": "Song {current} of {total}",
+    "getReady": "Get ready…",
+    "countdown": "Starting in {seconds}",
+    "listenHost": "Listen on the host's device",
+    "replay": "Play clip again",
+    "enableSound": "Tap to turn on sound",
+    "timeLeft": "{seconds}s left",
+    "correct": "Correct! +{points}",
+    "wrong": "Not it. {left, plural, one {# try} other {# tries}} left",
+    "out": "Out of tries for this song",
+    "done": "{done}/{total} done",
+    "waiting": "Waiting for the others…",
+    "theSongWas": "The song was",
+    "nextIn": "Next song in {seconds}s",
+    "scoreboard": "Scoreboard",
+    "missed": "missed",
+    "buzz": "Buzz!",
+    "buzzHint": "Press when you know it (or press Space)",
+    "yourTurn": "Your turn! {seconds}s to answer",
+    "answering": "{name} is answering…",
+    "lockedOut": "You're out for this song",
+    "buzzWrong": "Wrong. You are out for this song"
+  },
+  "finished": {
+    "heading": "Final results",
+    "winner": "{name} wins!",
+    "playAgain": "Play again",
+    "waitRematch": "Waiting for the host to start another game…"
+  },
+  "mode": {
+    "answer": "Everyone answers",
+    "buzzer": "Buzzer"
+  }
+}
