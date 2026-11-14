@@ -77,10 +77,18 @@ const playerCookie = firstDailyResponse.cookie.split(';')[0];
 const secondDailyResponse = mockResponse();
 await handleDaily({ query: { category: 'all' }, headers: {} } as never, secondDailyResponse as never);
 const secondDailyBody = secondDailyResponse.body as typeof firstDailyBody;
-assert.deepEqual(
-  firstDailyBody.data.rounds.map((round) => round.audioUrl),
-  secondDailyBody.data.rounds.map((round) => round.audioUrl),
-  'all players must receive the same persisted track order'
+// Audio links are opaque per player (encrypted, random IV); decode them to compare the songs.
+const { verifyAudioToken } = await import('../lib/engine/audioToken');
+const audioSource = (url: string) => verifyAudioToken(new URL(url, 'http://localhost').searchParams.get('t'));
+assert.equal(
+  audioSource(firstDailyBody.data.rounds[0].audioUrl),
+  audioSource(secondDailyBody.data.rounds[0].audioUrl),
+  'all players must receive the same persisted first track'
+);
+assert.ok(audioSource(firstDailyBody.data.rounds[0].audioUrl), 'the current round carries a playable audio link');
+assert.ok(
+  firstDailyBody.data.rounds.slice(1).every((round) => round.audioUrl === ''),
+  'rounds that have not started carry no audio (no early listening)'
 );
 const tamperedStagesResponse = mockResponse();
 await handleDaily(

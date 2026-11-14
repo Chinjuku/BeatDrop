@@ -5,7 +5,6 @@
  * so `unlock()` must run from a user gesture (join / start / the "turn on sound" button).
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { isDeezerPreviewUrl, proxiedAudioUrl } from '../lib/audioProxyUtils';
 
 // A zero-length WAV: enough to "play" inside a tap and unlock the element.
 const SILENT_WAV = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=';
@@ -15,6 +14,7 @@ const LATE_START_GRACE_MS = 1500;
 interface Options {
   /** Should this device play at all? (false for guests when only the host plays) */
   enabled: boolean;
+  /** Opaque same-origin room audio path (the server streams the clip; see lib/rooms/audio.ts). */
   audioUrl?: string;
   /**
    * Server time the clip (re)starts, from `view.audioCue`. Moves after every freeze (pause or
@@ -32,7 +32,6 @@ export function useRoomAudio({ enabled, audioUrl, cueAt, cueFromSeconds, clipSec
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const startTimer = useRef<number | undefined>(undefined);
   const stopTimer = useRef<number | undefined>(undefined);
-  const triedProxy = useRef(false);
   const [needsTap, setNeedsTap] = useState(false);
   const [playing, setPlaying] = useState(false);
 
@@ -98,23 +97,13 @@ export function useRoomAudio({ enabled, audioUrl, cueAt, cueFromSeconds, clipSec
     }
   }, [element]);
 
-  // Load (preload) the clip whenever the round's song changes.
+  // Load (preload) the clip whenever the round changes. The URL is always our own route, which
+  // already proxies the CDN (and re-signs Deezer links), so there is no fallback to try here.
   useEffect(() => {
     if (!enabled || !audioUrl) return;
     const el = element();
-    triedProxy.current = false;
-    el.onerror = () => {
-      // Direct Apple CDN blocked (DNS / firewall): fall back to our audio proxy once.
-      if (triedProxy.current || !audioUrl.startsWith('http')) return;
-      triedProxy.current = true;
-      el.src = proxiedAudioUrl(audioUrl);
-      el.load();
-    };
-    // Deezer links expire: start on the re-signing proxy instead of the stored link.
-    const initialSrc = isDeezerPreviewUrl(audioUrl) ? proxiedAudioUrl(audioUrl) : audioUrl;
-    if (isDeezerPreviewUrl(audioUrl)) triedProxy.current = true;
-    if (el.src !== initialSrc && !el.src.endsWith(initialSrc)) {
-      el.src = initialSrc;
+    if (el.src !== audioUrl && !el.src.endsWith(audioUrl)) {
+      el.src = audioUrl;
       el.load();
     }
   }, [audioUrl, element, enabled]);

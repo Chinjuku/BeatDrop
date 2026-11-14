@@ -3,14 +3,14 @@ import { useTranslations } from 'next-intl';
 import React, { useEffect, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
 import { Loader2, Search, SkipForward, Check, Flag, ChevronLeft, X, Mic2 } from 'lucide-react';
-import { CategoryType, GameMode, Song } from '../types';
+import { CategoryType, GameMode, SongSuggestion } from '../types';
 import { Modal } from './Modal';
 
 interface GuessAutocompleteProps {
   category: CategoryType;
   mode: GameMode;
   artistFilter?: string;
-  onSelectGuess: (song: Song) => void;
+  onSelectGuess: (song: SongSuggestion) => void;
   /** Omit to hide the Skip button (e.g. live rooms). */
   onSkip?: () => void;
   onGiveUp?: () => void;
@@ -32,7 +32,7 @@ export const GuessAutocomplete: React.FC<GuessAutocompleteProps> = ({
 }) => {
   const t = useTranslations('Guess');
   const [query, setQuery] = useState('');
-  const [suggestions, setSuggestions] = useState<Song[]>([]);
+  const [suggestions, setSuggestions] = useState<SongSuggestion[]>([]);
   const [loading, setLoading] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState<number>(0);
@@ -147,7 +147,7 @@ export const GuessAutocomplete: React.FC<GuessAutocompleteProps> = ({
         });
         const json = await res.json();
         if (json.code === 0) {
-          const list: Song[] = json.data || [];
+          const list: SongSuggestion[] = json.data || [];
           setSuggestions(list);
           setActiveIndex(list.length > 0 ? 0 : -1);
           if (query.trim().length > 0 || (isArtistScoped && document.activeElement === inputRef.current)) {
@@ -189,7 +189,7 @@ export const GuessAutocomplete: React.FC<GuessAutocompleteProps> = ({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const submitSong = (song: Song) => {
+  const submitSong = (song: SongSuggestion) => {
     if (disabled || submitting) return;
     onSelectGuess(song);
     setQuery('');
