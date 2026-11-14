@@ -114,6 +114,22 @@ export function freezesOf(room: RoomState): Freeze[] {
   return freezes.sort((a, b) => a.from - b.from);
 }
 
+/** How long the requester is told about the outcome of their request. */
+export const PAUSE_OUTCOME_VISIBLE_MS = 5_000;
+
+/** The stored pause covering `now`, if any. */
+export function activePause(room: RoomState, now: number): RoomPause | undefined {
+  const pauses = room.pauses ?? [];
+  const f = frozenAt(pauses, now);
+  return f ? pauses.find((p) => p.from === f.from && p.until === f.until) : undefined;
+}
+
+/** A request nobody has decided yet and that has not expired. */
+export function pendingPauseRequest(room: RoomState, now: number) {
+  const r = room.pauseRequest;
+  return r && !r.decision && now < r.at + ROOM_LIMITS.pauseRequestMs ? r : undefined;
+}
+
 /** Pauses only (not buzz holds): while one is active, answers and buzzes are rejected. */
 function pausedAt(room: RoomState, now: number): boolean {
   return frozenAt(room.pauses ?? [], now) !== undefined;
@@ -328,8 +344,7 @@ export function buildView(room: RoomState, viewerId: string, now: number): RoomV
     };
   }
 
-  const activePause = frozenAt(room.pauses ?? [], now);
-  const pauseEntry = activePause ? (room.pauses ?? []).find((p) => p.from === activePause.from) : undefined;
+  const pauseEntry = activePause(room, now);
   const pause: RoomView['pause'] = pauseEntry
     ? {
         byName: room.players.find((p) => p.id === pauseEntry.byId)?.name ?? '',
@@ -338,14 +353,13 @@ export function buildView(room: RoomState, viewerId: string, now: number): RoomV
       }
     : undefined;
   const req = room.pauseRequest;
-  const reqExpiresAt = req ? req.at + ROOM_LIMITS.pauseRequestMs : 0;
-  const reqPending = req !== undefined && !req.decision && now < reqExpiresAt;
+  const reqPending = pendingPauseRequest(room, now);
   const reqName = req ? room.players.find((p) => p.id === req.playerId)?.name ?? '' : '';
   let myPauseRequest: RoomView['myPauseRequest'];
   if (req && req.playerId === viewerId) {
-    const outcomeAt = req.decision ? req.decidedAt ?? req.at : reqExpiresAt;
+    const outcomeAt = req.decision ? req.decidedAt ?? req.at : req.at + ROOM_LIMITS.pauseRequestMs;
     if (reqPending) myPauseRequest = 'pending';
-    else if (now < outcomeAt + 5_000) myPauseRequest = req.decision ?? 'expired';
+    else if (now < outcomeAt + PAUSE_OUTCOME_VISIBLE_MS) myPauseRequest = req.decision ?? 'expired';
   }
 
   const mine = round?.answers[viewerId];
@@ -375,7 +389,7 @@ export function buildView(room: RoomState, viewerId: string, now: number): RoomV
     ...(audioCue ? { audioCue } : {}),
     ...(pause ? { pause } : {}),
     ...(reqPending && req && viewerId === room.hostId
-      ? { pauseRequest: { playerName: reqName, expiresAt: reqExpiresAt } }
+      ? { pauseRequest: { playerName: reqName, expiresAt: req.at + ROOM_LIMITS.pauseRequestMs } }
       : {}),
     ...(myPauseRequest ? { myPauseRequest } : {}),
   };

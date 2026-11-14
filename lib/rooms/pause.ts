@@ -4,7 +4,9 @@
  */
 import { frozenAt } from './clock';
 import { ROOM_LIMITS } from '../../shared/roomTypes';
-import { freezesOf, locate, type RoomState } from './timeline';
+import { activePause, freezesOf, locate, pendingPauseRequest, type RoomState } from './timeline';
+
+export { activePause, pendingPauseRequest, PAUSE_OUTCOME_VISIBLE_MS } from './timeline';
 
 export type PauseAction = 'request' | 'approve' | 'decline' | 'pause' | 'resume';
 export const PAUSE_ACTIONS: readonly PauseAction[] = ['request', 'approve', 'decline', 'pause', 'resume'];
@@ -12,6 +14,7 @@ export const PAUSE_ACTIONS: readonly PauseAction[] = ['request', 'approve', 'dec
 export type PauseFailure =
   | 'not-a-player'
   | 'not-host'
+  | 'is-host'
   | 'wrong-phase'
   | 'buzz-hold'
   | 'already-paused'
@@ -21,20 +24,6 @@ export type PauseFailure =
   | 'pending';
 
 export type PauseOutcome = { ok: true } | { ok: false; reason: PauseFailure };
-
-/** How long the requester is told about the outcome of their request. */
-export const PAUSE_OUTCOME_VISIBLE_MS = 5_000;
-
-export function activePause(room: RoomState, now: number) {
-  const f = frozenAt(room.pauses ?? [], now);
-  return f ? (room.pauses ?? []).find((p) => p.from === f.from && p.until === f.until) : undefined;
-}
-
-/** A request nobody has decided yet and that has not expired. */
-export function pendingPauseRequest(room: RoomState, now: number) {
-  const r = room.pauseRequest;
-  return r && !r.decision && now < r.at + ROOM_LIMITS.pauseRequestMs ? r : undefined;
-}
 
 function startPause(room: RoomState, byId: string, now: number, requestedById?: string): PauseOutcome {
   const phase = locate(room, now).phase;
@@ -59,8 +48,8 @@ export function applyPauseAction(room: RoomState, playerId: string, action: Paus
   const isHost = playerId === room.hostId;
 
   if (action === 'request') {
-    // The host pauses directly; a host "request" is not a request (rejected as not a requester).
-    if (isHost) return { ok: false, reason: 'not-a-player' };
+    // The host pauses directly; a host "request" is not a request.
+    if (isHost) return { ok: false, reason: 'is-host' };
     const phase = locate(room, now).phase;
     if (phase !== 'countdown' && phase !== 'guessing' && phase !== 'reveal') return { ok: false, reason: 'wrong-phase' };
     if (activePause(room, now)) return { ok: false, reason: 'already-paused' };

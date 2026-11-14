@@ -609,6 +609,24 @@ describe('pause', () => {
     assert.deepEqual(apply(room, 'h', 'resume', at + 5_000), { ok: false, reason: 'not-paused' });
   });
 
+  it('resume during the resuming countdown leaves until unchanged', () => {
+    const room = baseRoom();
+    apply(room, 'h', 'pause', T);
+    apply(room, 'h', 'resume', T + 10_000);
+    const until = room.pauses![0].until;
+    assert.deepEqual(apply(room, 'h', 'resume', T + 11_000), { ok: true });
+    assert.equal(room.pauses![0].until, until);
+  });
+
+  it('myPauseRequest outcome is visible for PAUSE_OUTCOME_VISIBLE_MS', () => {
+    const room = baseRoom();
+    apply(room, 'p', 'request', T);
+    apply(room, 'h', 'decline', T + 500);
+    const V = pauseRules.PAUSE_OUTCOME_VISIBLE_MS;
+    assert.equal(timeline.buildView(room, 'p', T + 500 + V - 1).myPauseRequest, 'declined');
+    assert.equal(timeline.buildView(room, 'p', T + 500 + V).myPauseRequest, undefined);
+  });
+
   it('request expires after 10 s and cannot repeat within 30 s', () => {
     const room = baseRoom();
     apply(room, 'p', 'request', T);
@@ -628,7 +646,7 @@ describe('pause', () => {
         { id: 'q', name: 'Quinn', joinedAt: 0, score: 0 },
       ],
     });
-    assert.deepEqual(apply(room, 'h', 'request', T), { ok: false, reason: 'not-a-player' });
+    assert.deepEqual(apply(room, 'h', 'request', T), { ok: false, reason: 'is-host' });
     assert.ok(apply(room, 'p', 'request', T).ok);
     assert.deepEqual(apply(room, 'q', 'request', T + 100), { ok: false, reason: 'pending' });
     assert.deepEqual(apply(room, 'zz', 'request', T), { ok: false, reason: 'not-a-player' });
@@ -640,7 +658,7 @@ describe('pause', () => {
     const buzzer = baseRoom({ settings: { ...DEFAULT_ROOM_SETTINGS, mode: 'buzzer', answerSeconds: ROOM_LIMITS.answerSeconds.buzzer } });
     assert.ok(timeline.applyBuzz(buzzer, 'p', T).ok);
     assert.deepEqual(apply(buzzer, 'h', 'pause', T + 100), { ok: false, reason: 'buzz-hold' });
-    assert.deepEqual(apply(buzzer, 'h', 'request', T + 100), { ok: false, reason: 'not-a-player' });
+    assert.deepEqual(apply(buzzer, 'h', 'request', T + 100), { ok: false, reason: 'is-host' });
     const lobby = baseRoom({ status: 'lobby', startedAt: undefined, rounds: [] });
     assert.deepEqual(apply(lobby, 'h', 'pause', T), { ok: false, reason: 'wrong-phase' });
     assert.deepEqual(apply(baseRoom(), 'h', 'pause', 10 * 60 * 1000), { ok: false, reason: 'wrong-phase' });
