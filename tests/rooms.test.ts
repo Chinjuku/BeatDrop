@@ -26,6 +26,7 @@ const timeline = await import('../lib/rooms/timeline');
 const clock = await import('../lib/rooms/clock');
 const { getRoomStore } = await import('../lib/rooms/store');
 const { parsePlayerName, parseRoomSettings, parseClipSeconds } = await import('../lib/rooms/service');
+const pauseRules = await import('../lib/rooms/pause');
 const roomsRoute = await import('../app/api/rooms/route');
 const roomRoute = await import('../app/api/rooms/[code]/route');
 const joinRoute = await import('../app/api/rooms/[code]/join/route');
@@ -556,5 +557,151 @@ describe('buzzer mode API', () => {
     const buzzRoute = await import('../app/api/rooms/[code]/buzz/route');
     const res = await call(buzzRoute.POST as Handler, 'POST', created.json.data.room.code, { token: created.json.data.playerToken });
     assert.equal(res.status, 409);
+  });
+});
+
+describe('pause', () => {
+  const C = ROOM_LIMITS.countdownMs;
+  const playAt = 1_000 + C;
+  const T = playAt + 2_000; // mid-guessing
+  const P = ROOM_LIMITS.pauseMaxMs + ROOM_LIMITS.pauseResumeMs;
+  const apply = pauseRules.applyPauseAction;
+
+  it('request → host approves → paused 60 s + 3 s, answers rejected', () => {
+    const room = baseRoom();
+    assert.deepEqual(apply(room, 'p', 'request', T), { ok: true });
+    const hostView = timeline.buildView(room, 'h', T + 1);
+    assert.equal(hostView.pauseRequest?.playerName, 'Pat');
+    assert.equal(hostView.pauseRequest?.expiresAt, T + ROOM_LIMITS.pauseRequestMs);
+    assert.equal(timeline.buildView(room, 'p', T + 1).pauseRequest, undefined, 'only the host sees the request');
+    assert.equal(timeline.buildView(room, 'p', T + 1).myPauseRequest, 'pending');
+    assert.deepEqual(apply(room, 'h', 'approve', T + 1_000), { ok: true });
+    assert.equal(room.pauses![0].until, T + 1_000 + P);
+    assert.equal(room.pauses![0].requestedById, 'p');
+    const v = timeline.buildView(room, 'p', T + 2_000);
+    assert.equal(v.pause?.byName, 'Host');
+    assert.equal(v.pause?.until, T + 1_000 + P);
+    assert.equal(v.pause?.resumingAt, T + 1_000 + P - ROOM_LIMITS.pauseResumeMs);
+    assert.equal(v.myPauseRequest, 'approved');
+    assert.equal(v.frozen, true);
+    assert.deepEqual(timeline.applyAnswer(room, 'p', true, T + 5_000), { ok: false, reason: 'paused' });
+    assert.deepEqual(timeline.applyBuzz(room, 'p', T + 5_000), { ok: false, reason: 'paused' });
+    assert.equal(timeline.buildView(room, 'p', T + 1_000 + P + 6_000).myPauseRequest, undefined, 'outcome hidden after 5 s');
+  });
+
+  it('declined request is reported to the requester', () => {
+    const room = baseRoom();
+    apply(room, 'p', 'request', T);
+    assert.deepEqual(apply(room, 'h', 'decline', T + 500), { ok: true });
+    assert.equal(timeline.buildView(room, 'p', T + 600).myPauseRequest, 'declined');
+    assert.equal(timeline.buildView(room, 'h', T + 600).pauseRequest, undefined);
+    assert.equal(room.pauses, undefined);
+  });
+
+  it('host resume ends the pause after a 3 s resuming countdown', () => {
+    const room = baseRoom();
+    apply(room, 'h', 'pause', T);
+    const at = T + 10_000;
+    assert.deepEqual(apply(room, 'h', 'resume', at), { ok: true });
+    assert.equal(room.pauses![0].until, at + ROOM_LIMITS.pauseResumeMs);
+    assert.ok(timeline.buildView(room, 'p', at + 2_999).frozen);
+    assert.ok(!timeline.buildView(room, 'p', at + 3_000).frozen);
+    assert.deepEqual(apply(room, 'h', 'resume', at + 5_000), { ok: false, reason: 'not-paused' });
+  });
+
+  it('request expires after 10 s and cannot repeat within 30 s', () => {
+    const room = baseRoom();
+    apply(room, 'p', 'request', T);
+    assert.equal(timeline.buildView(room, 'h', T + 9_999).pauseRequest?.playerName, 'Pat');
+    assert.equal(timeline.buildView(room, 'h', T + 10_000).pauseRequest, undefined);
+    assert.equal(timeline.buildView(room, 'p', T + 10_000).myPauseRequest, 'expired');
+    assert.deepEqual(apply(room, 'h', 'approve', T + 10_000), { ok: false, reason: 'no-request' });
+    assert.deepEqual(apply(room, 'p', 'request', T + 29_000), { ok: false, reason: 'cooldown' });
+    assert.deepEqual(apply(room, 'p', 'request', T + 30_000), { ok: true });
+  });
+
+  it('only one pending request; host cannot be asked, host pauses directly', () => {
+    const room = baseRoom({
+      players: [
+        { id: 'h', name: 'Host', joinedAt: 0, score: 0 },
+        { id: 'p', name: 'Pat', joinedAt: 0, score: 0 },
+        { id: 'q', name: 'Quinn', joinedAt: 0, score: 0 },
+      ],
+    });
+    assert.deepEqual(apply(room, 'h', 'request', T), { ok: false, reason: 'not-a-player' });
+    assert.ok(apply(room, 'p', 'request', T).ok);
+    assert.deepEqual(apply(room, 'q', 'request', T + 100), { ok: false, reason: 'pending' });
+    assert.deepEqual(apply(room, 'zz', 'request', T), { ok: false, reason: 'not-a-player' });
+    assert.ok(apply(room, 'h', 'pause', T + 200).ok);
+    assert.equal(room.pauses![0].requestedById, undefined);
+  });
+
+  it('no pause during a buzz hold, in lobby, finished, or while paused', () => {
+    const buzzer = baseRoom({ settings: { ...DEFAULT_ROOM_SETTINGS, mode: 'buzzer', answerSeconds: ROOM_LIMITS.answerSeconds.buzzer } });
+    assert.ok(timeline.applyBuzz(buzzer, 'p', T).ok);
+    assert.deepEqual(apply(buzzer, 'h', 'pause', T + 100), { ok: false, reason: 'buzz-hold' });
+    assert.deepEqual(apply(buzzer, 'h', 'request', T + 100), { ok: false, reason: 'not-a-player' });
+    const lobby = baseRoom({ status: 'lobby', startedAt: undefined, rounds: [] });
+    assert.deepEqual(apply(lobby, 'h', 'pause', T), { ok: false, reason: 'wrong-phase' });
+    assert.deepEqual(apply(baseRoom(), 'h', 'pause', 10 * 60 * 1000), { ok: false, reason: 'wrong-phase' });
+    const room = baseRoom({ players: [...baseRoom().players, { id: 'q', name: 'Quinn', joinedAt: 0, score: 0 }] });
+    assert.ok(apply(room, 'h', 'pause', T).ok);
+    assert.deepEqual(apply(room, 'h', 'pause', T + 100), { ok: false, reason: 'already-paused' });
+    assert.deepEqual(apply(room, 'p', 'request', T + 100), { ok: false, reason: 'already-paused' });
+    const held = baseRoom({ settings: buzzer.settings });
+    held.rounds[0].buzzes = [{ playerId: 'p', at: T, deadline: T + ROOM_LIMITS.buzzAnswerMs }];
+    assert.deepEqual(apply(held, 'p', 'request', T + 100), { ok: false, reason: 'buzz-hold' });
+  });
+
+  it('non-host cannot approve, decline, pause or resume', () => {
+    const room = baseRoom();
+    apply(room, 'p', 'request', T);
+    for (const a of ['approve', 'decline', 'pause', 'resume'] as const) {
+      assert.deepEqual(apply(room, 'p', a, T + 100), { ok: false, reason: 'not-host' }, a);
+    }
+    assert.equal(room.pauses, undefined);
+  });
+
+  it('pause auto-resumes with no write', () => {
+    const room = baseRoom();
+    apply(room, 'h', 'pause', T);
+    assert.equal(timeline.locate(room, T + P - 1).phase, 'guessing');
+    const after = timeline.locate(room, T + P);
+    assert.equal(after.phase, 'guessing');
+    assert.equal(timeline.buildView(room, 'p', T + P).frozen, false);
+    assert.equal(timeline.buildView(room, 'p', T + P).pause, undefined);
+    assert.equal(timeline.locate(room, T + P + 1).endsAt, timeline.locate(baseRoom(), T).endsAt! + P);
+  });
+
+  it('pause API returns the view and GET stays read-only', async () => {
+    const created = await call(roomsRoute.POST as Handler, 'POST', '', { body: { name: 'Host' } });
+    const code = created.json.data.room.code as string;
+    const host = created.json.data.playerToken as string;
+    const pat = (await call(joinRoute.POST as Handler, 'POST', code, { body: { name: 'Pat' } })).json.data.playerToken as string;
+    await call(startRoute.POST as Handler, 'POST', code, { token: host });
+    await shiftStart(code, ROOM_LIMITS.countdownMs + 500);
+    const pauseRoute = await import('../app/api/rooms/[code]/pause/route');
+    const post = (token: string, action: unknown) => call(pauseRoute.POST as Handler, 'POST', code, { token, body: { action } });
+
+    assert.equal((await post(host, 'dance')).status, 400);
+    assert.equal((await post(host, undefined)).status, 400);
+    assert.equal((await post(host, 'request')).status, 409, 'host cannot request');
+    const req = await post(pat, 'request');
+    assert.equal(req.status, 200);
+    assert.equal(req.json.data.room.myPauseRequest, 'pending');
+    const hostGet = await call(roomRoute.GET as Handler, 'GET', code, { token: host });
+    assert.equal(hostGet.json.data.room.pauseRequest.playerName, 'Pat');
+    assert.equal((await post(pat, 'approve')).status, 409, 'non-host cannot approve');
+    const approved = await post(host, 'approve');
+    assert.equal(approved.status, 200);
+    assert.equal(approved.json.data.room.frozen, true);
+    assert.ok(approved.json.data.room.pause);
+
+    const before = JSON.stringify(await getRoomStore()!.get(code));
+    await call(roomRoute.GET as Handler, 'GET', code, { token: pat });
+    assert.equal(JSON.stringify(await getRoomStore()!.get(code)), before, 'GET did not write');
+    const answerId = (await getRoomStore()!.get(code))!.rounds[0].songId;
+    assert.equal((await call(answerRoute.POST as Handler, 'POST', code, { token: pat, body: { candidateTrackId: answerId } })).status, 409);
+    assert.equal((await post(host, 'resume')).status, 200);
   });
 });

@@ -17,6 +17,7 @@ import { songPool } from '../engine/songPool';
 import { getValidLibraryPool, matchesArtistFilter, sliceByDifficulty } from '../engine/roundEngine';
 import { normalizeText } from '../engine/artists';
 import { isJunkTrack } from '../itunes';
+import { applyPauseAction, PAUSE_ACTIONS, type PauseAction } from './pause';
 import { getRoomStore, updateRoom, type RoomStore } from './store';
 import { newPlayerId, newRoomCode, normalizeRoomCode, signPlayer, verifyPlayer } from './auth';
 import {
@@ -373,6 +374,46 @@ export async function handleRoomBuzz(req: ApiRequest, res: ApiResponse): Promise
     res.status(409).json({
       code: -409,
       message: rejected ?? 'Buzz not accepted',
+      data: { room: buildView(outcome.room, playerId, Date.now()) },
+    });
+    return;
+  }
+  sendView(res, outcome.room, playerId);
+}
+
+/** POST /api/rooms/[code]/pause — body { action }: request | approve | decline | pause | resume. */
+export async function handleRoomPause(req: ApiRequest, res: ApiResponse): Promise<void> {
+  const store = requireStore(res);
+  if (!store) return;
+  const code = roomCodeFrom(req, res);
+  if (!code) return;
+  const playerId = playerFrom(req, code, res);
+  if (!playerId) return;
+
+  const raw = (req.body as { action?: unknown } | null | undefined)?.action;
+  const action = PAUSE_ACTIONS.find((a) => a === raw) as PauseAction | undefined;
+  if (!action) {
+    res.status(400).json({ code: -400, message: 'Unknown pause action' });
+    return;
+  }
+
+  let rejected: string | null = null;
+  const outcome = await updateRoom(store, code, (room) => {
+    const applied = applyPauseAction(room, playerId, action, Date.now());
+    if (!applied.ok) {
+      rejected = applied.reason;
+      return false;
+    }
+    return true;
+  });
+  if (!outcome.room) {
+    res.status(404).json({ code: -404, message: 'Room not found' });
+    return;
+  }
+  if (outcome.result === false) {
+    res.status(409).json({
+      code: -409,
+      message: rejected ?? 'Pause not accepted',
       data: { room: buildView(outcome.room, playerId, Date.now()) },
     });
     return;

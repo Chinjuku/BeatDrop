@@ -118,4 +118,10 @@ export interface RoomView {
    * each freeze so audio resumes where it stopped. Absent while frozen or once the clip is over.
    */
   audioCue?: { at: number; fromSeconds: number };
+  /** Present while a host pause is active; `resumingAt` is when its resuming countdown starts. */
+  pause?: { byName: string; until: number; resumingAt: number };
+  /** Host only: a pending request from a player. */
+  pauseRequest?: { playerName: string; expiresAt: number };
+  /** Requester only: the state of their request, shown for 5 s after the outcome. */
+  myPauseRequest?: 'pending' | 'approved' | 'declined' | 'expired';
 }

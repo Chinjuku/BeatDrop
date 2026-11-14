@@ -74,6 +74,9 @@ export interface RoomState {
   rounds: RoomRound[];
   /** Absent on rooms created before pausing existed. */
   pauses?: RoomPause[];
+  /** The latest pause request (one at a time) and when each player last made one. */
+  pauseRequest?: { playerId: string; at: number; decision?: 'approved' | 'declined'; decidedAt?: number };
+  lastPauseRequestAt?: Record<string, number>;
 }
 
 export interface RoomPosition {
@@ -325,6 +328,26 @@ export function buildView(room: RoomState, viewerId: string, now: number): RoomV
     };
   }
 
+  const activePause = frozenAt(room.pauses ?? [], now);
+  const pauseEntry = activePause ? (room.pauses ?? []).find((p) => p.from === activePause.from) : undefined;
+  const pause: RoomView['pause'] = pauseEntry
+    ? {
+        byName: room.players.find((p) => p.id === pauseEntry.byId)?.name ?? '',
+        until: pauseEntry.until,
+        resumingAt: pauseEntry.until - ROOM_LIMITS.pauseResumeMs,
+      }
+    : undefined;
+  const req = room.pauseRequest;
+  const reqExpiresAt = req ? req.at + ROOM_LIMITS.pauseRequestMs : 0;
+  const reqPending = req !== undefined && !req.decision && now < reqExpiresAt;
+  const reqName = req ? room.players.find((p) => p.id === req.playerId)?.name ?? '' : '';
+  let myPauseRequest: RoomView['myPauseRequest'];
+  if (req && req.playerId === viewerId) {
+    const outcomeAt = req.decision ? req.decidedAt ?? req.at : reqExpiresAt;
+    if (reqPending) myPauseRequest = 'pending';
+    else if (now < outcomeAt + 5_000) myPauseRequest = req.decision ?? 'expired';
+  }
+
   const mine = round?.answers[viewerId];
   return {
     code: room.code,
@@ -350,5 +373,10 @@ export function buildView(room: RoomState, viewerId: string, now: number): RoomV
     ...(buzz ? { buzz } : {}),
     ...(round && inRound ? { frozen } : {}),
     ...(audioCue ? { audioCue } : {}),
+    ...(pause ? { pause } : {}),
+    ...(reqPending && req && viewerId === room.hostId
+      ? { pauseRequest: { playerName: reqName, expiresAt: reqExpiresAt } }
+      : {}),
+    ...(myPauseRequest ? { myPauseRequest } : {}),
   };
 }
