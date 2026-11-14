@@ -12,7 +12,7 @@ const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'beatdrop-rooms-test-'));
 fs.copyFileSync(path.resolve('data/beatdrop.db'), path.join(tempDir, 'rooms-test.db'));
 process.env.BEATDROP_SQLITE_PATH = path.join(tempDir, 'rooms-test.db');
 process.env.BEATDROP_CUSTOM_ARTISTS_PATH = path.join(tempDir, 'custom-artists.json');
-for (const key of ['SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY', 'SUPABASE_ANON_KEY', 'UPSTASH_REDIS_REST_URL', 'UPSTASH_REDIS_REST_TOKEN', 'VERCEL']) {
+for (const key of ['SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY', 'SUPABASE_ANON_KEY', 'UPSTASH_REDIS_REST_URL', 'UPSTASH_REDIS_REST_TOKEN', 'KV_REST_API_URL', 'KV_REST_API_TOKEN', 'VERCEL']) {
   delete process.env[key];
 }
 (process.env as Record<string, string>).NODE_ENV = 'test';
