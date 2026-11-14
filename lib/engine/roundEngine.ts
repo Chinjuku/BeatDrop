@@ -265,9 +265,15 @@ export async function handleStartRound(req: ApiRequest, res: ApiResponse): Promi
     }
   }
 
-  let pool = getValidLibraryPool();
+  const hasArtistFilter = Boolean(artistFilter && artistFilter !== 'any');
+  // An explicitly chosen artist can exist only in the cloud catalog (added through Supabase),
+  // so it may be missing from this instance's local library list. Artist rounds therefore draw
+  // from every loaded non-junk song; the library-gated pool is for the open modes only.
+  let pool = hasArtistFilter
+    ? Array.from(songPool.values()).filter((s) => !isJunkTrack(s.title, s.albumName, s.artistName))
+    : getValidLibraryPool();
 
-  if (!artistFilter || artistFilter === 'any') {
+  if (!hasArtistFilter) {
     if (category === 'thai' || category === 'international') {
       pool = pool.filter((s) => s.category === category);
     }

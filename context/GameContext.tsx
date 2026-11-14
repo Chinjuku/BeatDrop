@@ -721,8 +721,13 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         if ((err as Error)?.name === 'AbortError' && !dailyRequestTimedOut) return;
         if (activeCfg.mode === 'daily') {
           setDailyLoadError(tRef.current('errors.dailyLoad'));
-        } else if (activeCfg.mode === 'guesser') {
-          setRoundLoadError(tRef.current('errors.roundLoad'));
+        } else {
+          // Drop the previous round: its token is already used, so leaving it on screen made
+          // Skip / Give up / guesses fail silently against a round that no longer exists.
+          setRound(null);
+          setRoundLoadError(
+            tRef.current(failedRequest.status === 404 ? 'errors.noSongs' : 'errors.roundLoad')
+          );
         }
         if (err instanceof DailyChallengeLoadError) {
           failedRequest.status = err.status;
