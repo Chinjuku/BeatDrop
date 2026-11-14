@@ -77,6 +77,10 @@ export interface RoomState {
   /** The latest pause request (one at a time) and when each player last made one. */
   pauseRequest?: { playerId: string; at: number; decision?: 'approved' | 'declined'; decidedAt?: number };
   lastPauseRequestAt?: Record<string, number>;
+  /** Active players when the game started; absent on older rooms. */
+  startedWith?: number;
+  /** Set when a leave left one player of a multiplayer game: the game ends from this moment. */
+  endedAt?: number;
 }
 
 export interface RoomPosition {
@@ -148,6 +152,9 @@ export function locate(room: RoomState, now: number): RoomPosition {
   if (room.status === 'lobby' || room.startedAt === undefined || room.rounds.length === 0) {
     return { phase: 'lobby', roundIndex: 0 };
   }
+  if (room.endedAt !== undefined && now >= room.endedAt) {
+    return { phase: 'finished', roundIndex: room.rounds.length - 1 };
+  }
   const freezes = freezesOf(room);
   let t = room.startedAt;
   for (let i = 0; i < room.rounds.length; i++) {
@@ -191,6 +198,38 @@ export function closeRoundIfEveryoneDone(room: RoomState, roundIndex: number, no
   if (players.length > 0 && players.every((p) => playerDone(room, round, p.id, now))) {
     round.finishedAt = now;
   }
+}
+
+/**
+ * An explicit `/leave`. Mutates `room`; returns false when the player is not active.
+ * Never touches rounds already finished, so earlier timing and scores are unchanged.
+ */
+export function applyLeave(room: RoomState, playerId: string, now: number): boolean {
+  const player = findActive(room, playerId);
+  if (!player) return false;
+  const pos = locate(room, now);
+  const inGame = pos.phase === 'countdown' || pos.phase === 'guessing' || pos.phase === 'reveal';
+
+  // A holder who leaves forfeits the open buzz: this frees the buzzer and ends the freeze.
+  if (pos.phase === 'guessing') {
+    const holder = buzzState(room.rounds[pos.roundIndex], now).holder;
+    if (holder && holder.playerId === playerId) {
+      holder.result = 'wrong';
+      holder.resolvedAt = now;
+    }
+  }
+
+  const wasHost = room.hostId === playerId;
+  player.leftAt = now;
+  if (wasHost) {
+    const next = activePlayers(room)[0];
+    if (next) room.hostId = next.id; // hand the host role on so the room can continue
+  }
+  if (room.pauseRequest && (wasHost || room.pauseRequest.playerId === playerId)) room.pauseRequest = undefined;
+
+  if (pos.phase === 'guessing' || pos.phase === 'countdown') closeRoundIfEveryoneDone(room, pos.roundIndex, now);
+  if (inGame && (room.startedWith ?? 0) >= 2 && activePlayers(room).length === 1) room.endedAt = now;
+  return true;
 }
 
 export type AnswerOutcome =
@@ -385,6 +424,7 @@ export function buildView(room: RoomState, viewerId: string, now: number): RoomV
     },
     reveal: showResults && round ? round.reveal : undefined,
     ...(buzz ? { buzz } : {}),
+    ...(pos.phase === 'finished' && room.endedAt !== undefined ? { endedEarly: true } : {}),
     ...(round && inRound ? { frozen } : {}),
     ...(audioCue ? { audioCue } : {}),
     ...(pause ? { pause } : {}),

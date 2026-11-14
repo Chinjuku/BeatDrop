@@ -64,7 +64,11 @@ export function applyPauseAction(room: RoomState, playerId: string, action: Paus
 
   if (!isHost) return { ok: false, reason: 'not-host' };
 
-  if (action === 'pause') return startPause(room, playerId, now);
+  if (action === 'pause') {
+    const started = startPause(room, playerId, now);
+    if (started.ok) room.pauseRequest = undefined; // the host pausing answers any pending request
+    return started;
+  }
 
   if (action === 'resume') {
     const pause = activePause(room, now);

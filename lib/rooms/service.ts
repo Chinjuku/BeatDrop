@@ -23,10 +23,10 @@ import { newPlayerId, newRoomCode, normalizeRoomCode, signPlayer, verifyPlayer }
 import {
   activePlayers,
   applyAnswer,
+  applyLeave,
   applyBuzz,
   applyBuzzAnswer,
   buildView,
-  closeRoundIfEveryoneDone,
   locate,
   type RoomRound,
   type RoomState,
@@ -295,6 +295,11 @@ export async function handleStartRoom(req: ApiRequest, res: ApiResponse): Promis
     room.rounds = songs.map(toRound);
     for (const p of room.players) p.score = 0;
     room.players = room.players.filter((p) => p.leftAt === undefined);
+    room.startedWith = room.players.length;
+    room.pauses = [];
+    room.pauseRequest = undefined;
+    room.lastPauseRequestAt = undefined;
+    room.endedAt = undefined;
     return true;
   });
   if (outcome.result === false) {
@@ -430,17 +435,7 @@ export async function handleLeaveRoom(req: ApiRequest, res: ApiResponse): Promis
   const playerId = playerFrom(req, code, res);
   if (!playerId) return;
   await updateRoom(store, code, (room) => {
-    const player = room.players.find((p) => p.id === playerId);
-    if (!player || player.leftAt !== undefined) return false;
-    const now = Date.now();
-    player.leftAt = now;
-    if (room.hostId === playerId) {
-      const next = activePlayers(room)[0];
-      if (next) room.hostId = next.id; // hand the host role on so the room can continue
-    }
-    const pos = locate(room, now);
-    if (pos.phase === 'guessing' || pos.phase === 'countdown') closeRoundIfEveryoneDone(room, pos.roundIndex, now);
-    return true;
+    return applyLeave(room, playerId, Date.now());
   });
   res.json({ code: 0, message: 'ok' });
 }

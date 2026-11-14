@@ -723,3 +723,139 @@ describe('pause', () => {
     assert.equal((await post(host, 'resume')).status, 200);
   });
 });
+
+describe('leaving', () => {
+  const C = ROOM_LIMITS.countdownMs;
+  const T = 1_000 + C + 3_000; // guessing in round 1
+  const threePlayers = () =>
+    baseRoom({
+      startedWith: 3,
+      players: [
+        { id: 'h', name: 'Host', joinedAt: 0, score: 0 },
+        { id: 'p', name: 'Pat', joinedAt: 0, score: 0 },
+        { id: 'q', name: 'Quin', joinedAt: 0, score: 0 },
+      ],
+    });
+
+  it('last remaining player ends the game at once', () => {
+    const room = baseRoom({ startedWith: 2 });
+    assert.equal(timeline.locate(room, T).phase, 'guessing');
+    assert.equal(timeline.applyLeave(room, 'p', T), true);
+    assert.equal(room.endedAt, T);
+    assert.equal(timeline.locate(room, T).phase, 'finished');
+    assert.equal(timeline.buildView(room, 'h', T).endedEarly, true);
+    assert.equal(timeline.buildView(room, 'h', T - 1).endedEarly, undefined);
+  });
+
+  it('ends in the reveal and while paused too, but not with 2 players left', () => {
+    const reveal = baseRoom({ startedWith: 2 });
+    const end = timeline.locate(reveal, T).endsAt!;
+    timeline.applyLeave(reveal, 'p', end + 100);
+    assert.equal(timeline.locate(reveal, end + 100).phase, 'finished');
+
+    const paused = baseRoom({ startedWith: 2, pauses: [{ from: T, until: T + 60_000, byId: 'h' }] });
+    timeline.applyLeave(paused, 'p', T + 1_000);
+    assert.equal(timeline.locate(paused, T + 1_000).phase, 'finished');
+
+    const three = threePlayers();
+    timeline.applyLeave(three, 'p', T);
+    assert.equal(three.endedAt, undefined);
+    assert.equal(timeline.locate(three, T).phase, 'guessing');
+  });
+
+  it('a room started alone is not ended', () => {
+    const room = baseRoom({ startedWith: 1, players: [{ id: 'h', name: 'Host', joinedAt: 0, score: 0 }] });
+    assert.equal(timeline.applyLeave(room, 'h', T), true);
+    assert.equal(room.endedAt, undefined);
+    assert.equal(timeline.locate(room, T).phase, 'guessing');
+    // Rooms stored before startedWith existed are unaffected as well.
+    const legacy = baseRoom();
+    timeline.applyLeave(legacy, 'p', T);
+    assert.equal(legacy.endedAt, undefined);
+  });
+
+  it('buzz holder leaving ends the hold and frees the buzzer', () => {
+    const room = threePlayers();
+    room.settings = { ...room.settings, mode: 'buzzer' };
+    const before = timeline.locate(room, T).endsAt!;
+    assert.equal(timeline.applyBuzz(room, 'p', T).ok, true);
+    assert.equal(timeline.buzzState(room.rounds[0], T + 500).holder?.playerId, 'p');
+    timeline.applyLeave(room, 'p', T + 500);
+    const buzz = room.rounds[0].buzzes![0];
+    assert.equal(buzz.result, 'wrong');
+    assert.equal(buzz.resolvedAt, T + 500);
+    assert.equal(room.players.find((x) => x.id === 'p')!.score, 0);
+    assert.equal(timeline.buzzState(room.rounds[0], T + 600).holder, undefined);
+    assert.equal(timeline.buildView(room, 'q', T + 600).frozen, false, 'clock runs again');
+    assert.equal(timeline.buildView(room, 'q', T + 600).buzz?.canBuzz, true);
+    assert.equal(timeline.locate(room, T).endsAt, before + 500, 'only the 500 ms hold was frozen');
+  });
+
+  it('host leaves during pause: new host can resume, pending request dropped', () => {
+    const room = threePlayers();
+    const pat = pauseRules.applyPauseAction;
+    assert.equal(pat(room, 'h', 'pause', T).ok, true);
+    // Pending request made before the pause would be dropped; build one on a fresh room.
+    const r = threePlayers();
+    assert.equal(pat(r, 'p', 'request', T).ok, true);
+    timeline.applyLeave(r, 'h', T + 100);
+    assert.equal(r.pauseRequest, undefined);
+    assert.equal(r.hostId, 'p');
+
+    timeline.applyLeave(room, 'h', T + 1_000);
+    assert.equal(room.hostId, 'p');
+    assert.ok(timeline.activePause(room, T + 2_000), 'pause survives the leave');
+    assert.deepEqual(pat(room, 'p', 'resume', T + 2_000), { ok: true });
+    assert.ok(room.pauses![0].until <= T + 2_000 + ROOM_LIMITS.pauseResumeMs);
+  });
+
+  it('requester leaving drops their pending request; host pausing clears one', () => {
+    const room = threePlayers();
+    pauseRules.applyPauseAction(room, 'p', 'request', T);
+    timeline.applyLeave(room, 'p', T + 100);
+    assert.equal(room.pauseRequest, undefined);
+
+    const other = threePlayers();
+    pauseRules.applyPauseAction(other, 'p', 'request', T);
+    assert.ok(other.pauseRequest);
+    timeline.applyLeave(other, 'q', T + 100);
+    assert.ok(other.pauseRequest, 'an unrelated leave keeps the request');
+    assert.deepEqual(pauseRules.applyPauseAction(other, 'h', 'pause', T + 200), { ok: true });
+    assert.equal(other.pauseRequest, undefined);
+  });
+
+  it('leaving later does not change finished rounds', () => {
+    const room = threePlayers();
+    const r0 = timeline.locate(room, T);
+    const r1Start = r0.revealEndsAt!;
+    const before = timeline.locate(room, 1_000 + C);
+    timeline.applyLeave(room, 'p', r1Start + C + 1_000); // during round 2
+    assert.deepEqual(timeline.locate(room, 1_000 + C), before);
+    assert.deepEqual(timeline.locate(room, T), r0);
+    assert.equal(room.endedAt, undefined);
+    timeline.applyLeave(room, 'q', r1Start + C + 2_000); // down to the host alone
+    assert.deepEqual(timeline.locate(room, T), r0);
+    assert.equal(timeline.locate(room, r1Start + C + 2_000).phase, 'finished');
+  });
+
+  it('start through the API sets startedWith and resets pause/ended state', async () => {
+    const created = await call(roomsRoute.POST as Handler, 'POST', '', { body: { name: 'Host' } });
+    const code = created.json.data.room.code as string;
+    const host = created.json.data.playerToken as string;
+    const pat = (await call(joinRoute.POST as Handler, 'POST', code, { body: { name: 'Pat' } })).json.data.playerToken as string;
+    await call(startRoute.POST as Handler, 'POST', code, { token: host });
+    assert.equal((await getRoomStore()!.get(code))!.startedWith, 2);
+    await call(leaveRoute.POST as Handler, 'POST', code, { token: pat });
+    const ended = await getRoomStore()!.get(code);
+    assert.ok(ended!.endedAt !== undefined);
+    const view = await call(roomRoute.GET as Handler, 'GET', code, { token: host });
+    assert.equal(view.json.data.room.phase, 'finished');
+    assert.equal(view.json.data.room.endedEarly, true);
+    const restart = await call(startRoute.POST as Handler, 'POST', code, { token: host });
+    assert.equal(restart.status, 200);
+    const again = (await getRoomStore()!.get(code))!;
+    assert.equal(again.endedAt, undefined);
+    assert.equal(again.startedWith, 1);
+    assert.equal(again.pauses?.length ?? 0, 0);
+  });
+});

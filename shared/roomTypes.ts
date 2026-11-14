@@ -111,6 +111,8 @@ export interface RoomView {
     lockedOut: boolean;
     canBuzz: boolean;
   };
+  /** True when the game ended because only one player was left. */
+  endedEarly?: boolean;
   /** True inside any freeze (pause or buzz hold): audio stops. Input locking uses the pause, not this. */
   frozen?: boolean;
   /**
