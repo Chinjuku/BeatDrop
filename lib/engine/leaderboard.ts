@@ -1,4 +1,4 @@
-import { Request, Response } from 'express';
+import type { ApiRequest, ApiResponse } from '../http/api';
 import fs from 'node:fs';
 import path from 'node:path';
 import { CategoryType, DifficultyLevel, LeaderboardEntry } from '../../shared/types';
@@ -54,7 +54,7 @@ export function saveLeaderboard(): void {
   }
 }
 
-export async function handleGetLeaderboard(req: Request, res: Response): Promise<void> {
+export async function handleGetLeaderboard(req: ApiRequest, res: ApiResponse): Promise<void> {
   const category = (req.query.category as CategoryType) || 'all';
   const difficulty = (req.query.difficulty as string) || 'all';
   const cacheKey = `beatdrop:lb:${category}:${difficulty}`;
@@ -98,7 +98,7 @@ export async function handleGetLeaderboard(req: Request, res: Response): Promise
   res.json({ code: 0, message: 'ok', data: topList });
 }
 
-export function handlePostLeaderboard(req: Request, res: Response): void {
+export function handlePostLeaderboard(req: ApiRequest, res: ApiResponse): void {
   const parsed = parseLeaderboardDTO(req.body);
   if (!parsed.ok) {
     res.status(400).json({ code: -1, message: parsed.error });

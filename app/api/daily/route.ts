@@ -1,5 +1,6 @@
-import { forwardToExpress } from '../../../lib/expressBridge';
+import { runApiHandler } from '../../../lib/http/api';
+import { handleDaily } from '../../../lib/engine/dailyEngine';
 
 export async function GET(req: Request) {
-  return forwardToExpress(req, '/api/daily');
+  return runApiHandler(req, handleDaily);
 }

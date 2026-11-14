@@ -1,10 +1,10 @@
-import { forwardToExpress } from '../../../lib/expressBridge';
+import { runApiHandler } from '../../../lib/http/api';
+import { handleGetLeaderboard, handlePostLeaderboard } from '../../../lib/engine/leaderboard';
 
 export async function GET(req: Request) {
-  return forwardToExpress(req, '/api/leaderboard');
+  return runApiHandler(req, handleGetLeaderboard);
 }
 
 export async function POST(req: Request) {
-  return forwardToExpress(req, '/api/leaderboard');
+  return runApiHandler(req, handlePostLeaderboard);
 }
-

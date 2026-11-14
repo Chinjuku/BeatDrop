@@ -9,6 +9,8 @@
     "build": "next build",
     "start": "next start",
     "typecheck": "tsc --noEmit",
+    "test": "node --import tsx/esm --test tests/*.test.ts && npm run -s test:verify",
+    "test:verify": "npm run -s test:pwa && npm run -s test:consent && npm run -s test:daily && npm run -s test:daily-client && npm run -s test:guesser && npm run -s test:share && npm run -s test:autocomplete && npm run -s test:audio-network && npm run -s test:data-saver && npm run -s test:low-power && npm run -s test:bluetooth && npm run -s test:proxy && npm run -s test:edge-proxy && npm run -s test:i18n",
     "test:pwa": "tsx scripts/verify-pwa.ts",
     "test:consent": "node --import tsx/esm scripts/verify-consent.ts",
     "test:daily": "node --import tsx/esm scripts/verify-daily-challenge.ts",
@@ -29,8 +31,6 @@
     "@tanstack/react-query": "^5.105.0",
     "@upstash/ratelimit": "^2.2.0",
     "@upstash/redis": "^1.40.0",
-    "cors": "^2.8.5",
-    "express": "^4.21.2",
     "lucide-react": "^1.16.0",
     "next": "^15.2.0",
     "next-intl": "^4.15.1",
@@ -38,8 +38,6 @@
     "react-dom": "^19.0.0"
   },
   "devDependencies": {
-    "@types/cors": "^2.8.17",
-    "@types/express": "^5.0.0",
     "@types/node": "^22.10.2",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",

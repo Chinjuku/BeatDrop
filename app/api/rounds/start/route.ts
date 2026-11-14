@@ -1,6 +1,6 @@
-import { forwardToExpress } from '../../../../lib/expressBridge';
+import { ROUND_LIMIT, runApiHandler } from '../../../../lib/http/api';
+import { handleStartRound } from '../../../../lib/engine/roundEngine';
 
 export async function POST(req: Request) {
-  return forwardToExpress(req, '/api/round/start');
+  return runApiHandler(req, handleStartRound, { limit: ROUND_LIMIT });
 }
-

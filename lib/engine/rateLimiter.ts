@@ -1,4 +1,3 @@
-import { Request, Response, NextFunction } from 'express';
 import { Ratelimit } from '@upstash/ratelimit';
 import { redis, isRedisConfigured } from '../redis';
 
@@ -12,14 +11,6 @@ export interface RateLimiterOptions {
   maxRequests: number;
   message?: string;
   prefix?: string;
-}
-
-function getClientIp(req: Request): string {
-  const forwarded = req.headers['x-forwarded-for'];
-  if (typeof forwarded === 'string') {
-    return forwarded.split(',')[0].trim();
-  }
-  return req.ip || req.socket?.remoteAddress || '127.0.0.1';
 }
 
 // Cleanup expired entries periodically to prevent memory leaks in local maps
@@ -103,69 +94,4 @@ export async function checkArtistSyncLimit(identifier: string) {
   });
 }
 
-export function createRateLimiter(options: RateLimiterOptions) {
-  const { maxRequests, message = 'Too many requests. Please slow down.' } = options;
-
-  return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-    // Admin bypass: requests with a valid x-admin-key bypass public rate limits
-    const configuredAdminKey = process.env.ADMIN_API_KEY;
-    if (configuredAdminKey) {
-      const providedKey = req.headers['x-admin-key'] || req.headers['authorization']?.replace(/^Bearer\s+/i, '');
-      if (providedKey === configuredAdminKey) {
-        return next();
-      }
-    }
-
-    const ip = getClientIp(req);
-    const result = await verifyRateLimit(ip, options);
-
-    res.setHeader('X-RateLimit-Limit', String(result.limit));
-    res.setHeader('X-RateLimit-Remaining', String(result.remaining));
-    res.setHeader('X-RateLimit-Reset', String(Math.ceil(result.resetAt / 1000)));
-
-    if (!result.success) {
-      const retryAfter = Math.max(1, Math.ceil((result.resetAt - Date.now()) / 1000));
-      res.setHeader('Retry-After', String(retryAfter));
-      res.status(429).json({
-        code: 429,
-        message,
-        retryAfter,
-      });
-      return;
-    }
-
-    next();
-  };
-}
-
-// 1. General API: 60 req/min per IP
-export const generalLimiter = createRateLimiter({
-  windowMs: 60 * 1000,
-  maxRequests: 60,
-  prefix: 'gen',
-  message: 'API rate limit exceeded. Please wait a moment.',
-});
-
-// 2. Round generation & songs: 40 req/min per IP
-export const roundLimiter = createRateLimiter({
-  windowMs: 60 * 1000,
-  maxRequests: 40,
-  prefix: 'round',
-  message: 'คุณเริ่มรอบเพลงถี่เกินไป กรุณารอสักครู่ (Round rate limit exceeded)',
-});
-
-// 3. Live iTunes discovery: 15 req/min per IP
-export const artistDiscoverLimiter = createRateLimiter({
-  windowMs: 60 * 1000,
-  maxRequests: 15,
-  prefix: 'discover',
-  message: 'ค้นหาศิลปินออนไลน์ถี่เกินไป กรุณารอ 1 นาที (iTunes discovery rate limit)',
-});
-
-// 4. Batch sync from iTunes: 5 req/min per IP
-export const artistSyncLimiter = createRateLimiter({
-  windowMs: 60 * 1000,
-  maxRequests: 5,
-  prefix: 'sync',
-  message: 'จำกัดการดึงเพลงเข้าคลังไม่เกิน 5 ครั้งต่อนาที เพื่อป้องกันการโดน Apple แบน',
-});
+// Per-route limits (general, round, discovery) live in lib/http/api.ts.

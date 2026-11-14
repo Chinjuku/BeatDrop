@@ -1,4 +1,4 @@
-import { Request, Response } from 'express';
+import type { ApiRequest, ApiResponse } from '../http/api';
 import crypto from 'node:crypto';
 import {
   CategoryType,
@@ -210,7 +210,7 @@ export function matchesArtistFilter(song: Song, artistName?: string): boolean {
   return checkArtistStrictMatch(song.artistName, artistName, undefined, undefined, song.title);
 }
 
-export async function handleStartRound(req: Request, res: Response): Promise<void> {
+export async function handleStartRound(req: ApiRequest, res: ApiResponse): Promise<void> {
   const category = ((req.query.category as CategoryType) || 'all') as CategoryType;
   const difficulty = ((req.query.difficulty as DifficultyLevel) || 'medium') as DifficultyLevel;
   const mode = ((req.query.mode as GameMode) || 'standard') as GameMode;
@@ -434,7 +434,7 @@ export async function handleStartRound(req: Request, res: Response): Promise<voi
   });
 }
 
-export async function handleAutocomplete(req: Request, res: Response): Promise<void> {
+export async function handleAutocomplete(req: ApiRequest, res: ApiResponse): Promise<void> {
   const q = ((req.query.q as string) || '').trim();
   const category = ((req.query.category as CategoryType) || 'all') as CategoryType;
   const artistFilter = ((req.query.artist as string) || '').trim();
@@ -546,7 +546,7 @@ export async function handleAutocomplete(req: Request, res: Response): Promise<v
   });
 }
 
-function dailySessionMatches(req: Request, active: ActiveRoundState): boolean {
+function dailySessionMatches(req: ApiRequest, active: ActiveRoundState): boolean {
   const basePlayerId = readDailyPlayerId(req as unknown as { headers?: Record<string, string | string[] | undefined> });
   if (!basePlayerId || !active.dailyPlayerId) return false;
   const scopedPlayerId = scopePlayerIdByDifficulty(basePlayerId, active.difficulty || 'easy');
@@ -559,8 +559,8 @@ function dailySessionMatches(req: Request, active: ActiveRoundState): boolean {
 }
 
 async function finalizeDailyAction(
-  req: Request,
-  res: Response,
+  req: ApiRequest,
+  res: ApiResponse,
   roundToken: string,
   active: ActiveRoundState,
   requestedOutcome: 'correct' | 'wrong' | 'skipped' | 'expired'
@@ -594,7 +594,7 @@ async function finalizeDailyAction(
 async function claimGuesserResult(
   roundId: string,
   requestedResult: 'correct' | 'wrong' | 'skipped',
-  res: Response
+  res: ApiResponse
 ): Promise<'correct' | 'wrong' | 'skipped' | null> {
   const claim = await dbService.claimGuesserRoundResult(roundId, requestedResult);
   if (claim.kind === 'unavailable') {
@@ -604,7 +604,7 @@ async function claimGuesserResult(
   return claim.result;
 }
 
-export async function handleGuess(req: Request, res: Response): Promise<void> {
+export async function handleGuess(req: ApiRequest, res: ApiResponse): Promise<void> {
   const parsed = parseGuessDTO(req.body);
   if (!parsed.ok) {
     res.status(400).json({ code: -1, message: parsed.error });
@@ -750,7 +750,7 @@ export async function handleGuess(req: Request, res: Response): Promise<void> {
   res.json({ code: 0, message: 'ok', data: payload });
 }
 
-export async function handleSkip(req: Request, res: Response): Promise<void> {
+export async function handleSkip(req: ApiRequest, res: ApiResponse): Promise<void> {
   const parsed = parseSkipDTO(req.body);
   if (!parsed.ok) {
     res.status(400).json({ code: -1, message: parsed.error });
@@ -853,7 +853,7 @@ export async function handleSkip(req: Request, res: Response): Promise<void> {
   res.json({ code: 0, message: 'ok', data: payload });
 }
 
-export async function handleExpireDailyRound(req: Request, res: Response): Promise<void> {
+export async function handleExpireDailyRound(req: ApiRequest, res: ApiResponse): Promise<void> {
   const roundToken = typeof req.body?.roundToken === 'string' ? req.body.roundToken : '';
   if (!roundToken || await isTokenConsumed(roundToken)) {
     res.status(409).json({ code: -409, message: 'Daily Challenge round has already ended.' });
