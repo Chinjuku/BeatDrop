@@ -77,17 +77,23 @@ CREATE INDEX IF NOT EXISTS idx_track_artists_artist_name ON public.track_artists
 
 
 -- ============================================================================
--- 4. Table: daily_challenges (Deterministic 5 songs per day per category)
+-- 4. Table: daily_challenges (5 songs per day per category per difficulty, immutable)
 -- ============================================================================
 CREATE TABLE IF NOT EXISTS public.daily_challenges (
   date_key DATE NOT NULL,
   category TEXT NOT NULL CHECK (category IN ('thai', 'international', 'all')),
+  difficulty TEXT NOT NULL DEFAULT 'easy'
+    CONSTRAINT chk_daily_challenge_difficulty
+    CHECK (difficulty IN ('easy', 'medium', 'hard', 'expert', 'impossible')),
   song_ids TEXT[] NOT NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 
-  PRIMARY KEY (date_key, category),
+  PRIMARY KEY (date_key, category, difficulty),
   CONSTRAINT chk_daily_five_songs CHECK (array_length(song_ids, 1) = 5)
 );
+
+CREATE INDEX IF NOT EXISTS idx_daily_challenges_archive
+  ON public.daily_challenges (category, difficulty, date_key DESC);
 
 -- ============================================================================
 -- 5. Table: leaderboard (Player Rankings for Standard & Daily Challenge)
@@ -241,6 +247,7 @@ BEGIN
             SELECT unnest(dc.song_ids)
             FROM public.daily_challenges dc
             WHERE dc.category = cat
+              AND dc.difficulty = 'easy'
               AND dc.date_key >= (target_date - INTERVAL '7 days')
           )
         ORDER BY s.artist_name, random()
@@ -261,9 +268,9 @@ BEGIN
     END IF;
 
     IF array_length(picked_ids, 1) = 5 THEN
-      INSERT INTO public.daily_challenges (date_key, category, song_ids)
-      VALUES (target_date, cat, picked_ids)
-      ON CONFLICT (date_key, category) DO NOTHING;
+      INSERT INTO public.daily_challenges (date_key, category, difficulty, song_ids)
+      VALUES (target_date, cat, 'easy', picked_ids)
+      ON CONFLICT (date_key, category, difficulty) DO NOTHING;
     END IF;
   END LOOP;
 END;

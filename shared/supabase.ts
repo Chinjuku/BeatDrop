@@ -1,4 +1,4 @@
-import type { Artist, ArtistSyncJob, CategoryType, DailyLeaderboardEntry, DailyRoundProgress, LeaderboardEntry, Song, TrackArtistCredit } from './types';
+import type { Artist, ArtistSyncJob, CategoryType, DailyLeaderboardEntry, DifficultyLevel, DailyRoundProgress, LeaderboardEntry, Song, TrackArtistCredit } from './types';
 
 export interface SupabaseSongRow {
   id: string;
@@ -137,6 +137,20 @@ export function rowToSong(r: SupabaseSongRow): Song {
     trackViewUrl: r.track_view_url || undefined,
     popularityScore: r.popularity_score ?? 50,
   };
+}
+
+/**
+ * PostgREST answers 400 (Postgres 42703, "column ... does not exist") while the
+ * daily_challenges.difficulty migration has not been applied yet.
+ */
+async function isMissingDifficultyColumn(res: Response): Promise<boolean> {
+  if (res.status !== 400) return false;
+  try {
+    const body = (await res.clone().json()) as { code?: string; message?: string };
+    return body.code === '42703' || /difficulty/i.test(body.message ?? '');
+  } catch {
+    return false;
+  }
 }
 
 export const supabaseAdmin = {
@@ -945,12 +959,15 @@ export const supabaseAdmin = {
 
     // 1. Check daily_challenges table
     const fetchRow = async () => {
-      const res = await supabaseFetch(
-        getRestUrl(
-          `daily_challenges?date_key=eq.${encodeURIComponent(dateKey)}&category=eq.${encodeURIComponent(category)}&limit=1`
-        ),
-        { headers: getSupabaseHeaders(), signal: challengeDeadline }
-      );
+      const base = `daily_challenges?date_key=eq.${encodeURIComponent(dateKey)}&category=eq.${encodeURIComponent(category)}&limit=1`;
+      let res = await supabaseFetch(getRestUrl(`${base}&difficulty=eq.easy`), {
+        headers: getSupabaseHeaders(),
+        signal: challengeDeadline,
+      });
+      if (await isMissingDifficultyColumn(res)) {
+        // Pre-migration database: every row is Easy.
+        res = await supabaseFetch(getRestUrl(base), { headers: getSupabaseHeaders(), signal: challengeDeadline });
+      }
       if (!res.ok) {
         console.warn('[Daily] Challenge lookup failed', { dateKey, category, status: res.status });
         return null;
@@ -989,16 +1006,23 @@ export const supabaseAdmin = {
         if (picked.length >= 5) break;
       }
       if (picked.length === 5) {
-        const insertResponse = await supabaseFetch(getRestUrl('daily_challenges?on_conflict=date_key,category'), {
-          method: 'POST',
-          headers: getSupabaseHeaders('resolution=ignore-duplicates,return=minimal'),
-          signal: challengeDeadline,
-          body: JSON.stringify({
-            date_key: dateKey,
-            category,
-            song_ids: picked.map((p) => p.id),
-          }),
-        });
+        const insertRow = (withDifficulty: boolean) =>
+          supabaseFetch(
+            getRestUrl(`daily_challenges?on_conflict=${withDifficulty ? 'date_key,category,difficulty' : 'date_key,category'}`),
+            {
+              method: 'POST',
+              headers: getSupabaseHeaders('resolution=ignore-duplicates,return=minimal'),
+              signal: challengeDeadline,
+              body: JSON.stringify({
+                date_key: dateKey,
+                category,
+                ...(withDifficulty ? { difficulty: 'easy' } : {}),
+                song_ids: picked.map((p) => p.id),
+              }),
+            }
+          );
+        let insertResponse = await insertRow(true);
+        if (await isMissingDifficultyColumn(insertResponse)) insertResponse = await insertRow(false);
         if (!insertResponse.ok) {
           console.warn('[Daily] Challenge persistence failed', { dateKey, category, status: insertResponse.status });
         }
@@ -1028,6 +1052,113 @@ export const supabaseAdmin = {
     // Historical sequences are immutable. Missing catalog rows make the challenge
     // unavailable rather than silently changing the rules for that date.
     return existingSongs.length === 5 ? existingSongs : [];
+  },
+
+  /**
+   * Medium and harder: persist the deterministic sequence the first time a date is played,
+   * then always return the stored winner. Returns [] when the database predates the
+   * `difficulty` column (callers then fall back to the computed sequence, as before).
+   */
+  async getOrCreateDailyChallengeIdsForDifficulty(
+    dateKey: string,
+    category: CategoryType,
+    difficulty: DifficultyLevel,
+    candidateIds: string[]
+  ): Promise<string[]> {
+    if (!isSupabaseConfigured() || candidateIds.length !== 5) return [];
+    const signal = AbortSignal.timeout(8_000);
+    const insert = await supabaseFetch(getRestUrl('daily_challenges?on_conflict=date_key,category,difficulty'), {
+      method: 'POST',
+      headers: getSupabaseHeaders('resolution=ignore-duplicates,return=minimal'),
+      signal,
+      body: JSON.stringify({ date_key: dateKey, category, difficulty, song_ids: candidateIds }),
+    });
+    if (await isMissingDifficultyColumn(insert)) return [];
+    if (!insert.ok) {
+      console.warn('[Daily] Difficulty challenge persistence failed', { dateKey, category, difficulty, status: insert.status });
+    }
+    return (await this.getStoredDailyChallengeIds(dateKey, category, difficulty, signal)) ?? [];
+  },
+
+  /** Read-only: the stored 5 song ids for a date, or null when none were saved. */
+  async getStoredDailyChallengeIds(
+    dateKey: string,
+    category: CategoryType,
+    difficulty: DifficultyLevel,
+    signal: AbortSignal = AbortSignal.timeout(8_000)
+  ): Promise<string[] | null> {
+    if (!isSupabaseConfigured()) return null;
+    const base = `daily_challenges?select=song_ids&date_key=eq.${encodeURIComponent(dateKey)}&category=eq.${encodeURIComponent(category)}&limit=1`;
+    let res = await supabaseFetch(getRestUrl(`${base}&difficulty=eq.${encodeURIComponent(difficulty)}`), {
+      headers: getSupabaseHeaders(),
+      signal,
+    });
+    if (await isMissingDifficultyColumn(res)) {
+      if (difficulty !== 'easy') return null;
+      res = await supabaseFetch(getRestUrl(base), { headers: getSupabaseHeaders(), signal });
+    }
+    if (!res.ok) return null;
+    const rows = (await res.json()) as Array<{ song_ids: string[] }>;
+    const ids = rows[0]?.song_ids;
+    return Array.isArray(ids) && ids.length === 5 ? ids.map(String) : null;
+  },
+
+  /** Read-only: stored challenge dates before `beforeDateKey`, newest first. */
+  async listDailyChallengeDates(
+    category: CategoryType,
+    difficulty: DifficultyLevel,
+    beforeDateKey: string,
+    limit: number
+  ): Promise<string[]> {
+    if (!isSupabaseConfigured()) return [];
+    const signal = AbortSignal.timeout(8_000);
+    const base = `daily_challenges?select=date_key&category=eq.${encodeURIComponent(category)}&date_key=lt.${encodeURIComponent(beforeDateKey)}&order=date_key.desc&limit=${limit}`;
+    let res = await supabaseFetch(getRestUrl(`${base}&difficulty=eq.${encodeURIComponent(difficulty)}`), {
+      headers: getSupabaseHeaders(),
+      signal,
+    });
+    if (await isMissingDifficultyColumn(res)) {
+      if (difficulty !== 'easy') return [];
+      res = await supabaseFetch(getRestUrl(base), { headers: getSupabaseHeaders(), signal });
+    }
+    if (!res.ok) return [];
+    const rows = (await res.json()) as Array<{ date_key: string }>;
+    return rows.map((r) => String(r.date_key).slice(0, 10));
+  },
+
+  /** Songs by id, in the order given; missing ids are skipped. */
+  async getSongsByIds(ids: string[]): Promise<Song[]> {
+    if (!isSupabaseConfigured() || ids.length === 0) return [];
+    const idsParam = ids.map((id) => `"${id.replace(/"/g, '')}"`).join(',');
+    const res = await supabaseFetch(getRestUrl(`songs?id=in.(${idsParam})&select=*`), {
+      headers: getSupabaseHeaders(),
+      signal: AbortSignal.timeout(8_000),
+    });
+    if (!res.ok) return [];
+    const rows = (await res.json()) as SupabaseSongRow[];
+    return ids
+      .map((id) => rows.find((r) => r.id === id))
+      .filter((r): r is SupabaseSongRow => Boolean(r))
+      .map(rowToSong);
+  },
+
+  /** Read-only: a player's official Daily rounds on the given dates (for "played" marks). */
+  async getDailyProgressForDates(
+    playerId: string,
+    category: CategoryType,
+    dateKeys: string[]
+  ): Promise<Array<{ dateKey: string; status: string; score: number }>> {
+    if (!isSupabaseConfigured() || dateKeys.length === 0) return [];
+    const dates = dateKeys.map((d) => encodeURIComponent(d)).join(',');
+    const res = await supabaseFetch(
+      getRestUrl(
+        `daily_round_progress?select=date_key,status,score&player_id=eq.${encodeURIComponent(playerId)}&category=eq.${encodeURIComponent(category)}&date_key=in.(${dates})`
+      ),
+      { headers: getSupabaseHeaders(), signal: AbortSignal.timeout(8_000) }
+    );
+    if (!res.ok) return [];
+    const rows = (await res.json()) as Array<{ date_key: string; status: string; score: number }>;
+    return rows.map((r) => ({ dateKey: String(r.date_key).slice(0, 10), status: r.status, score: Number(r.score) || 0 }));
   },
 
   /**

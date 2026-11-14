@@ -28,5 +28,9 @@
   "room": {
     "title": "Live room — play with friends",
     "description": "Create a BeatDrop room, share the code, and race your friends to name the song."
+  },
+  "dailyArchive": {
+    "title": "Daily Challenge archive",
+    "description": "Replay past BeatDrop Daily Challenges at every difficulty, just for practice."
   }
 }
