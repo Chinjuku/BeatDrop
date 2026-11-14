@@ -70,6 +70,8 @@
     "replay": "เล่นคลิปอีกครั้ง",
     "enableSound": "แตะเพื่อเปิดเสียง",
     "timeLeft": "เหลือ {seconds} วิ",
+    "gotItMe": "คุณตอบถูก! +{points}",
+    "gotIt": "{name} ตอบถูก +{points}",
     "correct": "ถูกต้อง! +{points}",
     "wrong": "ยังไม่ใช่ เหลืออีก {left} ครั้ง",
     "out": "หมดสิทธิ์ทายเพลงนี้แล้ว",

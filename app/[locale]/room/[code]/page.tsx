@@ -18,6 +18,10 @@ import { Modal } from '../../../../components/Modal';
 import { PauseButton, PausedOverlay, PauseRequestDialog } from '../../../../components/room/PauseControls';
 import { useRoom, useServerNow } from '../../../../hooks/useRoom';
 import { useRoomAudio } from '../../../../hooks/useRoomAudio';
+import { useCorrectFeed } from '../../../../hooks/useCorrectFeed';
+import { CorrectToast } from '../../../../components/room/CorrectToast';
+import { CorrectBurst } from '../../../../components/room/CorrectBurst';
+import { playerColor } from '../../../../shared/roomColors';
 import { ROOM_LIMITS, type RoomPlayerView, type RoomView } from '../../../../shared/roomTypes';
 
 const secondsUntil = (target: number | undefined, now: number) =>
@@ -187,20 +191,32 @@ function JoinPanel({ code, room }: { code: string; room: RoomApi }) {
   );
 }
 
-function PlayerList({ players, showRound }: { players: RoomPlayerView[]; showRound?: boolean }) {
+const POP_MS = 1200;
+
+function PlayerList({ players, showRound, pops }: { players: RoomPlayerView[]; showRound?: boolean; pops?: Map<string, { points: number; at: number }> }) {
   const t = useTranslations('Room');
   return (
     <ol className="flex flex-col gap-1.5">
-      {players.map((p, idx) => (
+      {players.map((p, idx) => {
+        const color = playerColor(p.colorIndex, p.isMe);
+        const pop = pops?.get(p.id);
+        return (
         <li
           key={p.id}
-          className="flex items-center gap-3 rounded-xl border px-3 py-2"
+          className={`relative flex items-center gap-3 rounded-xl border px-3 py-2${pop ? ' bd-row-pop' : ''}`}
           style={{
             borderColor: p.isMe ? 'var(--song-accent)' : 'var(--song-border)',
             backgroundColor: 'var(--song-surface-soft)',
             opacity: p.left ? 0.5 : 1,
+            ['--pop-color' as string]: color,
           }}
         >
+          {pop && (
+            <span key={pop.at} aria-hidden="true" className="bd-float-points pointer-events-none absolute right-16 top-0 text-sm font-black" style={{ color }}>
+              +{pop.points}
+            </span>
+          )}
+          <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: color }} aria-hidden="true" />
           <span className="w-5 text-sm font-black tabular-nums" style={{ color: 'var(--song-muted)' }}>{idx + 1}</span>
           <span className="flex-1 min-w-0 truncate font-bold" style={{ color: 'var(--song-text)' }}>
             {p.name}
@@ -216,7 +232,8 @@ function PlayerList({ players, showRound }: { players: RoomPlayerView[]; showRou
           {!showRound && p.done && <Check className="w-4 h-4 shrink-0" style={{ color: '#22c55e' }} aria-hidden="true" />}
           <span className="w-14 text-right font-black tabular-nums" style={{ color: 'var(--song-text)' }}>{p.score}</span>
         </li>
-      ))}
+        );
+      })}
     </ol>
   );
 }
@@ -301,12 +318,31 @@ function Round({
   // Inputs lock on a pause only: during a buzz hold (also `frozen`) the holder must still answer.
   const paused = Boolean(view.pause);
   const windowMs = view.settings.answerSeconds * 1000;
+  const feed = useCorrectFeed(view, now);
+  const colorIndexOf = (id: string) => view.players.find((p) => p.id === id)?.colorIndex ?? 0;
+  const isBuzzer = view.settings.mode === 'buzzer';
+  // Row pop (everyone-answers mode): derived from the feed, no extra timers.
+  const pops = new Map<string, { points: number; at: number }>();
+  if (!isBuzzer) for (const e of feed) if (now - e.at < POP_MS) pops.set(e.playerId, { points: e.points, at: e.at });
   const remaining = view.endsAt !== undefined ? Math.max(0, view.endsAt - now) : 0;
 
   return (
     <>
       <RoomCard className="relative flex flex-col gap-4">
         {view.pause && <PausedOverlay pause={view.pause} now={now} isHost={view.me.isHost} busy={room.busy} onPause={room.pause} />}
+        {isBuzzer ? (
+          <CorrectBurst entries={feed} meId={view.me.id} colorIndexOf={colorIndexOf} />
+        ) : (
+          <CorrectToast entries={feed} meId={view.me.id} colorIndexOf={colorIndexOf} />
+        )}
+        {/* One polite live region announces each new correct answer once. */}
+        <div className="sr-only" aria-live="polite" aria-relevant="additions">
+          {feed.map((e) => (
+            <p key={`${e.playerId}:${e.at}`}>
+              {e.playerId === view.me.id ? t('game.gotItMe', { points: e.points }) : t('game.gotIt', { name: e.name, points: e.points })}
+            </p>
+          ))}
+        </div>
         {/* The overlay blocks what is behind it: no focus, clicks or typing while paused. */}
         <div className="flex flex-col gap-4" inert={paused}>
           <div className="flex items-center justify-between gap-3">
@@ -412,7 +448,7 @@ function Round({
             <span className="text-xs font-bold tabular-nums" style={{ color: 'var(--song-muted)' }}>{t('game.done', { done: doneCount, total: active.length })}</span>
           )}
         </div>
-        <PlayerList players={view.players} showRound={view.phase === 'reveal'} />
+        <PlayerList players={view.players} showRound={view.phase === 'reveal'} pops={pops} />
         <div className="mt-3 flex justify-center">
           <SecondaryButton onClick={onLeave}>
             <span className="flex items-center gap-2"><LogOut className="w-4 h-4" aria-hidden="true" /> {t('lobby.leave')}</span>

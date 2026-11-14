@@ -4,10 +4,10 @@
  * Each correct answer is announced once per round; entries older than STALE_MS (seen late, e.g.
  * after a refresh or a slow poll) are marked seen but never announced.
  */
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { RoomView } from '../shared/roomTypes';
 
-type CorrectEntry = RoomView['correct'][number];
+export type CorrectEntry = RoomView['correct'][number];
 
 const STALE_MS = 3000;
 
@@ -47,4 +47,41 @@ export function useCorrectFeed(view: RoomView | null, now: number): CorrectEntry
   }, [roundIndex, correct, now]);
 
   return queue;
+}
+
+export const correctEntryKey = (e: CorrectEntry) => `${e.playerId}:${e.at}`;
+
+/**
+ * Shows `entries` one at a time, each for `durationMs`, queueing the rest. Every entry is shown at
+ * most once (even after the feed drops it). Timers are cleared on unmount.
+ */
+export function useShownEntry(entries: CorrectEntry[], durationMs: number): CorrectEntry | null {
+  const seenRef = useRef(new Set<string>());
+  const pendingRef = useRef<CorrectEntry[]>([]);
+  const [current, setCurrent] = useState<CorrectEntry | null>(null);
+  const currentRef = useRef<CorrectEntry | null>(null);
+
+  const advance = useCallback(() => {
+    const next = pendingRef.current.shift() ?? null;
+    currentRef.current = next;
+    setCurrent(next);
+  }, []);
+
+  useEffect(() => {
+    for (const e of entries) {
+      const key = correctEntryKey(e);
+      if (seenRef.current.has(key)) continue;
+      seenRef.current.add(key);
+      pendingRef.current.push(e);
+    }
+    if (!currentRef.current && pendingRef.current.length > 0) advance();
+  }, [entries, advance]);
+
+  useEffect(() => {
+    if (!current) return;
+    const id = window.setTimeout(advance, durationMs);
+    return () => window.clearTimeout(id);
+  }, [current, durationMs, advance]);
+
+  return current;
 }
