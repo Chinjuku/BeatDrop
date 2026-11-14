@@ -1,5 +1,5 @@
 'use client';
-import React, { useId, useState } from 'react';
+import React, { useId, useRef, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { ROOM_LIMITS } from '../../shared/roomTypes';
 import { normalizeClipInput } from '../../shared/roomForm';
@@ -17,13 +17,18 @@ export function ClipLengthPicker({ value, onChange }: { value: number; onChange:
   const isPreset = presets.includes(value);
   const [customMode, setCustomMode] = useState(!isPreset);
   const [draft, setDraft] = useState<string | null>(null); // text while typing; null = show `value`
+  const groupRef = useRef<HTMLDivElement>(null);
   const custom = customMode || !isPreset;
 
-  const commit = (raw: string) => {
+  const commit = (raw: string): boolean => {
     const next = normalizeClipInput(raw, value);
     setDraft(null);
     onChange(next);
-    if (presets.includes(next)) setCustomMode(false);
+    if (presets.includes(next)) {
+      setCustomMode(false);
+      return true;
+    }
+    return false;
   };
 
   const chip = (active: boolean): React.CSSProperties =>
@@ -33,7 +38,7 @@ export function ClipLengthPicker({ value, onChange }: { value: number; onChange:
 
   return (
     <div>
-      <div role="radiogroup" aria-label={t('create.clip')}>
+      <div ref={groupRef} role="radiogroup" aria-label={t('create.clip')}>
         <FieldLabel>{t('create.clip')}</FieldLabel>
         <div className="flex flex-wrap gap-2">
           {presets.map((s) => (
@@ -87,7 +92,12 @@ export function ClipLengthPicker({ value, onChange }: { value: number; onChange:
             onKeyDown={(e) => {
               if (e.key === 'Enter') {
                 e.preventDefault();
-                commit(e.currentTarget.value);
+                const matched = commit(e.currentTarget.value);
+                // The input unmounts when the value is a preset: hand focus to that chip.
+                if (matched) {
+                  const idx = presets.indexOf(normalizeClipInput(e.currentTarget.value, value));
+                  requestAnimationFrame(() => groupRef.current?.querySelectorAll<HTMLButtonElement>('button')[idx]?.focus());
+                }
               }
             }}
             className={`${textInputClass} max-w-[7rem]`}

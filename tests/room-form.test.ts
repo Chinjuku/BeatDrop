@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { filterArtistNames, normalizeClipInput } from '../shared/roomForm';
+import { clampActiveIndex, filterArtistNames, normalizeClipInput } from '../shared/roomForm';
 
 describe('normalizeClipInput', () => {
   it('rounds to 0.1 and clamps to the snippet bounds', () => {
@@ -26,5 +26,14 @@ describe('filterArtistNames', () => {
     assert.deepEqual(filterArtistNames([...names, 'Taylor Swift'], 'tay', 10), ['Taylor Swift', 'taylor Daye']);
     assert.deepEqual(filterArtistNames(names, 'slam', 10), ['Bodyslam']);
     assert.deepEqual(filterArtistNames(names, 'zzz', 10), []);
+  });
+});
+
+describe('clampActiveIndex', () => {
+  it('stays in range', () => {
+    assert.equal(clampActiveIndex(1, 1), 0);
+    assert.equal(clampActiveIndex(5, 3), 2);
+    assert.equal(clampActiveIndex(-1, 3), 0);
+    assert.equal(clampActiveIndex(1, 0), 0);
   });
 });

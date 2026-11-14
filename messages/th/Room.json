@@ -25,12 +25,13 @@
     "artist": "ศิลปิน",
     "artistAny": "ศิลปินใดก็ได้",
     "artistHint": "ค้นหาจากรายชื่อในระบบ หรือเลือกศิลปินใดก็ได้",
-    "artistLoading": "กำลังโหลดรายชื่อศิลปิน…",
     "artistNone": "ไม่พบศิลปินที่ตรงกัน",
     "clipCustom": "กำหนดเอง",
     "clipCustomLabel": "ความยาวคลิปที่กำหนดเอง (วินาที)",
     "secondsUnit": "วินาที",
-    "clipRange": "{min}–{max} วินาที"
+    "clipRange": "{min}–{max} วินาที",
+    "artistSelected": "ที่เลือก: {name}",
+    "artistEmpty": "ยังไม่มีรายชื่อศิลปิน — จะสุ่มจากศิลปินใดก็ได้"
   },
   "join": {
     "heading": "เข้าห้อง",

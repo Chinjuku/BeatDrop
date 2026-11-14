@@ -24,3 +24,9 @@ export function filterArtistNames(names: readonly string[], query: string, limit
   }
   return [...prefix, ...contains].slice(0, limit);
 }
+
+/** Keeps a listbox highlight index inside [0, count - 1]; 0 when the list is empty. */
+export function clampActiveIndex(index: number, count: number): number {
+  if (count <= 0) return 0;
+  return Math.min(Math.max(index, 0), count - 1);
+}

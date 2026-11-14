@@ -1,9 +1,9 @@
 'use client';
-import React, { useId, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { Check, ChevronDown } from 'lucide-react';
 import { useGame } from '../../context/GameContext';
-import { filterArtistNames } from '../../shared/roomForm';
+import { clampActiveIndex, filterArtistNames } from '../../shared/roomForm';
 import { FieldLabel, textInputClass, textInputStyle } from './RoomControls';
 
 const MAX_OPTIONS = 40;
@@ -25,6 +25,13 @@ export function RoomArtistPicker({ value, onChange }: { value?: string; onChange
   const matches = useMemo(() => filterArtistNames(names, query, MAX_OPTIONS), [names, query]);
   // Option 0 = any artist, then the matches.
   const options: Array<string | undefined> = [undefined, ...matches];
+  const activeIndex = clampActiveIndex(active, options.length);
+
+  // Keep the highlighted option visible in the scrollable list.
+  useEffect(() => {
+    if (open) document.getElementById(optionId(activeIndex))?.scrollIntoView({ block: 'nearest' });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, activeIndex]);
 
   const choose = (name?: string) => {
     onChange(name);
@@ -38,14 +45,14 @@ export function RoomArtistPicker({ value, onChange }: { value?: string; onChange
       if (!open) {
         setOpen(true);
         setActive(0);
-      } else setActive((i) => Math.min(i + 1, options.length - 1));
+      } else setActive(Math.min(activeIndex + 1, options.length - 1));
     } else if (e.key === 'ArrowUp') {
       e.preventDefault();
-      if (open) setActive((i) => Math.max(i - 1, 0));
+      if (open) setActive(Math.max(activeIndex - 1, 0));
     } else if (e.key === 'Enter') {
       if (open) {
         e.preventDefault(); // never submit the create form from the combobox
-        choose(options[active]);
+        if (activeIndex < options.length) choose(options[activeIndex]);
       }
     } else if (e.key === 'Escape') {
       if (open) {
@@ -67,14 +74,14 @@ export function RoomArtistPicker({ value, onChange }: { value?: string; onChange
           aria-expanded={open}
           aria-controls={listId}
           aria-autocomplete="list"
-          aria-activedescendant={open ? optionId(active) : undefined}
+          aria-activedescendant={open ? optionId(activeIndex) : undefined}
           autoComplete="off"
           spellCheck={false}
           value={open ? query : value ?? ''}
           placeholder={t('create.artistAny')}
           onChange={(e) => {
             setQuery(e.target.value);
-            setActive(1);
+            setActive(1); // first real match; clamped when there are none
             setOpen(true);
           }}
           onFocus={() => setOpen(true)}
@@ -92,6 +99,11 @@ export function RoomArtistPicker({ value, onChange }: { value?: string; onChange
           aria-hidden="true"
         />
       </div>
+      {open && value && (
+        <p className="mt-1 text-xs font-bold" style={{ color: 'var(--song-muted)' }}>
+          {t('create.artistSelected', { name: value })}
+        </p>
+      )}
       <ul
         id={listId}
         role="listbox"
@@ -116,7 +128,7 @@ export function RoomArtistPicker({ value, onChange }: { value?: string; onChange
               onMouseMove={() => setActive(i)}
               className="flex items-center gap-2 min-h-11 px-3.5 text-sm font-bold cursor-pointer"
               style={{
-                backgroundColor: i === active ? 'var(--song-surface-soft)' : 'transparent',
+                backgroundColor: i === activeIndex ? 'var(--song-surface-soft)' : 'transparent',
                 color: name === undefined ? 'var(--song-accent-text)' : 'var(--song-text)',
               }}
             >
@@ -127,7 +139,7 @@ export function RoomArtistPicker({ value, onChange }: { value?: string; onChange
         })}
         {matches.length === 0 && (
           <li role="presentation" className="px-3.5 py-2 text-sm font-semibold" style={{ color: 'var(--song-muted)' }}>
-            {artists.length === 0 ? t('create.artistLoading') : t('create.artistNone')}
+            {artists.length === 0 ? t('create.artistEmpty') : t('create.artistNone')}
           </li>
         )}
       </ul>

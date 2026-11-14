@@ -25,12 +25,13 @@
     "artist": "Artist",
     "artistAny": "Any artist",
     "artistHint": "Search the catalog, or leave on any artist.",
-    "artistLoading": "Loading artists…",
     "artistNone": "No matching artist",
     "clipCustom": "Custom",
     "clipCustomLabel": "Custom clip length in seconds",
     "secondsUnit": "seconds",
-    "clipRange": "{min}–{max} seconds"
+    "clipRange": "{min}–{max} seconds",
+    "artistSelected": "Selected: {name}",
+    "artistEmpty": "No artists available — any artist will be used"
   },
   "join": {
     "heading": "Join a room",
