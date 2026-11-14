@@ -351,7 +351,7 @@ export function buildView(room: RoomState, viewerId: string, now: number): RoomV
       : undefined;
 
   const players = room.players
-    .map((p) => {
+    .map((p, colorIndex) => {
       const answer = round?.answers[p.id];
       return {
         id: p.id,
@@ -360,6 +360,7 @@ export function buildView(room: RoomState, viewerId: string, now: number): RoomV
         isHost: p.id === room.hostId,
         isMe: p.id === viewerId,
         left: p.leftAt !== undefined,
+        colorIndex,
         done: round ? playerDone(room, round, p.id, now) : false,
         ...(showResults && round
           ? { roundPoints: answer?.points ?? 0, roundCorrect: answer?.correctAt !== undefined }
@@ -367,6 +368,18 @@ export function buildView(room: RoomState, viewerId: string, now: number): RoomV
       };
     })
     .sort((a, b) => b.score - a.score || Number(a.left) - Number(b.left));
+
+  const correct: RoomView['correct'] =
+    round && (pos.phase === 'guessing' || pos.phase === 'reveal')
+      ? room.players
+          .flatMap((p) => {
+            const a = round.answers[p.id];
+            return a?.correctAt !== undefined
+              ? [{ playerId: p.id, name: p.name, points: a.points, at: a.correctAt }]
+              : [];
+          })
+          .sort((a, b) => a.at - b.at)
+      : [];
 
   let buzz: RoomView['buzz'];
   if (room.settings.mode === 'buzzer' && round && pos.phase === 'guessing' && pos.playAt !== undefined) {
@@ -416,6 +429,7 @@ export function buildView(room: RoomState, viewerId: string, now: number): RoomV
     revealEndsAt: pos.revealEndsAt,
     audioUrl: inRound ? round?.audioUrl : undefined,
     players,
+    correct,
     me: {
       id: viewerId,
       isHost: viewerId === room.hostId,

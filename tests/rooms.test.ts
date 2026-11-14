@@ -114,6 +114,52 @@ describe('room timeline (pure)', () => {
   });
 });
 
+describe('correct-answer feed and colours', () => {
+  const C = ROOM_LIMITS.countdownMs;
+  const playAt = 1_000 + C;
+  const threeRoom = () =>
+    baseRoom({
+      players: [
+        { id: 'h', name: 'Host', joinedAt: 0, score: 0 },
+        { id: 'p', name: 'Pat', joinedAt: 0, score: 0 },
+        { id: 'q', name: 'Quinn', joinedAt: 0, score: 0 },
+      ],
+    });
+
+  it('correct lists who got it, never the song', () => {
+    const room = threeRoom();
+    assert.deepEqual(timeline.buildView(room, 'p', playAt + 500).correct, []);
+    timeline.applyAnswer(room, 'q', true, playAt + 3_000);
+    timeline.applyAnswer(room, 'h', true, playAt + 2_000);
+    const view = timeline.buildView(room, 'p', playAt + 3_500);
+    assert.deepEqual(view.correct.map((c) => [c.playerId, c.name, c.at]), [
+      ['h', 'Host', playAt + 2_000],
+      ['q', 'Quinn', playAt + 3_000],
+    ]);
+    assert.ok(view.correct.every((c) => c.points > 0));
+    assert.equal(view.reveal, undefined);
+    assert.equal(JSON.stringify(view).includes('Song 0'), false);
+    assert.deepEqual(timeline.buildView(room, 'p', 1_000 + 10).correct, [], 'empty during countdown');
+  });
+
+  it('colorIndex is stable when scores reorder players', () => {
+    const room = threeRoom();
+    timeline.applyAnswer(room, 'q', true, playAt + 1_000);
+    const view = timeline.buildView(room, 'h', playAt + 1_500);
+    assert.equal(view.players[0].id, 'q', 'leader sorted first');
+    const idx = Object.fromEntries(view.players.map((p) => [p.id, p.colorIndex]));
+    assert.deepEqual(idx, { h: 0, p: 1, q: 2 });
+  });
+
+  it('palette has 11 distinct non-viewer colours; viewer is the accent', async () => {
+    const { ROOM_PLAYER_COLORS, playerColor } = await import('../shared/roomColors');
+    assert.equal(ROOM_PLAYER_COLORS.length, 11);
+    assert.equal(new Set(ROOM_PLAYER_COLORS).size, 11);
+    assert.equal(playerColor(3, true), 'var(--song-accent)');
+    assert.equal(playerColor(13, false), ROOM_PLAYER_COLORS[2]);
+  });
+});
+
 describe('game clock', () => {
   const C = ROOM_LIMITS.countdownMs;
   const playAt = 1_000 + C;

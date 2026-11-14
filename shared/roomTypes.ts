@@ -72,6 +72,8 @@ export interface RoomPlayerView {
   isHost: boolean;
   isMe: boolean;
   left: boolean;
+  /** Index in join order; stable while scores reorder the list. Feeds `playerColor`. */
+  colorIndex: number;
   /** This round: has the player finished (correct or out of attempts)? */
   done: boolean;
   /** Points earned this round (only shown in reveal / finished). */
@@ -94,6 +96,8 @@ export interface RoomView {
   revealEndsAt?: number;
   audioUrl?: string;
   players: RoomPlayerView[];
+  /** Who has answered correctly this round (guessing/reveal), by time. Never carries the song. */
+  correct: { playerId: string; name: string; points: number; at: number }[];
   me: {
     id: string;
     isHost: boolean;
