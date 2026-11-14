@@ -96,11 +96,17 @@ export function buzzState(round: RoomRound, now: number) {
   return { holder, lockedOut, last };
 }
 
-/** Every interval the game clock stands still: stored pauses plus every buzz hold. */
+/**
+ * Every interval the game clock stands still: stored pauses plus every buzz hold. A hold is
+ * capped at the round's early end, so an open buzz (e.g. the holder left) cannot stretch the reveal.
+ */
 export function freezesOf(room: RoomState): Freeze[] {
   const freezes: Freeze[] = (room.pauses ?? []).map((p) => ({ from: p.from, until: p.until }));
   for (const round of room.rounds) {
-    for (const b of round.buzzes ?? []) freezes.push({ from: b.at, until: b.resolvedAt ?? b.deadline });
+    const roundOver = round.finishedAt ?? Infinity;
+    for (const b of round.buzzes ?? []) {
+      freezes.push({ from: b.at, until: Math.min(b.resolvedAt ?? b.deadline, roundOver) });
+    }
   }
   return freezes.sort((a, b) => a.from - b.from);
 }

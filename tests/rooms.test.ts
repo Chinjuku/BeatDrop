@@ -197,6 +197,64 @@ describe('game clock', () => {
     assert.equal(right.points, timeline.scoreForAnswer(7_000, 30));
   });
 
+  it('a buzz hold stops freezing the clock once the round has ended (holder leaves mid-hold)', () => {
+    const room = baseRoom({
+      settings: { ...DEFAULT_ROOM_SETTINGS, mode: 'buzzer', answerSeconds: ROOM_LIMITS.answerSeconds.buzzer },
+      players: [
+        { id: 'h', name: 'Host', joinedAt: 0, score: 0 },
+        { id: 'p', name: 'Pat', joinedAt: 0, score: 0 },
+        { id: 'q', name: 'Quinn', joinedAt: 0, score: 0 },
+      ],
+    });
+    timeline.applyBuzz(room, 'h', playAt + 100);
+    timeline.applyBuzzAnswer(room, 'h', false, playAt + 200);
+    timeline.applyBuzz(room, 'q', playAt + 300);
+    timeline.applyBuzzAnswer(room, 'q', false, playAt + 400);
+    assert.ok(timeline.applyBuzz(room, 'p', playAt + 1_000).ok);
+    // The holder leaves 1 s into the hold; the buzz stays open (as the leave handler does today).
+    const leaveAt = playAt + 2_000;
+    room.players.find((pl) => pl.id === 'p')!.leftAt = leaveAt;
+    timeline.closeRoundIfEveryoneDone(room, 0, leaveAt);
+    assert.equal(room.rounds[0].finishedAt, leaveAt);
+    const pos = timeline.locate(room, leaveAt + 1);
+    assert.equal(pos.phase, 'reveal');
+    assert.equal(pos.endsAt, leaveAt);
+    assert.equal(pos.revealEndsAt! - pos.endsAt!, ROOM_LIMITS.revealMs, 'reveal is not stretched by the open hold');
+    assert.equal(timeline.buildView(room, 'h', leaveAt + 1_000).frozen, false);
+  });
+
+  it('a pause during the countdown shifts playAt by the pause length', () => {
+    const room = baseRoom();
+    const before = timeline.locate(room, 1_000);
+    room.pauses = [{ from: 2_000, until: 4_000, byId: 'h' }];
+    const after = timeline.locate(room, 2_500);
+    assert.equal(after.phase, 'countdown');
+    assert.equal(after.playAt, before.playAt! + 2_000);
+    assert.equal(after.endsAt, before.endsAt! + 2_000);
+  });
+
+  it('a pause during the reveal shifts revealEndsAt only', () => {
+    const room = baseRoom();
+    const before = timeline.locate(room, playAt);
+    room.pauses = [{ from: before.endsAt! + 1_000, until: before.endsAt! + 4_000, byId: 'h' }];
+    const after = timeline.locate(room, before.endsAt! + 2_000);
+    assert.equal(after.phase, 'reveal');
+    assert.equal(after.endsAt, before.endsAt);
+    assert.equal(after.revealEndsAt, before.revealEndsAt! + 3_000);
+    assert.equal(timeline.buildView(room, 'p', before.endsAt! + 2_000).frozen, true);
+  });
+
+  it('audio cue after two freezes in one round', () => {
+    const room = baseRoom({ settings: { ...DEFAULT_ROOM_SETTINGS, clipSeconds: 10 } });
+    room.pauses = [
+      { from: playAt + 2_000, until: playAt + 4_000, byId: 'h' },
+      { from: playAt + 6_000, until: playAt + 9_000, byId: 'h' },
+    ];
+    assert.deepEqual(timeline.buildView(room, 'p', playAt + 5_000).audioCue, { at: playAt + 4_000, fromSeconds: 2 });
+    assert.equal(timeline.buildView(room, 'p', playAt + 7_000).audioCue, undefined);
+    assert.deepEqual(timeline.buildView(room, 'p', playAt + 10_000).audioCue, { at: playAt + 9_000, fromSeconds: 4 });
+  });
+
   it('room without pauses field still locates', () => {
     const r = baseRoom();
     delete (r as Partial<RoomState>).pauses;
