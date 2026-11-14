@@ -48,3 +48,6 @@ Thumbs.db
 *.sw?
 
 .vercel
+
+# brainstorming mockups
+.superpowers/
