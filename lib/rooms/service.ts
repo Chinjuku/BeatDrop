@@ -13,7 +13,7 @@ import {
   type RoomMode,
   type RoomSettings,
 } from '../../shared/roomTypes';
-import { songPool } from '../engine/songPool';
+import { loadArtistSongsFromCloud, songPool } from '../engine/songPool';
 import { getValidLibraryPool, matchesArtistFilter, sliceByDifficulty } from '../engine/roundEngine';
 import { normalizeText } from '../engine/artists';
 import { isJunkTrack } from '../itunes';
@@ -273,6 +273,7 @@ export async function handleStartRoom(req: ApiRequest, res: ApiResponse): Promis
     return;
   }
   // Pick songs outside the locked update; the catalog lookup is the slow part.
+  if (current.settings.artistName) await loadArtistSongsFromCloud(current.settings.artistName);
   const songs = pickRoomSongs(current.settings, current.settings.rounds);
   if (songs.length === 0) {
     res.status(404).json({ code: -404, message: 'No songs match these room settings' });
