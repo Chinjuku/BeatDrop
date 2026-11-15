@@ -217,6 +217,18 @@ export function isJunkTrack(title?: string, albumName?: string, artistName?: str
   return JUNK_TERMS_REGEX.test(t) || JUNK_TERMS_REGEX.test(a) || JUNK_TERMS_REGEX.test(art);
 }
 
+// A word right before the target name that makes the credit a different act or a phrase:
+// "KHUNPOL OF BUS" / "Jennie from BLACKPINK" are members, "Wheels on the Bus" is a title.
+const SUFFIX_CONNECTOR_WORDS = new Set(['of', 'from', 'on', 'in', 'at', 'by', 'to', 'for', 'my', 'your', 'our']);
+
+function isSuffixOfAnotherName(actual: string, target: string): boolean {
+  const head = actual.slice(0, actual.length - target.length).trim().split(' ');
+  const last = head[head.length - 1];
+  if (SUFFIX_CONNECTOR_WORDS.has(last)) return true;
+  // "<words> the <target>" is a phrase; a lone leading "The" ("The Weeknd") is still the act.
+  return last === 'the' && head.length >= 2;
+}
+
 export function checkArtistStrictMatch(
   trackArtist: string,
   targetArtist: string,
@@ -237,7 +249,9 @@ export function checkArtistStrictMatch(
   for (const target of targetTokens) {
     if (actual === target) return true;
 
-    if (actual.startsWith(target + ' ') || actual.endsWith(' ' + target)) {
+    const isPrefix = actual.startsWith(target + ' ');
+    const isSuffix = actual.endsWith(' ' + target) && !isSuffixOfAnotherName(actual, target);
+    if (isPrefix || isSuffix) {
       // Reject imposter patterns e.g. "Illslick Music", "Taylor Swift Songs", "Taylor Swift Tribute Band"
       let imposter = imposterRegexCache.get(target);
       if (!imposter) {

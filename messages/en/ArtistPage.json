@@ -1,0 +1,47 @@
+{
+  "back": "All artists",
+  "category": {
+    "thai": "Thai",
+    "international": "International"
+  },
+  "songCount": "{count, plural, one {# song} other {# songs}}",
+  "startQuiz": "Start quiz",
+  "shuffle": "Shuffle play",
+  "tabsLabel": "Sort this artist's songs",
+  "tabs": {
+    "popular": "Popular",
+    "latest": "Latest",
+    "albums": "Albums",
+    "collabs": "Collaborations"
+  },
+  "row": {
+    "play": "Play preview of {title}",
+    "pause": "Pause {title}",
+    "unavailable": "Preview unavailable"
+  },
+  "album": {
+    "unknown": "Other releases"
+  },
+  "player": {
+    "region": "Song preview player",
+    "play": "Resume",
+    "pause": "Pause",
+    "next": "Next song",
+    "close": "Close player",
+    "loading": "Loading…",
+    "shuffleOn": "Shuffle"
+  },
+  "loading": "Loading songs…",
+  "error": {
+    "title": "Couldn't load this artist's songs",
+    "retry": "Try again"
+  },
+  "notFound": {
+    "title": "Artist not found",
+    "body": "The link may be wrong, or the artist was removed from the library."
+  },
+  "empty": {
+    "title": "No playable previews yet",
+    "body": "Start a quiz to fetch this artist's songs from iTunes, or go back and pick another artist."
+  }
+}
