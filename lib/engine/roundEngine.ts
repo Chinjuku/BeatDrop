@@ -18,10 +18,9 @@ import { signRoundToken, verifyRoundToken } from '../token';
 import { parseGuessDTO, parseSkipDTO } from '../../shared/validation';
 import { dbService } from '../db';
 import { checkArtistStrictMatch, isJunkTrack } from '../itunes';
-import { songPool, ingestArtistSongs, fetchItunesSongs } from './songPool';
+import { songPool, ingestArtistSongs, fetchItunesSongs, loadArtistSongsFromCloud } from './songPool';
 import { buildCanonicalArtistId, getAllArtists, normalizeText } from './artists';
 import { redis, isRedisConfigured } from '../redis';
-import { isSupabaseConfigured, supabaseAdmin } from '../supabase';
 import { readDailyPlayerId } from './dailySession';
 import { finalizeDailyRound, isDailyRoundExpired } from './dailyScoring';
 import { scopePlayerIdByDifficulty } from './dailyEngine';
@@ -241,23 +240,12 @@ export async function handleStartRound(req: ApiRequest, res: ApiResponse): Promi
   const roundStages = customStagesParam || (req.query.difficulty ? preset.stages : DEFAULT_TIME_STAGES);
 
   if (artistFilter && artistFilter !== 'any') {
-    let existingForArtist = Array.from(songPool.values()).filter((s) =>
+    // 1. Merge the artist's cloud catalog even when a few of their songs are already loaded:
+    //    the bundled seed may only hold their collaborations.
+    await loadArtistSongsFromCloud(artistFilter);
+    const existingForArtist = Array.from(songPool.values()).filter((s) =>
       matchesArtistFilter(s, artistFilter)
     );
-    // 1. Try preloading from Supabase if songs already exist in Cloud DB
-    if (existingForArtist.length === 0 && isSupabaseConfigured()) {
-      try {
-        const supaSongs = await supabaseAdmin.findSongsByArtist(artistFilter, 200);
-        for (const s of supaSongs) {
-          songPool.set(s.id, s);
-        }
-        existingForArtist = Array.from(songPool.values()).filter((s) =>
-          matchesArtistFilter(s, artistFilter)
-        );
-      } catch (err) {
-        console.warn('[RoundEngine] Supabase song lookup failed:', err);
-      }
-    }
     // 2. Cache-first: only query external iTunes if zero songs exist in memory/DB
     if (existingForArtist.length === 0) {
       const knownArtist = getAllArtists(songPool).find((a) =>
@@ -484,6 +472,7 @@ export async function handleAutocomplete(req: ApiRequest, res: ApiResponse): Pro
   const limit = Math.min(60, Math.max(1, parseInt((req.query.limit as string) || '10', 10)));
 
   if (artistFilter && artistFilter !== 'any') {
+    await loadArtistSongsFromCloud(artistFilter);
     const existing = Array.from(songPool.values()).filter((s) => matchesArtistFilter(s, artistFilter));
     // Cache-first: do not hit iTunes during autocomplete if songs already exist in library
     if (existing.length === 0) {
