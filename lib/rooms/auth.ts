@@ -45,3 +45,36 @@ export function normalizeRoomCode(raw: unknown): string | null {
   const code = raw.trim().toUpperCase();
   return /^[A-HJ-NP-Z2-9]{5}$/.test(code) ? code : null;
 }
+
+/**
+ * Opaque key for one round's clip. Covers the room's game (createdAt + startedAt, so a rematch
+ * under the same code gets new URLs) and the round index. It says nothing about the song.
+ */
+export function signRoundAudio(code: string, createdAt: number, startedAt: number, roundIndex: number): string {
+  return crypto
+    .createHmac('sha256', secret())
+    .update(`audio:${code}:${createdAt}:${startedAt}:${roundIndex}`)
+    .digest('base64url')
+    .slice(0, 22);
+}
+
+export function verifyRoundAudio(
+  code: string,
+  createdAt: number,
+  startedAt: number,
+  roundIndex: number,
+  key: string
+): boolean {
+  const expected = Buffer.from(signRoundAudio(code, createdAt, startedAt, roundIndex));
+  const actual = Buffer.from(key);
+  return expected.length === actual.length && crypto.timingSafeEqual(expected, actual);
+}
+
+/** Same-origin path the room view hands out instead of the raw preview URL. */
+export function roomAudioPath(
+  room: { code: string; createdAt: number; startedAt?: number },
+  roundIndex: number
+): string {
+  const key = signRoundAudio(room.code, room.createdAt, room.startedAt ?? 0, roundIndex);
+  return `/api/rooms/${room.code}/audio?round=${roundIndex}&k=${key}`;
+}

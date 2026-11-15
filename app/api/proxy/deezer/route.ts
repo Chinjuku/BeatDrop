@@ -1,19 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { isDeezerPreviewUrl } from '../../../../lib/audioProxyUtils';
-import { createDeezerPreviewResolver } from '../../../../lib/engine/deezerPreview';
-import { ensureCatalogLoaded, songPool } from '../../../../lib/engine/songPool';
+import { ensureCatalogLoaded } from '../../../../lib/engine/songPool';
 import { verifyRateLimit } from '../../../../lib/engine/rateLimiter';
-import { supabaseAdmin } from '../../../../lib/supabase';
+import { deezerPreviewResolver as resolver } from '../../../../lib/engine/previewStream';
 
 // Node runtime: needs the in-memory catalog (SQLite) to map a stored link back to its track.
 export const runtime = 'nodejs';
-
-const resolver = createDeezerPreviewResolver({
-  getLocalSongs: () => songPool.values(),
-  findRemoteSongId: (fileKey) => supabaseAdmin.findDeezerSongIdByPreviewKey(fileKey),
-  fetch: (input, init) => fetch(input, init),
-  now: () => Date.now(),
-});
 
 const DEEZER_PROXY_LIMIT = { windowMs: 60_000, maxRequests: 120, prefix: 'rl_deezer_audio' };
 

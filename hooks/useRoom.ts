@@ -5,7 +5,7 @@
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { PauseAction, RoomSettings, RoomView } from '../shared/roomTypes';
-import type { Song } from '../shared/types';
+import type { SongSuggestion } from '../shared/types';
 
 export interface RoomPreview {
   code: string;
@@ -210,7 +210,7 @@ export function useRoom(code: string) {
   const start = useCallback(() => runAction('/start'), [runAction]);
 
   const answer = useCallback(
-    async (song: Song) => {
+    async (song: SongSuggestion) => {
       const { ok, json } = await runAction('/answer', {
         candidateTrackId: song.id,
         candidateTitle: song.title,

@@ -11,6 +11,7 @@
  * rounds that were already played never move.
  */
 import { activeElapsed, frozenAt, wallAfter, type Freeze } from './clock';
+import { roomAudioPath } from './auth';
 import {
   ROOM_LIMITS,
   type RoomPhase,
@@ -46,6 +47,7 @@ export interface RoomBuzz {
 
 export interface RoomRound {
   songId: string;
+  /** Upstream preview URL. Server-only: clients get an opaque path from `roomAudioPath`. */
   audioUrl: string;
   reveal: RoomRevealSong;
   answers: Record<string, RoomAnswer>;
@@ -402,7 +404,8 @@ export function buildView(room: RoomState, viewerId: string, now: number): RoomV
   const pauseEntry = inRound ? activePause(room, now) : undefined;
   const pause: RoomView['pause'] = pauseEntry
     ? {
-        byName: room.players.find((p) => p.id === pauseEntry.byId)?.name ?? '',
+        // An approved break is shown as the asking player's; a direct pause as the host's.
+        byName: room.players.find((p) => p.id === (pauseEntry.requestedById ?? pauseEntry.byId))?.name ?? '',
         until: pauseEntry.until,
         resumingAt: pauseEntry.until - ROOM_LIMITS.pauseResumeMs,
       }
@@ -429,7 +432,8 @@ export function buildView(room: RoomState, viewerId: string, now: number): RoomV
     playAt: pos.playAt,
     endsAt: pos.endsAt,
     revealEndsAt: pos.revealEndsAt,
-    audioUrl: inRound ? round?.audioUrl : undefined,
+    // Opaque and round-scoped: the preview URL itself would identify the song (see rooms/audio.ts).
+    audioUrl: inRound && round ? roomAudioPath(room, pos.roundIndex) : undefined,
     players,
     correct,
     me: {

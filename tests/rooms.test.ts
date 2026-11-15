@@ -180,7 +180,11 @@ describe('round timer', () => {
   it('holds steady while frozen and resumes counting after', async () => {
     const { roundRemainingMs, roundProgress } = await import('../shared/roomTimer');
     // endsAt already includes a planned 10 s hold ending at 20_000.
-    const v = { endsAt: 35_000, buzz: { holderId: 'p', deadline: 20_000 } };
+    const v = { endsAt: 35_000, frozen: true, buzz: { holderId: 'p', deadline: 20_000 } };
+    // A pre-upgrade room: the hold does not freeze the clock, so the timer keeps counting.
+    const legacy = { endsAt: 30_000, frozen: false, buzz: { holderId: 'p', deadline: 20_000 } };
+    assert.equal(roundRemainingMs(legacy, 15_000), 15_000);
+    assert.equal(roundRemainingMs(legacy, 18_000), 12_000);
     assert.equal(roundRemainingMs(v, 10_000), 15_000);
     assert.equal(roundRemainingMs(v, 15_000), 15_000);
     assert.equal(roundRemainingMs(v, 20_000), 15_000);
@@ -345,6 +349,26 @@ describe('game clock', () => {
     assert.ok(timeline.applyBuzz(room, 'p', playAt + 5_000).ok);
     assert.deepEqual(timeline.freezesOf(room), []);
     assert.equal(timeline.buildView(room, 'h', playAt + 6_000).frozen, false);
+  });
+
+  it('a pre-upgrade buzzer room cannot be paused, so its past buzzes never turn into freezes', () => {
+    const room = baseRoom({
+      settings: { ...DEFAULT_ROOM_SETTINGS, mode: 'buzzer', answerSeconds: ROOM_LIMITS.answerSeconds.buzzer },
+    });
+    delete (room as Partial<RoomState>).pauses;
+    assert.ok(timeline.applyBuzz(room, 'p', playAt + 5_000).ok);
+    assert.ok(timeline.applyBuzzAnswer(room, 'p', false, playAt + 6_000).ok);
+    const before = timeline.locate(room, playAt + 8_000);
+    assert.deepEqual(pauseRules.applyPauseAction(room, 'h', 'pause', playAt + 8_000), { ok: false, reason: 'wrong-phase' });
+    assert.deepEqual(pauseRules.applyPauseAction(room, 'p', 'request', playAt + 8_000), { ok: false, reason: 'wrong-phase' });
+    assert.equal(room.pauses, undefined);
+    assert.deepEqual(timeline.locate(room, playAt + 8_000), before);
+  });
+
+  it('a pre-upgrade everyone-answers room can still be paused', () => {
+    const room = baseRoom();
+    delete (room as Partial<RoomState>).pauses;
+    assert.deepEqual(pauseRules.applyPauseAction(room, 'h', 'pause', playAt + 2_000), { ok: true });
   });
 
   it('room without pauses field still locates', () => {
@@ -671,7 +695,7 @@ describe('pause', () => {
     assert.equal(room.pauses![0].until, T + 1_000 + P);
     assert.equal(room.pauses![0].requestedById, 'p');
     const v = timeline.buildView(room, 'p', T + 2_000);
-    assert.equal(v.pause?.byName, 'Host');
+    assert.equal(v.pause?.byName, 'Pat', 'an approved break names the player who asked for it');
     assert.equal(v.pause?.until, T + 1_000 + P);
     assert.equal(v.pause?.resumingAt, T + 1_000 + P - ROOM_LIMITS.pauseResumeMs);
     assert.equal(v.myPauseRequest, 'approved');

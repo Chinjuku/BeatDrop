@@ -10,6 +10,7 @@ import {
   Song,
 } from '../../shared/types';
 import { signRoundToken, getBangkokDateKey } from '../token';
+import { roundAudioPath } from './audioToken';
 import { isDbLocal, isSupabaseConfigured, supabaseAdmin } from '../supabase';
 import { songPool } from './songPool';
 import { activeRounds } from './roundEngine';
@@ -219,7 +220,7 @@ async function getOrStartRound(
   return {
     roundToken,
     roundKey: `rk_daily_${dateKey}_${category}_${difficulty}_${roundIndex}`,
-    audioUrl: activeTrack.previewUrl,
+    audioUrl: roundAudioPath(activeTrack.previewUrl),
     difficulty,
     stages,
     stage: 0,
@@ -305,7 +306,14 @@ export async function handleDaily(req: ApiRequest, res: ApiResponse): Promise<vo
     const rounds: RoundStartResponse[] = songs.map((track, roundIndex) => ({
       roundToken: roundIndex === summary.currentIndex ? currentRound?.roundToken || '' : '',
       roundKey: `rk_daily_${dateKey}_${category}_${difficulty}_${roundIndex}`,
-      audioUrl: track.previewUrl,
+      // Opaque, and only for rounds already reached: a future round's clip would let a player
+      // hear (and identify) the song before its timer starts.
+      audioUrl:
+        roundIndex === summary.currentIndex && currentRound
+          ? currentRound.audioUrl
+          : roundIndex < summary.currentIndex
+            ? roundAudioPath(track.previewUrl)
+            : '',
       difficulty,
       stages,
       stage: 0,
