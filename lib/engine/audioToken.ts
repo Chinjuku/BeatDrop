@@ -53,3 +53,10 @@ export function verifyAudioToken(token: string | null | undefined): string | nul
 export function roundAudioPath(sourceUrl: string, ttlMs = DEFAULT_TTL_MS): string {
   return `/api/round/audio?t=${signAudioToken(sourceUrl, ttlMs)}`;
 }
+
+/** Artist-page previews: short-lived, served by `/api/artists/preview` with its own rate limit. */
+const ARTIST_PREVIEW_TTL_MS = 2 * 60 * 60 * 1000;
+
+export function artistPreviewPath(sourceUrl: string): string {
+  return `/api/artists/preview?t=${signAudioToken(sourceUrl, ARTIST_PREVIEW_TTL_MS)}`;
+}

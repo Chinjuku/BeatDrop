@@ -1,5 +1,5 @@
 import { Artist, Song } from '../../shared/types';
-import { isDbLocal, isSupabaseConfigured } from '../supabase';
+import { isDbLocal, isSupabaseConfigured, supabaseAdmin } from '../supabase';
 import { dbService } from '../db';
 import { checkArtistStrictMatch, isJunkTrack } from '../itunes';
 import { redis, isRedisConfigured } from '../redis';
@@ -13,6 +13,7 @@ import {
   parseTrackArtistCredits,
   extractSoloArtistNames,
   backfillCollaborationsInDb,
+  normalizeText,
 } from './artists';
 
 export const songPool = new Map<string, Song>(); // id -> Song
@@ -35,6 +36,54 @@ export function ensureCatalogLoaded(): void {
     console.log(`[BeatDrop] Loaded ${cachedSongs.length} songs from database. Engine mode: ${modeStr}`);
   } catch (err) {
     console.warn('[BeatDrop] Could not preload songs from database:', (err as Error).message);
+  }
+}
+
+// The bundled SQLite seed can hold a few of an artist's tracks (a collaboration synced through
+// another artist) while their full catalog lives only in the cloud. So an artist's cloud songs are
+// merged into the pool whenever that artist is picked, at most once per TTL per server instance.
+const CLOUD_ARTIST_LOAD_TTL_MS = 10 * 60 * 1000;
+const MAX_CLOUD_ARTIST_LOAD_KEYS = 500;
+const cloudArtistLoadedAt = new Map<string, number>();
+const inFlightCloudArtistLoads = new Map<string, Promise<number>>();
+
+/** Merges the artist's cloud-catalog songs into `songPool`. Returns how many songs were new. */
+export async function loadArtistSongsFromCloud(artistName: string): Promise<number> {
+  const key = normalizeText(artistName || '');
+  if (!key || !isSupabaseConfigured()) return 0;
+
+  const loadedAt = cloudArtistLoadedAt.get(key);
+  if (loadedAt !== undefined && Date.now() - loadedAt < CLOUD_ARTIST_LOAD_TTL_MS) return 0;
+  const inFlight = inFlightCloudArtistLoads.get(key);
+  if (inFlight) return inFlight;
+
+  const task = (async () => {
+    let added = 0;
+    try {
+      const cloudSongs = await supabaseAdmin.findSongsByArtist(artistName.trim(), 200);
+      for (const s of cloudSongs) {
+        // Keep a local entry as is: it may carry hydrated track_artists credits the cloud row lacks.
+        if (!songPool.has(s.id)) {
+          songPool.set(s.id, s);
+          added++;
+        }
+      }
+    } catch (err) {
+      console.warn('[BeatDrop] Cloud artist catalog lookup failed:', (err as Error).message);
+    }
+    if (cloudArtistLoadedAt.size >= MAX_CLOUD_ARTIST_LOAD_KEYS) {
+      const oldest = cloudArtistLoadedAt.keys().next().value;
+      if (oldest !== undefined) cloudArtistLoadedAt.delete(oldest);
+    }
+    cloudArtistLoadedAt.set(key, Date.now());
+    return added;
+  })();
+
+  inFlightCloudArtistLoads.set(key, task);
+  try {
+    return await task;
+  } finally {
+    inFlightCloudArtistLoads.delete(key);
   }
 }
 
