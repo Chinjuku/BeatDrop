@@ -66,6 +66,7 @@ export const LeaderboardModal: React.FC<LeaderboardModalProps> = ({
   dailyRoundsTotal = 0,
 }) => {
   const t = useTranslations('Leaderboard');
+  const tc = useTranslations('Common');
   const [diffFilter, setDiffFilter] = useState<DifficultyLevel | 'all'>(currentDifficulty);
   const [catFilter, setCatFilter] = useState<CategoryType>(category);
   const [hasSubmitted, setHasSubmitted] = useState(false);
@@ -313,7 +314,7 @@ export const LeaderboardModal: React.FC<LeaderboardModalProps> = ({
             <span
               className="text-[11px] font-bold px-2 py-0.5 rounded-lg border border-emerald-500/30 bg-emerald-500/20"
             >
-              {isDailyMode ? `Daily Challenge · ${dateKey || ''}` : t('levelValue', { level: DIFFICULTY_PRESETS[currentDifficulty]?.label || currentDifficulty })}
+              {isDailyMode ? `${tc('dailyName')} · ${dateKey || ''}` : t('levelValue', { level: DIFFICULTY_PRESETS[currentDifficulty]?.label || currentDifficulty })}
             </span>
           </div>
         ) : !canSubmit ? (

@@ -67,6 +67,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   onSelectQuiz,
 }) => {
   const t = useTranslations('Navbar');
+  const tc = useTranslations('Common');
   const locale = useLocale();
   const router = useRouter();
   const pathname = usePathname() || '/play';
@@ -405,7 +406,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             data-section={isDailyActive ? 'active' : undefined}
             onClick={() => setActiveMenu(null)}
           >
-            Daily Challenge
+            {tc('dailyName')}
           </Link>
 
           {/* 3b. Live room (play with friends) */}

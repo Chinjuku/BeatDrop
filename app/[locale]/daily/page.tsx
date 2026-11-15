@@ -147,13 +147,13 @@ const DailyChallengePage: React.FC = () => {
   return (
     <div className="w-full flex flex-col items-center my-auto">
       <PageHero
-        title="Daily Challenge"
+        title={tc('dailyName')}
         tagline={t('tagline')}
         gradient="from-amber-200 via-yellow-300 to-amber-500"
       >
           <HeroPill>
             <CalendarDays className="w-3.5 h-3.5" style={{ color: 'var(--song-accent-text)' }} />
-            <span>{dailyInfo?.dateKey || 'Daily Challenge'}</span>
+            <span>{dailyInfo?.dateKey || tc('dailyName')}</span>
           </HeroPill>
 
           <HeroPill>

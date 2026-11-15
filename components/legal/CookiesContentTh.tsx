@@ -111,7 +111,7 @@ export function CookiesContentTh() {
                 <code>songspot:daily-category</code>, <code>songspot:daily-difficulty</code>,{' '}
                 <code>songspot:daily-active-round</code>
               </td>
-              <td>ตัวเลือกและความคืบหน้าของ Daily Challenge บนอุปกรณ์นี้</td>
+              <td>ตัวเลือกและความคืบหน้าของ ทายเพลงประจำวัน บนอุปกรณ์นี้</td>
             </tr>
             <tr>
               <td>
