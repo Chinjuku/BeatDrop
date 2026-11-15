@@ -2,7 +2,7 @@
 
 import React, { useEffect, useMemo, useState } from 'react';
 import { useTranslations } from 'next-intl';
-import { useRouter } from '../../../i18n/navigation';
+import { Link, useRouter } from '../../../i18n/navigation';
 import { useGame } from '../../../context/GameContext';
 import { PageHero } from '../../../components/PageHero';
 import {
@@ -327,17 +327,12 @@ const MusicCategoriesPage: React.FC = () => {
 
           {/* Grid of Artist Cards */}
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 sm:gap-2.5">
-            {displayArtists.map((art) => (
-              <button
-                key={art.id + art.name}
-                type="button"
-                onClick={() => handleLaunchQuiz('standard', { artist: art.name })}
-                className="p-2 sm:p-3 rounded-xl border text-left flex items-center gap-2 sm:gap-2.5 transition hover:scale-[1.02] hover:border-[var(--song-accent)] group"
-                style={{
-                  backgroundColor: 'var(--song-surface)',
-                  borderColor: 'var(--song-border)',
-                }}
-              >
+            {displayArtists.map((art) => {
+              const cardClass =
+                'p-2 sm:p-3 rounded-xl border text-left flex items-center gap-2 sm:gap-2.5 transition hover:scale-[1.02] hover:border-[var(--song-accent)] group focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--song-accent)]';
+              const cardStyle = { backgroundColor: 'var(--song-surface)', borderColor: 'var(--song-border)' };
+              const cardBody = (
+                <>
                 {/* Artist Photo Avatar */}
                 <div className="relative w-8 h-8 sm:w-10 sm:h-10 rounded-full overflow-hidden shrink-0 border border-white/10 bg-neutral-800 shadow-sm">
                   <img
@@ -363,8 +358,31 @@ const MusicCategoriesPage: React.FC = () => {
                     {art.mainGenre || (art.category === 'thai' ? t('filter.thai') : t('filter.internationalShort'))}
                   </div>
                 </div>
-              </button>
-            ))}
+                </>
+              );
+              // Live iTunes search results get a random id per search: no page to link to, so
+              // they keep launching the artist quiz directly.
+              return art.id.startsWith('discovered-') ? (
+                <button
+                  key={art.id + art.name}
+                  type="button"
+                  onClick={() => handleLaunchQuiz('standard', { artist: art.name })}
+                  className={cardClass}
+                  style={cardStyle}
+                >
+                  {cardBody}
+                </button>
+              ) : (
+                <Link
+                  key={art.id + art.name}
+                  href={`/categories/artist/${encodeURIComponent(art.id)}`}
+                  className={cardClass}
+                  style={cardStyle}
+                >
+                  {cardBody}
+                </Link>
+              );
+            })}
 
             {artists.length === 0 && !searchQuery.trim() ? (
               Array.from({ length: 8 }).map((_, i) => (

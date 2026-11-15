@@ -35,12 +35,12 @@ export function invalidateArtistsServerCache(upsertedArtist?: Artist): void {
 
 export const invalidateSupabaseArtistsCache = invalidateArtistsServerCache;
 
-export async function handleGetArtists(req: ApiRequest, res: ApiResponse): Promise<void> {
-  const category = (req.query.category as CategoryType) || 'all';
-  const q = ((req.query.q as string) || '').trim();
-  const discover = req.query.discover === 'true';
-
-  let list = getAllArtists(songPool);
+/**
+ * Library artists (curated + custom + catalog) merged with the cached Supabase artist list.
+ * The one artist list behind `/api/artists` and the artist page.
+ */
+export async function getMergedArtists(): Promise<Artist[]> {
+  const list = getAllArtists(songPool).slice();
 
   // When Supabase is configured (DB_LOCAL=false), pull artists with in-memory caching
   if (isSupabaseConfigured()) {
@@ -84,6 +84,15 @@ export async function handleGetArtists(req: ApiRequest, res: ApiResponse): Promi
       }
     }
   }
+  return list;
+}
+
+export async function handleGetArtists(req: ApiRequest, res: ApiResponse): Promise<void> {
+  const category = (req.query.category as CategoryType) || 'all';
+  const q = ((req.query.q as string) || '').trim();
+  const discover = req.query.discover === 'true';
+
+  let list = await getMergedArtists();
 
   if (category === 'thai' || category === 'international') {
     list = list.filter((a) => a.category === category);
