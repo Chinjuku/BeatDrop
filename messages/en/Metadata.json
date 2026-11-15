@@ -32,5 +32,10 @@
   "dailyArchive": {
     "title": "Daily Challenge archive",
     "description": "Replay past BeatDrop Daily Challenges at every difficulty, just for practice."
+  },
+  "artist": {
+    "title": "{name} — previews and song quiz",
+    "description": "Listen to previews of {name}'s popular and latest songs, albums and collaborations, then start a {name} song quiz on BeatDrop.",
+    "fallbackName": "Artist"
   }
 }

@@ -323,6 +323,17 @@ body {
 }
 
 /* Vinyl Disc Spin Animation (Post-Game Reveal) */
+/* Artist page: "now playing" equalizer bars. */
+@keyframes artist-eq {
+  0%,
+  100% {
+    height: 3px;
+  }
+  50% {
+    height: 10px;
+  }
+}
+
 @keyframes vinyl-spin {
   from {
     transform: rotate(0deg);
