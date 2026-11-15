@@ -22,11 +22,6 @@ import {
   RoundActionResponse,
   RoundStartResponse,
   Song,
-  TIME_RANGE_PRESETS,
-  TimeRangePresetId,
-  MAX_SNIPPET_DURATION,
-  MIN_SNIPPET_DURATION,
-  resolveTimeRangePreset,
 } from '../types';
 import { DailyChallengeLoadError, readDailyChallengeResponse } from '../shared/dailyChallengeClient';
 import { useTheme } from './ThemeContext';
@@ -42,15 +37,19 @@ import {
   invalidateSongs,
 } from '../lib/queryClient';
 import { getPreference, removePreference, setPreference } from '../lib/preferenceStorage';
+import {
+  CONFIG_PREFERENCE_KEYS,
+  applyStoredConfigPreferences,
+  difficultyPreferenceKey,
+} from '../lib/configPreferences';
 
 const STORAGE_STREAK_KEY = 'songspot:streak';
 const STORAGE_BEST_STREAK_KEY = 'songspot:best-streak';
 const STORAGE_FASTEST_KEY = 'songspot:fastest-time';
 const STORAGE_LOCAL_ARTISTS_KEY = 'songspot:custom-artists';
-const STORAGE_TIME_PRESET_KEY = 'songspot:time-range-preset';
-const STORAGE_CUSTOM_STAGES_KEY = 'songspot:custom-stages';
-const STORAGE_DAILY_CATEGORY_KEY = 'songspot:daily-category';
-const STORAGE_DAILY_DIFFICULTY_KEY = 'songspot:daily-difficulty';
+const STORAGE_TIME_PRESET_KEY = CONFIG_PREFERENCE_KEYS.timePreset;
+const STORAGE_CUSTOM_STAGES_KEY = CONFIG_PREFERENCE_KEYS.customStages;
+const STORAGE_DAILY_CATEGORY_KEY = CONFIG_PREFERENCE_KEYS.dailyCategory;
 const STORAGE_DAILY_ACTIVE_ROUND_KEY = 'songspot:daily-active-round';
 const STORAGE_PLAYED_IDS_KEY = 'songspot:played-ids';
 const MAX_PLAYED_HISTORY = 200;
@@ -209,6 +208,7 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   tRef.current = t;
   const { setActiveDifficulty } = useTheme();
 
+  const [prefsHydrated, setPrefsHydrated] = useState(false);
   const [config, setConfig] = useState<GameConfig>({
     category: 'thai',
     difficulty: 'easy',
@@ -289,48 +289,11 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       playedIdsRef.current = validPlayed;
       setPlayedIds(validPlayed);
 
-      const p = getPreference(STORAGE_TIME_PRESET_KEY) as TimeRangePresetId | null;
-      let savedStages = DEFAULT_TIME_STAGES;
-      const raw = getPreference(STORAGE_CUSTOM_STAGES_KEY);
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        if (
-          Array.isArray(parsed) &&
-          parsed.length >= 2 &&
-          parsed.every(
-            (n) => typeof n === 'number' && n >= MIN_SNIPPET_DURATION && n <= MAX_SNIPPET_DURATION
-          )
-        ) {
-          savedStages = parsed;
-        }
-      }
-      if (p && (p === 'relaxed' || p === 'standard' || p === 'songspot' || p === 'custom')) {
-        const stages =
-          p === 'custom' ? savedStages : (TIME_RANGE_PRESETS[p]?.stages || DEFAULT_TIME_STAGES);
-        setConfig((prev) => ({
-          ...prev,
-          // A saved 'custom' whose stages equal a named preset is that preset.
-          timeRangePreset: p === 'custom' ? resolveTimeRangePreset(stages) : p,
-          customStages: stages,
-        }));
-      }
-
-      // Restore last selected Daily Challenge mode (category & difficulty)
-      const savedDailyCat = getPreference(STORAGE_DAILY_CATEGORY_KEY) as CategoryType | null;
-      const savedDailyDiff = getPreference(STORAGE_DAILY_DIFFICULTY_KEY) as DifficultyLevel | null;
-      const validCategories = new Set<CategoryType>(['thai', 'international', 'all']);
-      const validDifficulties = new Set<DifficultyLevel>(['easy', 'medium', 'hard', 'expert', 'impossible']);
-      if (
-        (savedDailyCat && validCategories.has(savedDailyCat)) ||
-        (savedDailyDiff && validDifficulties.has(savedDailyDiff))
-      ) {
-        setConfig((prev) => ({
-          ...prev,
-          category: savedDailyCat && validCategories.has(savedDailyCat) ? savedDailyCat : prev.category,
-          difficulty: savedDailyDiff && validDifficulties.has(savedDailyDiff) ? savedDailyDiff : prev.difficulty,
-        }));
-      }
+      // Saved clip range, difficulty and Daily category. The first round is started by the
+      // init effect below from the same helper, so it never plays with the defaults.
+      setConfig((prev) => applyStoredConfigPreferences(prev, getPreference));
     } catch {}
+    setPrefsHydrated(true);
   }, []);
 
   const activeAudioUrl = revealSong?.previewUrl || round?.audioUrl || null;
@@ -353,16 +316,22 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   // Sync difficulty with ThemeContext
   useEffect(() => {
     setActiveDifficulty(config.difficulty);
-    if (config.mode === 'daily') {
-      try {
-        setPreference(STORAGE_DAILY_DIFFICULTY_KEY, config.difficulty);
-        setPreference(STORAGE_DAILY_CATEGORY_KEY, config.category);
-      } catch {}
-    }
-  }, [config.difficulty, config.category, config.mode, setActiveDifficulty]);
+  }, [config.difficulty, setActiveDifficulty]);
 
-  // Sync timeRangePreset & customStages to localStorage
+  // Persist round settings. Skipped until the saved ones were read back, so the
+  // first commit's defaults never overwrite them.
   useEffect(() => {
+    if (!prefsHydrated) return;
+    try {
+      setPreference(difficultyPreferenceKey(config.mode), config.difficulty);
+      if (config.mode === 'daily') {
+        setPreference(STORAGE_DAILY_CATEGORY_KEY, config.category);
+      }
+    } catch {}
+  }, [prefsHydrated, config.difficulty, config.category, config.mode]);
+
+  useEffect(() => {
+    if (!prefsHydrated) return;
     try {
       if (config.timeRangePreset) {
         setPreference(STORAGE_TIME_PRESET_KEY, config.timeRangePreset);
@@ -371,7 +340,7 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         setPreference(STORAGE_CUSTOM_STAGES_KEY, JSON.stringify(config.customStages));
       }
     } catch {}
-  }, [config.timeRangePreset, config.customStages]);
+  }, [prefsHydrated, config.timeRangePreset, config.customStages]);
 
   // TanStack Query for Artists with real-time cache & optimistic local merge
   const { data: queryArtists = [] } = useQuery<Artist[]>({
@@ -768,29 +737,12 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         : path.startsWith('/guesser')
         ? 'guesser'
         : config.mode;
-      let initialCfg = initialMode !== config.mode
-        ? {
-            ...config,
-            mode: initialMode,
-          }
-        : config;
-      if (initialMode === 'daily') {
-        const savedDailyCat = getPreference(STORAGE_DAILY_CATEGORY_KEY) as CategoryType | null;
-        const savedDailyDiff = getPreference(STORAGE_DAILY_DIFFICULTY_KEY) as DifficultyLevel | null;
-        const validCategories = new Set<CategoryType>(['thai', 'international', 'all']);
-        const validDifficulties = new Set<DifficultyLevel>(['easy', 'medium', 'hard', 'expert', 'impossible']);
-        initialCfg = {
-          ...initialCfg,
-          category: savedDailyCat && validCategories.has(savedDailyCat) ? savedDailyCat : initialCfg.category,
-          difficulty: savedDailyDiff && validDifficulties.has(savedDailyDiff) ? savedDailyDiff : initialCfg.difficulty,
-        };
-      }
-      if (initialCfg !== config) {
-        setConfig(initialCfg);
-      }
-      if (!roundAbortControllerRef.current) {
-        startNewRound(initialCfg);
-      }
+      // Page effects (children) run before this one and may already have started a round
+      // from the pre-hydration defaults. Build the real config from the saved settings and
+      // start it: startNewRound dedupes an identical in-flight request and aborts a stale one.
+      const initialCfg = applyStoredConfigPreferences({ ...config, mode: initialMode }, getPreference);
+      setConfig(initialCfg);
+      startNewRound(initialCfg);
     }
   }, [config, startNewRound]);
 
@@ -808,8 +760,10 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       audioState === 'ready' &&
       !hasAutoPlayedRevealRef.current
     ) {
-      hasAutoPlayedRevealRef.current = true;
+      // Mark it played only when the timer actually fires: if audioState or the player
+      // changes inside the delay, cleanup cancels this timer and the next run retries.
       const timer = setTimeout(() => {
+        hasAutoPlayedRevealRef.current = true;
         playFullPreview();
       }, 180);
       return () => clearTimeout(timer);

@@ -177,7 +177,7 @@ export function useAudioController({ audioUrl, volume }: UseAudioControllerOptio
       offsetSecondsRef.current = 0;
       setProgress(0);
       setCurrentTime(0);
-      if (bufferRef.current) {
+      if (bufferRef.current || htmlAudioRef.current) {
         setState(targetState);
       }
     }
@@ -436,6 +436,10 @@ export function useAudioController({ audioUrl, volume }: UseAudioControllerOptio
             audio.volume = Math.min(1, Math.max(0, volumeRef.current / 100));
             htmlAudioRef.current = audio;
             audio.oncanplay = () => {
+              // `canplay` fires again after every seek (startPlaybackFrom sets currentTime),
+              // which reset a running clip to 'ready': the reveal then looked paused and
+              // its autoplay never fired. Only the first one means "loaded".
+              audio.oncanplay = null;
               if (!cancelled) {
                 setTotalDuration(audio.duration || 30);
                 setState('ready');
@@ -555,12 +559,19 @@ export function useAudioController({ audioUrl, volume }: UseAudioControllerOptio
 
   // Pause the full 30s preview preserving current seek position
   const pauseFullPreview = useCallback(() => {
-    if (state !== 'playing' || !audioCtxRef.current) return;
-    const elapsed = audioCtxRef.current.currentTime - startCtxTimeRef.current;
-    offsetSecondsRef.current = Math.min(
-      activeClipLimitRef.current,
-      offsetSecondsRef.current + Math.max(0, elapsed)
-    );
+    if (state !== 'playing') return;
+    const htmlAudio = htmlAudioRef.current;
+    if (!bufferRef.current && htmlAudio) {
+      // HTML5 fallback: the element knows its own position.
+      offsetSecondsRef.current = Math.min(activeClipLimitRef.current, htmlAudio.currentTime);
+    } else {
+      if (!audioCtxRef.current) return;
+      const elapsed = audioCtxRef.current.currentTime - startCtxTimeRef.current;
+      offsetSecondsRef.current = Math.min(
+        activeClipLimitRef.current,
+        offsetSecondsRef.current + Math.max(0, elapsed)
+      );
+    }
     stopInternal(false);
     setState('paused');
   }, [state, stopInternal]);
