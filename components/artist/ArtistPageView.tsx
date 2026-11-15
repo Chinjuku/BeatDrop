@@ -264,8 +264,9 @@ export function ArtistPageView({ artistId }: { artistId: string }) {
   const query = useQuery({
     queryKey: ['artist-page', artistId],
     queryFn: ({ signal }) => fetchArtistPage(artistId, signal),
-    // Audio tokens expire after 2 h; refetch well before then.
+    // Audio tokens expire after 2 h: refresh a tab that comes back after 30 min.
     staleTime: 30 * 60 * 1000,
+    refetchOnWindowFocus: true,
     gcTime: 60 * 60 * 1000,
     retry: (count, err) => !(err instanceof ArtistNotFoundError) && count < 2,
   });

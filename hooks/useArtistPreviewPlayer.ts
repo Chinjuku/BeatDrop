@@ -57,6 +57,8 @@ export function useArtistPreviewPlayer(): ArtistPreviewPlayer {
     listenersRef.current = listeners;
     const { signal } = listeners;
     audio.addEventListener('timeupdate', () => {
+      // Clearing the src (finish/stop) emits a last timeupdate at 0: keep the shown clock.
+      if (!audio.getAttribute('src')) return;
       const t = Math.min(audio.currentTime, ARTIST_PREVIEW_SECONDS);
       setElapsed(t);
       if (audio.currentTime >= ARTIST_PREVIEW_SECONDS) handlersRef.current.finished();
