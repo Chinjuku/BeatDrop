@@ -32,7 +32,7 @@ export const SITE_TAGLINE = 'Hear less. Know more.';
 export const SITE_TITLE = 'BeatDrop • เกมทายเพลงไทย & สากล จากเสี้ยววินาที';
 export const SITE_DESCRIPTION =
   'BeatDrop คือเกมทายเพลงไทยและเพลงสากลจากเสี้ยววินาที ฟังสั้นที่สุดเท่าที่จะทำได้แล้วทายให้ไว ' +
-  'มีโหมด Daily Challenge, Song Guesser, Artist, Genre และ Year พร้อมลีดเดอร์บอร์ดรายวัน ' +
+  'มีโหมดทายเพลงประจำวัน (Daily Challenge), Song Guesser, Artist, Genre และ Year พร้อมลีดเดอร์บอร์ดรายวัน ' +
   'A Thai & international music snippet guessing game — guess the song from a fraction of a second.';
 
 export const SITE_KEYWORDS = [

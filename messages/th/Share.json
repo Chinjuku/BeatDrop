@@ -20,7 +20,7 @@
   },
   "daily": {
     "scoreLine": "คะแนน: {score} pts (ถูก {correct}/{total})",
-    "title": "ผล BeatDrop Daily Challenge"
+    "title": "ผลทายเพลงประจำวัน BeatDrop"
   },
   "result": {
     "header": "BeatDrop · {category} · {difficulty}",
