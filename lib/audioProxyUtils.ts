@@ -67,3 +67,30 @@ export function proxiedAudioUrl(rawUrl: string): string {
   const route = isDeezerPreviewUrl(rawUrl) ? DEEZER_PREVIEW_ROUTE : '/api/proxy/audio';
   return `${route}?url=${encodeURIComponent(rawUrl)}`;
 }
+
+// --- HTTP Range pass-through -------------------------------------------------
+// The HTML5 <audio> fallback seeks with Range requests. Without them the browser cannot
+// jump to an offset, so resuming a paused preview restarted it at 0s.
+
+const RANGE_HEADER = /^bytes=\d*-\d*$/;
+
+/** The client's Range header when it is a single well-formed byte range, else null. */
+export function forwardableRange(value: string | null): string | null {
+  if (!value) return null;
+  const trimmed = value.trim();
+  return RANGE_HEADER.test(trimmed) && trimmed !== 'bytes=-' ? trimmed : null;
+}
+
+/** Status the proxy answers with: 206 / 416 pass through, anything else becomes 200. */
+export function proxiedAudioStatus(upstreamStatus: number): 200 | 206 | 416 {
+  return upstreamStatus === 206 || upstreamStatus === 416 ? upstreamStatus : 200;
+}
+
+/** Copies the length/range headers a seeking media element needs. */
+export function copyRangeHeaders(from: Headers, to: Headers): void {
+  for (const name of ['Content-Length', 'Content-Range']) {
+    const value = from.get(name);
+    if (value) to.set(name, value);
+  }
+  to.set('Accept-Ranges', 'bytes');
+}

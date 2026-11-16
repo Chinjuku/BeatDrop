@@ -1,5 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { DEEZER_PREVIEW_ROUTE, isAllowedAppleAudioUrl, isDeezerPreviewUrl } from '../../../../lib/audioProxyUtils';
+import {
+  DEEZER_PREVIEW_ROUTE,
+  copyRangeHeaders,
+  forwardableRange,
+  isAllowedAppleAudioUrl,
+  isDeezerPreviewUrl,
+  proxiedAudioStatus,
+} from '../../../../lib/audioProxyUtils';
 
 /** Deezer links expire, so they go to the Node route that re-signs them (same `url` query). */
 function deezerRedirect(req: NextRequest, urlParam: string): NextResponse {
@@ -18,13 +25,23 @@ export async function GET(req: NextRequest) {
   }
 
   try {
+    const range = forwardableRange(req.headers.get('range'));
+    const upstreamHeaders: Record<string, string> = {
+      'User-Agent': 'BeatDrop/2.0 (Audio Preview Proxy)',
+    };
+    if (range) upstreamHeaders.Range = range;
     const upstreamRes = await fetch(urlParam, {
-      headers: {
-        'User-Agent': 'BeatDrop/2.0 (Audio Preview Proxy)',
-      },
-      next: { revalidate: 86400 },
+      headers: upstreamHeaders,
+      // A partial response must never be cached and served as the whole file.
+      ...(range ? { cache: 'no-store' as const } : { next: { revalidate: 86400 } }),
     });
 
+    const status = proxiedAudioStatus(upstreamRes.status);
+    if (status === 416) {
+      const headers = new Headers();
+      copyRangeHeaders(upstreamRes.headers, headers);
+      return new NextResponse(null, { status, headers });
+    }
     if (!upstreamRes.ok || !upstreamRes.body) {
       return NextResponse.json(
         { error: 'Upstream audio error' },
@@ -34,17 +51,11 @@ export async function GET(req: NextRequest) {
 
     const headers = new Headers();
     headers.set('Content-Type', upstreamRes.headers.get('Content-Type') || 'audio/mp4');
-    const contentLength = upstreamRes.headers.get('Content-Length');
-    if (contentLength) {
-      headers.set('Content-Length', contentLength);
-    }
+    copyRangeHeaders(upstreamRes.headers, headers);
     headers.set('Cache-Control', 'public, max-age=86400, s-maxage=604800, immutable');
-    headers.set('Accept-Ranges', 'bytes');
+    if (range) headers.set('Vary', 'Range');
 
-    return new NextResponse(upstreamRes.body, {
-      status: 200,
-      headers,
-    });
+    return new NextResponse(upstreamRes.body, { status, headers });
   } catch {
     return NextResponse.json({ error: 'Failed to fetch audio preview' }, { status: 502 });
   }
