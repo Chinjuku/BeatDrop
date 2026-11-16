@@ -137,26 +137,59 @@ export function purgePreferenceStorage(): void {
   }
 }
 
-export function readConsentCookie(): ConsentRecord | null {
-  if (typeof document === 'undefined') return null;
-  const match = document.cookie
-    .split('; ')
-    .find((part) => part.startsWith(`${CONSENT_COOKIE_NAME}=`));
-  if (!match) return null;
+/**
+ * True when BeatDrop runs inside another site's iframe (e.g. a portfolio live preview).
+ * There the browser treats our cookie as third-party: a SameSite=Lax cookie is never
+ * stored, and Safari blocks third-party cookies outright.
+ */
+export function isEmbedded(): boolean {
+  if (typeof window === 'undefined') return false;
   try {
-    return parseConsent(decodeURIComponent(match.slice(CONSENT_COOKIE_NAME.length + 1)));
+    return window.self !== window.top;
+  } catch {
+    return true; // cross-origin parent: reading window.top threw
+  }
+}
+
+function readConsentMirror(): ConsentRecord | null {
+  try {
+    return parseConsent(window.localStorage.getItem(CONSENT_STORAGE_KEY));
   } catch {
     return null;
   }
 }
 
+export function readConsentCookie(): ConsentRecord | null {
+  if (typeof document === 'undefined') return null;
+  const match = document.cookie
+    .split('; ')
+    .find((part) => part.startsWith(`${CONSENT_COOKIE_NAME}=`));
+  if (match) {
+    try {
+      const record = parseConsent(decodeURIComponent(match.slice(CONSENT_COOKIE_NAME.length + 1)));
+      if (record) return record;
+    } catch {
+      /* fall through */
+    }
+  }
+  // Embedded, the cookie may be refused; the (partitioned) localStorage mirror
+  // then carries the decision for this embedding. Top-level, the cookie stays authoritative.
+  return isEmbedded() ? readConsentMirror() : null;
+}
+
 export function writeConsentCookie(choices: ConsentChoices): ConsentRecord | null {
   if (typeof document === 'undefined') return null;
   const payload = serializeConsent(choices);
-  const secure = window.location.protocol === 'https:' ? '; Secure' : '';
+  const https = window.location.protocol === 'https:';
+  // Embedded over HTTPS: SameSite=None + Partitioned (CHIPS) so browsers that allow
+  // partitioned third-party cookies keep it, scoped to this embedding only.
+  const attrs =
+    isEmbedded() && https
+      ? '; SameSite=None; Secure; Partitioned'
+      : `; SameSite=Lax${https ? '; Secure' : ''}`;
   document.cookie =
     `${CONSENT_COOKIE_NAME}=${encodeURIComponent(payload)}` +
-    `; Path=/; Max-Age=${CONSENT_MAX_AGE_SECONDS}; SameSite=Lax${secure}`;
+    `; Path=/; Max-Age=${CONSENT_MAX_AGE_SECONDS}${attrs}`;
   try {
     window.localStorage.setItem(CONSENT_STORAGE_KEY, payload);
   } catch {

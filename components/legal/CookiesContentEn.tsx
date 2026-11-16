@@ -36,7 +36,7 @@ export function CookiesContentEn() {
                 <td>
                   <code>beatdrop_consent</code>
                 </td>
-                <td>Cookie (first-party)</td>
+                <td>Cookie (first-party; partitioned to that embedding when BeatDrop is shown in another site&apos;s iframe)</td>
                 <td>Remembers whether you allowed or refused the optional categories</td>
                 <td>180 days</td>
               </tr>

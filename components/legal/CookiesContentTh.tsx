@@ -34,7 +34,7 @@ export function CookiesContentTh() {
               <td>
                 <code>beatdrop_consent</code>
               </td>
-              <td>คุกกี้ (first-party)</td>
+              <td>คุกกี้ (first-party; เมื่อเปิดผ่าน iframe ของเว็บอื่นจะเป็นคุกกี้แบบ partitioned ที่ใช้เฉพาะในหน้านั้น)</td>
               <td>จำว่าคุณอนุญาตหรือปฏิเสธคุกกี้หมวดที่เป็นทางเลือก</td>
               <td>180 วัน</td>
             </tr>
