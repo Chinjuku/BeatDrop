@@ -43,6 +43,8 @@ class MemoryStorage {
 
 const storage = new MemoryStorage();
 let cookieJar = '';
+let lastCookieWrite = '';
+let refuseCookies = false; // simulates a browser dropping a third-party cookie
 
 // Minimal DOM surface the consent helpers touch.
 (globalThis as any).window = {
@@ -54,6 +56,8 @@ let cookieJar = '';
     return cookieJar;
   },
   set cookie(value: string) {
+    lastCookieWrite = value;
+    if (refuseCookies) return;
     const [pair] = value.split(';');
     const name = pair.slice(0, pair.indexOf('='));
     const others = cookieJar
@@ -122,6 +126,36 @@ assert.ok(cookieJar.includes('beatdrop_consent='), 'cookie name used');
 writeConsentCookie(CONSENT_GRANTED);
 const granted = readConsentCookie();
 assert.ok(granted?.preferences && granted?.analytics, 'granted decision overwrites denied');
+assert.ok(lastCookieWrite.includes('SameSite=Lax'), 'top-level cookie stays SameSite=Lax');
+
+// --- embedded in another site's iframe (portfolio live preview) -------------
+{
+  const win = (globalThis as any).window;
+  const savedJar = cookieJar;
+  win.self = win;
+  win.top = {}; // a different window: we are framed
+  cookieJar = '';
+  storage.removeItem('beatdrop_consent');
+
+  refuseCookies = true; // e.g. Safari blocks the third-party cookie
+  writeConsentCookie(CONSENT_DENIED);
+  assert.ok(
+    lastCookieWrite.includes('SameSite=None') && lastCookieWrite.includes('Partitioned'),
+    'embedded cookie is SameSite=None; Partitioned'
+  );
+  const framed = readConsentCookie();
+  assert.ok(framed, 'embedded decision survives a refused cookie via the storage mirror');
+  assert.equal(framed.preferences, false, 'embedded mirror keeps the chosen values');
+
+  // top-level, the mirror alone is NOT trusted (cookie stays authoritative)
+  win.top = win;
+  assert.equal(readConsentCookie(), null, 'top-level ignores the mirror when the cookie is gone');
+
+  refuseCookies = false;
+  delete win.self;
+  delete win.top;
+  cookieJar = savedJar;
+}
 
 // --- purge ------------------------------------------------------------------
 storage.setItem(`${PREFERENCE_STORAGE_PREFIX}streak`, '7');

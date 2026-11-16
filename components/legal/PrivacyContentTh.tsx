@@ -58,7 +58,7 @@ export function PrivacyContentTh() {
             <tr>
               <td>ตัวเลือกความยินยอมคุกกี้</td>
               <td>จำว่าคุณอนุญาตหรือปฏิเสธหมวดใด</td>
-              <td>คุกกี้ <code>beatdrop_consent</code> (first-party)</td>
+              <td>คุกกี้ <code>beatdrop_consent</code> (first-party; เป็นแบบ partitioned เมื่อเปิดผ่าน iframe ของเว็บอื่น)</td>
               <td>180 วัน</td>
             </tr>
             <tr>

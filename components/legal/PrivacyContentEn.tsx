@@ -62,7 +62,7 @@ export function PrivacyContentEn() {
                 <td>Cookie consent choice</td>
                 <td>Remember which categories you allowed or refused</td>
                 <td>
-                  The <code>beatdrop_consent</code> cookie (first-party)
+                  The <code>beatdrop_consent</code> cookie (first-party; partitioned when embedded in another site&apos;s iframe)
                 </td>
                 <td>180 days</td>
               </tr>
