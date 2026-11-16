@@ -36,6 +36,7 @@ async function runTests() {
     const startT = performance.now();
     const req = {
       nextUrl: new URL(`http://localhost:3000/api/proxy/audio?url=${encodeURIComponent(sampleUrl)}`),
+      headers: new Headers(),
     };
     const res = await proxyModule.GET(req as any);
     const durationMs = performance.now() - startT;

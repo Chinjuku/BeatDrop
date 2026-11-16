@@ -1,5 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { isDeezerPreviewUrl } from '../../../../lib/audioProxyUtils';
+import {
+  copyRangeHeaders,
+  forwardableRange,
+  isDeezerPreviewUrl,
+  proxiedAudioStatus,
+} from '../../../../lib/audioProxyUtils';
 import { ensureCatalogLoaded } from '../../../../lib/engine/songPool';
 import { verifyRateLimit } from '../../../../lib/engine/rateLimiter';
 import { deezerPreviewResolver as resolver } from '../../../../lib/engine/previewStream';
@@ -40,21 +45,31 @@ export async function GET(req: NextRequest) {
   }
 
   try {
+    const range = forwardableRange(req.headers.get('range'));
     const upstreamRes = await fetch(resolved.url, {
-      headers: { 'User-Agent': 'BeatDrop/2.0 (Audio Preview Proxy)' },
+      headers: {
+        'User-Agent': 'BeatDrop/2.0 (Audio Preview Proxy)',
+        ...(range ? { Range: range } : {}),
+      },
       signal: AbortSignal.timeout(8000),
     });
+    const status = proxiedAudioStatus(upstreamRes.status);
+    if (status === 416) {
+      const headers = new Headers();
+      copyRangeHeaders(upstreamRes.headers, headers);
+      return new NextResponse(null, { status, headers });
+    }
     if (!upstreamRes.ok || !upstreamRes.body) {
       return NextResponse.json({ error: 'Upstream audio error' }, { status: 502 });
     }
     const headers = new Headers();
     const type = upstreamRes.headers.get('Content-Type') || '';
     headers.set('Content-Type', type.startsWith('audio/') ? type : 'audio/mpeg');
-    const contentLength = upstreamRes.headers.get('Content-Length');
-    if (contentLength) headers.set('Content-Length', contentLength);
+    copyRangeHeaders(upstreamRes.headers, headers);
     // The bytes behind a file key never change, so the stored-link URL is safe to cache.
     headers.set('Cache-Control', 'public, max-age=86400, s-maxage=604800');
-    return new NextResponse(upstreamRes.body, { status: 200, headers });
+    if (range) headers.set('Vary', 'Range');
+    return new NextResponse(upstreamRes.body, { status, headers });
   } catch {
     return NextResponse.json({ error: 'Failed to fetch audio preview' }, { status: 502 });
   }
