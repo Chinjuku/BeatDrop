@@ -1,0 +1,21 @@
+{
+  "title": "Song history",
+  "tagline": "The songs you missed, ready to hear in full",
+  "back": "Back to play",
+  "filterLabel": "Show",
+  "filterMissed": "Missed",
+  "filterAll": "All",
+  "countMissed": "{count} missed",
+  "countAll": "{count} played",
+  "missed": "Missed",
+  "correct": "Got it",
+  "plays": "Played {count}×",
+  "emptyMissed": "No missed songs yet. Nice!",
+  "emptyAll": "No history yet. Play a round and come back.",
+  "startPlaying": "Start playing",
+  "clear": "Clear history",
+  "clearConfirm": "Delete all song history on this device?",
+  "needConsent": "Allow preference cookies so this device can remember the songs you play.",
+  "localOnly": "Stored on this device only, never sent anywhere.",
+  "artworkAlt": "Album art for {title}"
+}

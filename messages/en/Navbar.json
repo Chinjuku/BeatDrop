@@ -63,7 +63,8 @@
     "daily": "Daily Challenge (5 songs)",
     "guesser": "Song Guesser (4 choices)",
     "topics": "Play by topic",
-    "room": "Live room (play with friends)"
+    "room": "Live room (play with friends)",
+    "history": "My song history"
   },
   "leaderboard": "Leaderboard",
   "manageLibrary": "Manage artist library",

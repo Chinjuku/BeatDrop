@@ -31,6 +31,7 @@ import {
   shareOrCopy,
   stageStatusesFromHistory,
 } from '../lib/shareUtils';
+import { recordSongResult, spotifySearchUrl } from '../lib/songHistory';
 
 interface SpinningAlbumArtProps {
   song: Song;
@@ -96,6 +97,15 @@ export const SpinningAlbumArt: React.FC<SpinningAlbumArtProps> = ({
     button.focus({ preventScroll: true });
     button.scrollIntoView({ block: 'nearest', behavior: reduceMotion ? 'auto' : 'smooth' });
   }, [song.id]);
+
+  // Remember this song on the device for the history page (consent-gated, local only).
+  // The ref keeps a re-run of the effect (e.g. Strict Mode) from counting a play twice.
+  const recordedSongRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (recordedSongRef.current === song.id) return;
+    recordedSongRef.current = song.id;
+    recordSongResult(song, outcome);
+  }, [song, outcome]);
 
   // Per-stage result: drawn as squares on screen, and as the classic square grid in the
   // copied share text (the one place colored squares are the expected format).
@@ -351,7 +361,7 @@ export const SpinningAlbumArt: React.FC<SpinningAlbumArtProps> = ({
             </a>
           )}
           <a
-            href={`https://open.spotify.com/search/${encodeURIComponent(`${song.title} ${song.artistName}`)}`}
+            href={spotifySearchUrl(song.title, song.artistName)}
             target="_blank"
             rel="noreferrer"
             className="ml-2 text-xs font-bold inline-flex items-center gap-1 underline underline-offset-4"
