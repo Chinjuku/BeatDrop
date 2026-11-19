@@ -350,6 +350,16 @@ export const SpinningAlbumArt: React.FC<SpinningAlbumArtProps> = ({
               <ExternalLink className="w-3 h-3" />
             </a>
           )}
+          <a
+            href={`https://open.spotify.com/search/${encodeURIComponent(`${song.title} ${song.artistName}`)}`}
+            target="_blank"
+            rel="noreferrer"
+            className="ml-2 text-xs font-bold inline-flex items-center gap-1 underline underline-offset-4"
+            style={{ color: 'var(--song-muted)' }}
+          >
+            <span>Spotify</span>
+            <ExternalLink className="w-3 h-3" />
+          </a>
         </div>
 
         <div className="w-full grid grid-cols-1 sm:grid-cols-2 gap-2.5">
