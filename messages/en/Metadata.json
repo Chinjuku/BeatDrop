@@ -37,5 +37,9 @@
     "title": "{name} — previews and song quiz",
     "description": "Listen to previews of {name}'s popular and latest songs, albums and collaborations, then start a {name} song quiz on BeatDrop.",
     "fallbackName": "Artist"
+  },
+  "history": {
+    "title": "My song history",
+    "description": "See the songs you played and missed on BeatDrop, with links to listen on Apple Music and Spotify."
   }
 }

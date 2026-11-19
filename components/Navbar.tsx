@@ -24,6 +24,7 @@ import {
   Sparkles,
   Trophy,
   Users,
+  History,
   X,
   Zap,
 } from 'lucide-react';
@@ -114,6 +115,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   const isPlayActive = location.pathname === '/' || location.pathname === '/play';
   const isDailyActive = location.pathname === '/daily';
   const isGuesserActive = location.pathname === '/guesser';
+  const isHistoryActive = location.pathname === '/history';
   const isRoomActive = location.pathname === '/room' || location.pathname.startsWith('/room/');
   const isCategoriesActive =
     location.pathname === '/categories' || location.pathname === '/quizzes';
@@ -920,6 +922,24 @@ export const Navbar: React.FC<NavbarProps> = ({
                   <span className="flex items-center gap-2">
                     <Users className="w-4 h-4" />
                     <span>{t('mobile.room')}</span>
+                  </span>
+                  <ArrowRight className="w-4 h-4 opacity-70" />
+                </Link>
+
+                <Link
+                  href="/history"
+                  onClick={() => setActiveMenu(null)}
+                  className="w-full px-3 py-2.5 rounded-xl text-left text-sm font-bold flex items-center justify-between transition hover:brightness-110"
+                  aria-current={isHistoryActive ? 'page' : undefined}
+                  style={
+                    isHistoryActive
+                      ? { backgroundColor: 'var(--song-accent)', color: 'var(--song-accent-on)' }
+                      : { backgroundColor: 'var(--song-surface-soft)', color: 'var(--song-text)' }
+                  }
+                >
+                  <span className="flex items-center gap-2">
+                    <History className="w-4 h-4" />
+                    <span>{t('mobile.history')}</span>
                   </span>
                   <ArrowRight className="w-4 h-4 opacity-70" />
                 </Link>
