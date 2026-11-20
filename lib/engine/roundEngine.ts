@@ -507,13 +507,14 @@ export async function handleAutocomplete(req: ApiRequest, res: ApiResponse): Pro
   } else {
     const qNorm = normalizeText(q);
     const qLower = q.toLowerCase();
-    matches = pool.filter(
-      (s) =>
-        s.title.toLowerCase().includes(qLower) ||
-        s.artistName.toLowerCase().includes(qLower) ||
-        normalizeText(s.title).includes(qNorm) ||
-        normalizeText(s.artistName).includes(qNorm)
-    );
+    // Title or artist only. iTunes search also matches other fields (lyrics etc.), so live
+    // results go through this too: typing words heard in the clip must not find the song.
+    const matchesQuery = (s: Song) =>
+      s.title.toLowerCase().includes(qLower) ||
+      s.artistName.toLowerCase().includes(qLower) ||
+      normalizeText(s.title).includes(qNorm) ||
+      normalizeText(s.artistName).includes(qNorm);
+    matches = pool.filter(matchesQuery);
 
     if (matches.length < limit) {
       const dbMatches = dbService.searchSongs(q, {
@@ -534,7 +535,7 @@ export async function handleAutocomplete(req: ApiRequest, res: ApiResponse): Pro
       const country = (knownArtist?.category || category) === 'international' ? 'US' : 'TH';
       const targetCat = (knownArtist?.category || category) === 'international' ? 'international' : 'thai';
       const liveTracks = await fetchItunesSongs(`${artistFilter} ${q}`, country, targetCat, 20);
-      const matchingLive = liveTracks.filter((t) => matchesArtistFilter(t, artistFilter));
+      const matchingLive = liveTracks.filter((t) => matchesArtistFilter(t, artistFilter) && matchesQuery(t));
       for (const lt of matchingLive) {
         songPool.set(lt.id, lt);
         if (!matches.some((m) => m.id === lt.id)) {
@@ -547,8 +548,10 @@ export async function handleAutocomplete(req: ApiRequest, res: ApiResponse): Pro
       const targetCat = category === 'international' ? 'international' : 'thai';
       const liveTracks = await fetchItunesSongs(q, country, targetCat, 8);
       const libraryArtists = getAllArtists(songPool);
-      const validLive = liveTracks.filter((t) =>
-        libraryArtists.some((a) => checkArtistStrictMatch(t.artistName, a.name, undefined, undefined, t.title))
+      const validLive = liveTracks.filter(
+        (t) =>
+          matchesQuery(t) &&
+          libraryArtists.some((a) => checkArtistStrictMatch(t.artistName, a.name, undefined, undefined, t.title))
       );
       for (const lt of validLive) {
         songPool.set(lt.id, lt);
