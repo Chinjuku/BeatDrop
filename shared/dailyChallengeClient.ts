@@ -1,4 +1,4 @@
-import type { DailyChallengeInfo, RoundStartResponse } from './types';
+import type { DailyChallengeInfo, DailyRevealSong, RoundStartResponse } from './types';
 import { DAILY_ROUND_COUNT } from './types';
 
 export class DailyChallengeLoadError extends Error {
@@ -24,6 +24,25 @@ function isDailyRound(value: unknown): value is RoundStartResponse {
     Array.isArray(round.stages) &&
     round.mode === 'daily'
   );
+}
+
+const isText = (v: unknown, max = 500): v is string => typeof v === 'string' && v.length <= max;
+const isHttps = (v: unknown): v is string => isText(v, 2000) && /^https:\/\//.test(v);
+
+function isDailyRevealSong(value: unknown): value is DailyRevealSong {
+  if (!value || typeof value !== 'object') return false;
+  const v = value as Record<string, unknown>;
+  return (
+    isText(v.id, 100) && isText(v.title) && isText(v.artistName) && isText(v.albumName) &&
+    (v.artworkUrl === '' || isHttps(v.artworkUrl)) &&
+    (v.trackViewUrl === undefined || isHttps(v.trackViewUrl))
+  );
+}
+
+/** Keeps only well-formed entries; anything else becomes null (shown as "not revealed"). */
+export function sanitizeDailyReveals(value: unknown): Array<DailyRevealSong | null> {
+  if (!Array.isArray(value)) return [];
+  return value.slice(0, DAILY_ROUND_COUNT).map((item) => (isDailyRevealSong(item) ? item : null));
 }
 
 export function isDailyChallengeInfo(value: unknown): value is DailyChallengeInfo {
@@ -66,5 +85,5 @@ export async function readDailyChallengeResponse(response: {
   if (!response.ok || !envelope || envelope.code !== 0 || !isDailyChallengeInfo(envelope.data)) {
     throw new DailyChallengeLoadError(details);
   }
-  return envelope.data;
+  return { ...envelope.data, reveals: sanitizeDailyReveals(envelope.data.reveals) };
 }

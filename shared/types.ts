@@ -421,6 +421,25 @@ export interface DailyChallengeInfo {
   correctCount: number;
   skipCount: number;
   totalAnswerTimeMs: number;
+  /**
+   * The song of each round the player has already finished (index < currentIndex), null for
+   * rounds not reached yet. Never filled for an unfinished round, so it cannot leak an answer.
+   */
+  reveals?: Array<DailyRevealSong | null>;
+}
+
+/** What the Daily result list shows for a finished round. */
+export type DailyRevealSong = Pick<Song, 'id' | 'title' | 'artistName' | 'albumName' | 'artworkUrl' | 'trackViewUrl'>;
+
+export function toDailyRevealSong(song: Song): DailyRevealSong {
+  return {
+    id: song.id,
+    title: song.title,
+    artistName: song.artistName,
+    albumName: song.albumName,
+    artworkUrl: song.artworkUrl,
+    ...(song.trackViewUrl ? { trackViewUrl: song.trackViewUrl } : {}),
+  };
 }
 
 export interface DailyRoundProgress {

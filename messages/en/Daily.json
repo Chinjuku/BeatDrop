@@ -30,5 +30,17 @@
     "expired": "Round over · 0 pts",
     "wrongKeepListening": "Wrong answer · 0 pts. Keep listening."
   },
-  "historyHeading": "Guesses this round ({used}/{total})"
+  "historyHeading": "Guesses this round ({used}/{total})",
+  "songList": {
+    "heading": "All {total} songs",
+    "notRevealed": "Not revealed yet",
+    "points": "+{points}",
+    "result": {
+      "correct": "Correct",
+      "wrong": "Wrong",
+      "expired": "Time's up",
+      "skipped": "Skipped",
+      "pending": "Not played"
+    }
+  }
 }

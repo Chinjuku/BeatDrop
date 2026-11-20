@@ -24,6 +24,7 @@ import { issuePracticeRound } from './roundEngine';
 const CATEGORIES: CategoryType[] = ['all', 'thai', 'international'];
 const DIFFICULTIES: DifficultyLevel[] = ['easy', 'medium', 'hard', 'expert', 'impossible'];
 export const ARCHIVE_DAYS = 60;
+const MONTHS_LOOKBACK_DAYS = 400;
 
 export interface DailyArchiveDay {
   dateKey: string;
@@ -38,13 +39,33 @@ function pickDifficulty(raw: unknown): DifficultyLevel {
   return DIFFICULTIES.includes(raw as DifficultyLevel) ? (raw as DifficultyLevel) : 'easy';
 }
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+const MONTH_RE = /^\d{4}-(0[1-9]|1[0-2])$/;
 
-/** GET /api/daily/archive?category=&difficulty= */
+/** First day of the month after `month` (YYYY-MM), as a date key. */
+function nextMonthStart(month: string): string {
+  const [y, m] = month.split('-').map(Number);
+  return m === 12 ? `${y + 1}-01-01` : `${y}-${String(m + 1).padStart(2, '0')}-01`;
+}
+
+/** GET /api/daily/archive?category=&difficulty=[&month=YYYY-MM] — latest days, or one month's days. */
 export async function handleDailyArchive(req: ApiRequest, res: ApiResponse): Promise<void> {
   const category = pickCategory(req.query.category);
   const difficulty = pickDifficulty(req.query.difficulty);
   const today = getBangkokDateKey();
-  const dates = await dbService.listDailyChallengeDates(category, difficulty, today, ARCHIVE_DAYS);
+  const rawMonth = typeof req.query.month === 'string' ? req.query.month : '';
+  const month = MONTH_RE.test(rawMonth) ? rawMonth : null;
+  // Months that have at least one stored challenge (about a year back), for the month filter.
+  const allDates = await dbService.listDailyChallengeDates(category, difficulty, today, MONTHS_LOOKBACK_DAYS);
+  const months = [...new Set(allDates.map((d) => d.slice(0, 7)))];
+  let dates: string[];
+  if (month) {
+    // Same "dates before X, newest first" query as the default list, bounded to one month.
+    const end = nextMonthStart(month);
+    const before = end < today ? end : today;
+    dates = (await dbService.listDailyChallengeDates(category, difficulty, before, 31)).filter((d) => d.startsWith(month));
+  } else {
+    dates = allDates.slice(0, ARCHIVE_DAYS);
+  }
 
   const playerId = readDailyPlayerId(req);
   const official = new Map<string, { roundsPlayed: number; score: number }>();
@@ -63,7 +84,7 @@ export async function handleDailyArchive(req: ApiRequest, res: ApiResponse): Pro
     const o = official.get(dateKey);
     return o ? { dateKey, official: { ...o, complete: o.roundsPlayed >= DAILY_ROUND_COUNT } } : { dateKey };
   });
-  res.json({ code: 0, message: 'ok', data: { today, category, difficulty, days } });
+  res.json({ code: 0, message: 'ok', data: { today, category, difficulty, month, months, days } });
 }
 
 /** POST /api/daily/archive/round — { dateKey, category, difficulty, roundIndex } */

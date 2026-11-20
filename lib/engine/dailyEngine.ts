@@ -8,6 +8,7 @@ import {
   DifficultyLevel,
   RoundStartResponse,
   Song,
+  toDailyRevealSong,
 } from '../../shared/types';
 import { signRoundToken, getBangkokDateKey } from '../token';
 import { roundAudioPath } from './audioToken';
@@ -331,6 +332,8 @@ export async function handleDaily(req: ApiRequest, res: ApiResponse): Promise<vo
       totalRounds: DAILY_ROUND_COUNT,
       rounds,
       ...summary,
+      // Only rounds already finished: the player has seen these reveals.
+      reveals: songs.map((track, roundIndex) => (roundIndex < summary.currentIndex ? toDailyRevealSong(track) : null)),
     };
     res.json({ code: 0, message: 'ok', data: info });
   } catch (err) {

@@ -78,6 +78,12 @@ export function clearSongHistory(): void {
   removePreference(KEY);
 }
 
+/** The track's own Apple Music page when known, otherwise an Apple Music search. */
+export function appleMusicUrl(title: string, artistName: string, trackViewUrl?: string): string {
+  if (trackViewUrl && /^https:\/\//.test(trackViewUrl)) return trackViewUrl;
+  return `https://music.apple.com/search?term=${encodeURIComponent(`${title} ${artistName}`)}`;
+}
+
 export function spotifySearchUrl(title: string, artistName: string): string {
   return `https://open.spotify.com/search/${encodeURIComponent(`${title} ${artistName}`)}`;
 }

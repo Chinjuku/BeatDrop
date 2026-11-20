@@ -13,6 +13,8 @@ import {
   Artist,
   CategoryType,
   DailyChallengeInfo,
+  DailyRevealSong,
+  toDailyRevealSong,
   DEFAULT_TIME_STAGES,
   DIFFICULTY_PRESETS,
   DifficultyLevel,
@@ -36,7 +38,7 @@ import {
   invalidateDaily,
   invalidateSongs,
 } from '../lib/queryClient';
-import { getPreference, removePreference, setPreference } from '../lib/preferenceStorage';
+import { getPreference, isPreferenceStorageAllowed, removePreference, setPreference } from '../lib/preferenceStorage';
 import {
   CONFIG_PREFERENCE_KEYS,
   applyStoredConfigPreferences,
@@ -60,8 +62,19 @@ interface PlayedTrackEntry {
   ts: number;
 }
 
+/**
+ * In-memory copy of the played list for this page session. Used when preference storage is not
+ * allowed, so "no repeats" still holds while the page stays open; it is never written to disk
+ * and is lost on reload.
+ */
+let memoryPlayedEntries: PlayedTrackEntry[] = [];
+
 function loadValidPlayedIds(): { ids: string[]; entries: PlayedTrackEntry[] } {
   const now = Date.now();
+  if (!isPreferenceStorageAllowed()) {
+    memoryPlayedEntries = memoryPlayedEntries.filter((e) => now - e.ts < PLAYED_IDS_TTL_MS).slice(-MAX_PLAYED_HISTORY);
+    return { ids: memoryPlayedEntries.map((e) => e.id), entries: memoryPlayedEntries };
+  }
   try {
     const raw = getPreference(STORAGE_PLAYED_IDS_KEY);
     if (!raw) return { ids: [], entries: [] };
@@ -151,6 +164,8 @@ export interface GameContextType {
   dailySkipCount: number;
   dailyTotalAnswerTimeMs: number;
   dailyFeedback: Pick<RoundActionResponse, 'dailyResult' | 'scoreDelta' | 'speedBonus' | 'elapsedTimeMs'> | null;
+  /** Songs of the Daily rounds already finished, by round index (null = not finished yet). */
+  dailyReveals: Array<DailyRevealSong | null>;
   guesserSkipCount: number;
   guesserFeedback: string | null;
 
@@ -235,6 +250,7 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [dailySkipCount, setDailySkipCount] = useState(0);
   const [dailyTotalAnswerTimeMs, setDailyTotalAnswerTimeMs] = useState(0);
   const [dailyFeedback, setDailyFeedback] = useState<GameContextType['dailyFeedback']>(null);
+  const [dailyReveals, setDailyReveals] = useState<Array<DailyRevealSong | null>>([]);
   const [guesserSkipCount, setGuesserSkipCount] = useState(0);
   const [guesserFeedback, setGuesserFeedback] = useState<string | null>(null);
 
@@ -265,6 +281,7 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const nextIds = nextEntries.map((e) => e.id);
     playedIdsRef.current = nextIds;
     setPlayedIds(nextIds);
+    memoryPlayedEntries = nextEntries;
     try {
       setPreference(STORAGE_PLAYED_IDS_KEY, JSON.stringify(nextEntries));
     } catch {}
@@ -579,6 +596,7 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           setDailyLoadError(null);
           setDailyInfo(null);
           setDailyResults([]);
+          setDailyReveals([]);
           setDailyScore(0);
           setDailyCorrectCount(0);
           setDailySkipCount(0);
@@ -601,6 +619,7 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           setDailyInfo(info);
           setDailyIndex(info.currentIndex);
           setDailyResults(info.results);
+          setDailyReveals(info.reveals ?? []);
           setDailyScore(info.score);
           setDailyCorrectCount(info.correctCount);
           setDailySkipCount(info.skipCount);
@@ -857,6 +876,14 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       next[dailyIndex] = data.dailyResult!;
       return next;
     });
+    if (data.reveal) {
+      const reveal = toDailyRevealSong(data.reveal);
+      setDailyReveals((prev) => {
+        const next = [...prev];
+        next[dailyIndex] = reveal;
+        return next;
+      });
+    }
     setDailyScore((prev) => Math.max(0, prev + (data.scoreDelta || 0)));
     setDailyCorrectCount((prev) => prev + (data.dailyResult === 'correct' ? 1 : 0));
     setDailySkipCount((prev) => prev + (data.dailyResult === 'skipped' ? 1 : 0));
@@ -1289,6 +1316,7 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       dailySkipCount,
       dailyTotalAnswerTimeMs,
       dailyFeedback,
+      dailyReveals,
       guesserSkipCount,
       guesserFeedback,
 
@@ -1346,6 +1374,7 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       dailySkipCount,
       dailyTotalAnswerTimeMs,
       dailyFeedback,
+      dailyReveals,
       guesserSkipCount,
       guesserFeedback,
       volume,

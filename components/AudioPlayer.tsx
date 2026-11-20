@@ -9,7 +9,12 @@ interface AudioPlayerProps {
   stages: number[];
   currentStage: number;
   audioState: AudioPlaybackState;
-  progress: number; // 0..1 within current snippet
+  /**
+   * 0..1 within the current snippet. Pass it when this player is driven by its own audio
+   * controller (e.g. the Daily archive). Leave it out on game pages: they read the shared
+   * game progress context, which ticks without re-rendering the whole GameContext.
+   */
+  progress?: number;
   onTogglePlay: () => void;
   volume: number;
   onVolumeChange: (val: number) => void;
@@ -28,7 +33,7 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
 }) => {
   const t = useTranslations('Audio');
   const audioProgress = useAudioProgress();
-  const progress = audioProgress ? audioProgress.progress : propProgress;
+  const progress = propProgress ?? audioProgress?.progress ?? 0;
   const maxSeconds = stages[stages.length - 1] || 15;
   const activeSeconds = stages[currentStage] || stages[0] || 1;
 

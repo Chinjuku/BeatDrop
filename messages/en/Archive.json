@@ -35,5 +35,16 @@
     "all": "All songs",
     "thai": "Thai",
     "international": "International"
-  }
+  },
+  "finishedKicker": "Archive practice done",
+  "finishedHeading": "All {total} songs played!",
+  "finishedSub": "Practice score, not on the leaderboard",
+  "chooseAnotherShort": "Other day",
+  "attempts": "Your guesses on this song",
+  "today": "Play today's challenge",
+  "month": "Month",
+  "monthLatest": "Latest (60 days)",
+  "dayCount": "{count, plural, one {# day} other {# days}}",
+  "emptyMonth": "No past challenges for this level in that month.",
+  "notPlayed": "Not played yet"
 }
