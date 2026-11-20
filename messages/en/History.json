@@ -17,5 +17,8 @@
   "clearConfirm": "Delete all song history on this device?",
   "needConsent": "Allow preference cookies so this device can remember the songs you play.",
   "localOnly": "Stored on this device only, never sent anywhere.",
-  "artworkAlt": "Album art for {title}"
+  "artworkAlt": "Album art for {title}",
+  "filterCorrect": "Correct",
+  "countCorrect": "{count} correct",
+  "emptyCorrect": "No correct guesses yet. Try another round!"
 }

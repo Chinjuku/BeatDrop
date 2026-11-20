@@ -7,7 +7,7 @@ import React from 'react';
 import { useTranslations } from 'next-intl';
 import { ExternalLink, Trophy } from 'lucide-react';
 import type { DailyRevealSong } from '../../shared/types';
-import { spotifySearchUrl } from '../../lib/songHistory';
+import { appleMusicUrl, spotifySearchUrl } from '../../lib/songHistory';
 
 export type DailyRoundResult = 'correct' | 'wrong' | 'skipped' | 'expired' | 'pending';
 
@@ -110,11 +110,9 @@ export function DailySongList({ rows }: { rows: DailySongRow[] }) {
                   <p className="text-sm font-extrabold truncate" style={{ color: 'var(--song-text)' }}>{row.song.title}</p>
                   <p className="text-xs truncate" style={{ color: 'var(--song-muted)' }}>{row.song.artistName}</p>
                   <div className="flex flex-wrap items-center gap-x-3 text-[11px] font-bold" style={{ color: 'var(--song-muted)' }}>
-                    {row.song.trackViewUrl && (
-                      <a href={row.song.trackViewUrl} target="_blank" rel="noreferrer" className={linkClass}>
-                        Apple Music <ExternalLink className="w-3 h-3" aria-hidden="true" />
-                      </a>
-                    )}
+                    <a href={appleMusicUrl(row.song.title, row.song.artistName, row.song.trackViewUrl)} target="_blank" rel="noreferrer" className={linkClass}>
+                      Apple Music <ExternalLink className="w-3 h-3" aria-hidden="true" />
+                    </a>
                     <a href={spotifySearchUrl(row.song.title, row.song.artistName)} target="_blank" rel="noreferrer" className={linkClass}>
                       Spotify <ExternalLink className="w-3 h-3" aria-hidden="true" />
                     </a>

@@ -6,9 +6,9 @@ import { useRouter } from '../../../i18n/navigation';
 import { PageHero, HeroPillButton } from '../../../components/PageHero';
 import { PrimaryButton, RoomCard, Segmented } from '../../../components/room/RoomControls';
 import { useConsent } from '../../../context/ConsentContext';
-import { clearSongHistory, readSongHistory, spotifySearchUrl, type SongHistoryEntry } from '../../../lib/songHistory';
+import { appleMusicUrl, clearSongHistory, readSongHistory, spotifySearchUrl, type SongHistoryEntry } from '../../../lib/songHistory';
 
-type Filter = 'missed' | 'all';
+type Filter = 'missed' | 'correct' | 'all';
 
 export default function HistoryPage() {
   const t = useTranslations('History');
@@ -21,7 +21,10 @@ export default function HistoryPage() {
   useEffect(() => setEntries(readSongHistory()), [consent]);
 
   const shown = useMemo(
-    () => (entries ?? []).filter((e) => filter === 'all' || e.outcome === 'failed'),
+    () =>
+      (entries ?? []).filter(
+        (e) => filter === 'all' || (filter === 'missed' ? e.outcome === 'failed' : e.outcome === 'correct')
+      ),
     [entries, filter]
   );
 
@@ -49,20 +52,29 @@ export default function HistoryPage() {
           onChange={setFilter}
           options={[
             { value: 'missed', label: t('filterMissed') },
+            { value: 'correct', label: t('filterCorrect') },
             { value: 'all', label: t('filterAll') },
           ]}
         />
 
         {entries !== null && (
           <p className="mt-3 text-xs" style={{ color: 'var(--song-muted)' }} aria-live="polite">
-            {filter === 'missed' ? t('countMissed', { count: shown.length }) : t('countAll', { count: shown.length })}
+            {filter === 'missed'
+              ? t('countMissed', { count: shown.length })
+              : filter === 'correct'
+                ? t('countCorrect', { count: shown.length })
+                : t('countAll', { count: shown.length })}
           </p>
         )}
 
         {entries !== null && shown.length === 0 ? (
           <div className="mt-6 flex flex-col items-center gap-3 text-center">
             <p className="text-sm" style={{ color: 'var(--song-text)' }}>
-              {filter === 'missed' && entries.length > 0 ? t('emptyMissed') : t('emptyAll')}
+              {entries.length === 0
+                ? t('emptyAll')
+                : filter === 'missed'
+                  ? t('emptyMissed')
+                  : t('emptyCorrect')}
             </p>
             <PrimaryButton onClick={() => router.push('/play')}>{t('startPlaying')}</PrimaryButton>
           </div>
@@ -96,12 +108,10 @@ export default function HistoryPage() {
                     {e.playCount > 1 && (
                       <span className="text-[11px]" style={{ color: 'var(--song-muted)' }}>{t('plays', { count: e.playCount })}</span>
                     )}
-                    {e.trackViewUrl && (
-                      <a href={e.trackViewUrl} target="_blank" rel="noreferrer" className={linkClass} style={{ color: 'var(--song-muted)' }}>
-                        <span>Apple Music</span>
-                        <ExternalLink className="w-3 h-3" aria-hidden="true" />
-                      </a>
-                    )}
+                    <a href={appleMusicUrl(e.title, e.artistName, e.trackViewUrl)} target="_blank" rel="noreferrer" className={linkClass} style={{ color: 'var(--song-muted)' }}>
+                      <span>Apple Music</span>
+                      <ExternalLink className="w-3 h-3" aria-hidden="true" />
+                    </a>
                     <a href={spotifySearchUrl(e.title, e.artistName)} target="_blank" rel="noreferrer" className={linkClass} style={{ color: 'var(--song-muted)' }}>
                       <span>Spotify</span>
                       <ExternalLink className="w-3 h-3" aria-hidden="true" />
