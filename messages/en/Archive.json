@@ -35,5 +35,11 @@
     "all": "All songs",
     "thai": "Thai",
     "international": "International"
-  }
+  },
+  "finishedKicker": "Archive practice done",
+  "finishedHeading": "All {total} songs played!",
+  "finishedSub": "Practice score, not on the leaderboard",
+  "chooseAnotherShort": "Other day",
+  "attempts": "Your guesses on this song",
+  "today": "Play today's challenge"
 }

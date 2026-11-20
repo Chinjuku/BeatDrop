@@ -6,13 +6,13 @@ import { useGame } from '../../../context/GameContext';
 import { PageHero, HeroPill, HeroPillButton, HeroPillDivider } from '../../../components/PageHero';
 import { AudioPlayer } from '../../../components/AudioPlayer';
 import { GuessAutocomplete } from '../../../components/GuessAutocomplete';
+import { DailyFinishedCard, DailyResultDots } from '../../../components/daily/DailyResults';
 import { SpinningAlbumArt } from '../../../components/SpinningAlbumArt';
 import { SetupDisclosure, describeSetup } from '../../../components/SetupDisclosure';
 import {
   CalendarDays,
   Trophy,
   Loader2,
-  Play,
   Share2,
   Check,
   Clock,
@@ -56,10 +56,10 @@ const DailyChallengePage: React.FC = () => {
     dailySkipCount,
     dailyTotalAnswerTimeMs,
     dailyFeedback,
+    dailyReveals,
     volume,
     setVolume,
     audioState,
-    progress,
     currentTime,
     totalDuration,
     handleToggleSnippetPlay,
@@ -217,29 +217,7 @@ const DailyChallengePage: React.FC = () => {
             <span className="text-[11px] uppercase tracking-wider" style={{ color: 'var(--song-muted)' }}>
               {t('progress', { total: 5 })}
             </span>
-            <div className="flex items-center gap-1.5">
-              {dailyResults.map((res, i) => (
-                <div
-                  key={i}
-                  className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold border transition-all ${
-                    i === dailyIndex
-                      ? 'ring-2 ring-[var(--song-accent)] scale-110 font-extrabold'
-                      : ''
-                  }`}
-                  style={
-                    res === 'correct'
-                      ? { backgroundColor: '#22c55e', borderColor: '#22c55e', color: '#ffffff' }
-                      : res === 'wrong' || res === 'expired'
-                        ? { backgroundColor: '#ef4444', borderColor: '#ef4444', color: '#ffffff' }
-                        : res === 'skipped'
-                          ? { backgroundColor: '#f59e0b', borderColor: '#f59e0b', color: '#111827' }
-                        : { backgroundColor: 'var(--song-surface-soft)', borderColor: 'var(--song-border)', color: 'var(--song-muted)' }
-                  }
-                >
-                  {res === 'correct' ? '✓' : res === 'wrong' || res === 'expired' ? '✕' : res === 'skipped' ? '−' : i + 1}
-                </div>
-              ))}
-            </div>
+            <DailyResultDots results={dailyResults} activeIndex={dailyIndex} />
           </div>
         )}
 
@@ -301,108 +279,56 @@ const DailyChallengePage: React.FC = () => {
         }}
       >
         {isDailyFinished ? (
-          <div className="py-8 px-4 flex flex-col items-center text-center animate-in fade-in duration-300">
-            <div
-              className="w-16 h-16 rounded-2xl flex items-center justify-center mb-3 border shadow-lg"
-              style={{
-                backgroundColor: 'color-mix(in srgb, #f59e0b 22%, transparent)',
-                borderColor: '#f59e0b',
-                color: '#fbbf24',
-              }}
-            >
-              <Trophy className="w-8 h-8" />
-            </div>
-            <div className="text-[11px] font-black uppercase tracking-[0.22em] text-amber-400 mb-1">
-              {t('finished.kicker')}
-            </div>
-            <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight mb-1">
-              {t('finished.heading', { total: 5 })}
-            </h2>
-            <p className="text-xs" style={{ color: 'var(--song-muted)' }}>
-              {t('finished.subheading')}
-            </p>
-            <div className="text-4xl font-black font-mono my-3" style={{ color: 'var(--song-accent-text)' }}>
-              {t('points', { points: dailyScore })}
-            </div>
-            <div className="text-xs mb-4" style={{ color: 'var(--song-muted)' }}>
-              {t('finished.breakdown', {
-                correct: dailyCorrectCount,
-                wrong: dailyResults.filter((result) => result === 'wrong').length,
-                skipped: dailySkipCount,
-                expired: dailyResults.filter((result) => result === 'expired').length,
-                seconds: Math.round(dailyTotalAnswerTimeMs / 1000),
-              })}
-            </div>
-
-            <div className="flex items-center gap-2 mb-6">
-              {dailyResults.map((res, i) => (
-                <div
-                  key={i}
-                  className="w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm border"
-                  style={
-                    res === 'correct'
-                      ? { backgroundColor: '#22c55e', borderColor: '#22c55e', color: '#fff' }
-                      : res === 'skipped'
-                        ? { backgroundColor: '#f59e0b', borderColor: '#f59e0b', color: '#111827' }
-                        : { backgroundColor: '#ef4444', borderColor: '#ef4444', color: '#fff' }
-                  }
-                >
-                  {res === 'correct' ? '✓' : res === 'skipped' ? '−' : '✕'}
-                </div>
-              ))}
-            </div>
-
+          <DailyFinishedCard
+            kicker={t('finished.kicker')}
+            heading={t('finished.heading', { total: 5 })}
+            subheading={t('finished.subheading')}
+            scoreLabel={t('points', { points: dailyScore })}
+            breakdown={t('finished.breakdown', {
+              correct: dailyCorrectCount,
+              wrong: dailyResults.filter((result) => result === 'wrong').length,
+              skipped: dailySkipCount,
+              expired: dailyResults.filter((result) => result === 'expired').length,
+              seconds: Math.round(dailyTotalAnswerTimeMs / 1000),
+            })}
+            rows={dailyResults.map((result, i) => ({ song: dailyReveals[i] ?? null, result }))}
+          >
             {/* Share Result Button (Wordle-style Emoji Scorecard) */}
             <button
               type="button"
               onClick={handleShareDailyResult}
-              className="w-full max-w-sm py-3 px-4 mb-3 rounded-xl font-black text-xs sm:text-sm flex items-center justify-center gap-2 transition hover:brightness-110 active:scale-98 shadow-md cursor-pointer"
-              style={{
-                backgroundColor: '#22c55e',
-                color: '#ffffff',
-              }}
+              className="w-full min-h-12 py-3 px-4 rounded-xl font-black text-sm flex items-center justify-center gap-2 transition hover:brightness-110 active:scale-98 shadow-md"
+              style={{ backgroundColor: 'var(--song-accent)', color: 'var(--song-accent-on)' }}
+              aria-live="polite"
             >
-              {copiedShareText ? (
-                <>
-                  <Check className="w-4 h-4 text-white" />
-                  <span>{t('finished.copied')}</span>
-                </>
-              ) : (
-                <>
-                  <Share2 className="w-4 h-4 text-white" />
-                  <span>{t('finished.share')}</span>
-                </>
-              )}
+              {copiedShareText ? <Check className="w-4 h-4" aria-hidden="true" /> : <Share2 className="w-4 h-4" aria-hidden="true" />}
+              <span>{copiedShareText ? t('finished.copied') : t('finished.share')}</span>
             </button>
-
-            <div className="w-full flex flex-col sm:flex-row gap-2.5 max-w-sm">
+            <div className="w-full grid grid-cols-1 sm:grid-cols-2 gap-2.5">
               <button
                 type="button"
                 onClick={() => setLeaderboardOpen(true)}
-                className="flex-1 py-3 px-4 rounded-xl border font-bold text-xs flex items-center justify-center gap-2 transition hover:brightness-110 shadow-sm"
+                className="min-h-11 py-3 px-4 rounded-xl border font-bold text-xs flex items-center justify-center gap-2 transition hover:brightness-110"
                 style={{
                   backgroundColor: 'color-mix(in srgb, #f59e0b 18%, var(--song-surface))',
                   borderColor: 'rgba(245, 158, 11, 0.4)',
                   color: '#fbbf24',
                 }}
               >
-                <Trophy className="w-4 h-4 text-amber-400" />
+                <Trophy className="w-4 h-4" aria-hidden="true" />
                 <span>{t('finished.viewRankings')}</span>
               </button>
               <button
                 type="button"
-                onClick={() => navigate('/play')}
-                className="flex-1 py-3 px-4 rounded-xl font-bold text-xs flex items-center justify-center gap-2 transition hover:brightness-110 shadow-sm"
-                style={{
-                  backgroundColor: 'var(--song-accent)',
-                  color: 'var(--song-accent-on)',
-                }}
+                onClick={() => navigate('/daily/archive')}
+                className="min-h-11 py-3 px-4 rounded-xl border font-bold text-xs flex items-center justify-center gap-2 transition hover:brightness-110"
+                style={{ backgroundColor: 'var(--song-surface-soft)', borderColor: 'var(--song-border)', color: 'var(--song-text)' }}
               >
-                <Play className="w-4 h-4 fill-current" />
-                <span>{t('finished.practice')}</span>
+                <History className="w-4 h-4" aria-hidden="true" />
+                <span>{ta('open')}</span>
               </button>
             </div>
-          </div>
+          </DailyFinishedCard>
         ) : dailyLoadError ? (
           <div className="py-12 px-4 flex flex-col items-center text-center gap-3">
             <p className="text-sm font-bold" role="alert">{dailyLoadError}</p>
@@ -477,7 +403,6 @@ const DailyChallengePage: React.FC = () => {
               stages={stages}
               currentStage={currentStage}
               audioState={audioState}
-              progress={progress}
               onTogglePlay={handleToggleSnippetPlay}
               volume={volume}
               onVolumeChange={setVolume}

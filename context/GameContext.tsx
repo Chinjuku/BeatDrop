@@ -13,6 +13,8 @@ import {
   Artist,
   CategoryType,
   DailyChallengeInfo,
+  DailyRevealSong,
+  toDailyRevealSong,
   DEFAULT_TIME_STAGES,
   DIFFICULTY_PRESETS,
   DifficultyLevel,
@@ -151,6 +153,8 @@ export interface GameContextType {
   dailySkipCount: number;
   dailyTotalAnswerTimeMs: number;
   dailyFeedback: Pick<RoundActionResponse, 'dailyResult' | 'scoreDelta' | 'speedBonus' | 'elapsedTimeMs'> | null;
+  /** Songs of the Daily rounds already finished, by round index (null = not finished yet). */
+  dailyReveals: Array<DailyRevealSong | null>;
   guesserSkipCount: number;
   guesserFeedback: string | null;
 
@@ -235,6 +239,7 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [dailySkipCount, setDailySkipCount] = useState(0);
   const [dailyTotalAnswerTimeMs, setDailyTotalAnswerTimeMs] = useState(0);
   const [dailyFeedback, setDailyFeedback] = useState<GameContextType['dailyFeedback']>(null);
+  const [dailyReveals, setDailyReveals] = useState<Array<DailyRevealSong | null>>([]);
   const [guesserSkipCount, setGuesserSkipCount] = useState(0);
   const [guesserFeedback, setGuesserFeedback] = useState<string | null>(null);
 
@@ -579,6 +584,7 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           setDailyLoadError(null);
           setDailyInfo(null);
           setDailyResults([]);
+          setDailyReveals([]);
           setDailyScore(0);
           setDailyCorrectCount(0);
           setDailySkipCount(0);
@@ -601,6 +607,7 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           setDailyInfo(info);
           setDailyIndex(info.currentIndex);
           setDailyResults(info.results);
+          setDailyReveals(info.reveals ?? []);
           setDailyScore(info.score);
           setDailyCorrectCount(info.correctCount);
           setDailySkipCount(info.skipCount);
@@ -857,6 +864,14 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       next[dailyIndex] = data.dailyResult!;
       return next;
     });
+    if (data.reveal) {
+      const reveal = toDailyRevealSong(data.reveal);
+      setDailyReveals((prev) => {
+        const next = [...prev];
+        next[dailyIndex] = reveal;
+        return next;
+      });
+    }
     setDailyScore((prev) => Math.max(0, prev + (data.scoreDelta || 0)));
     setDailyCorrectCount((prev) => prev + (data.dailyResult === 'correct' ? 1 : 0));
     setDailySkipCount((prev) => prev + (data.dailyResult === 'skipped' ? 1 : 0));
@@ -1289,6 +1304,7 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       dailySkipCount,
       dailyTotalAnswerTimeMs,
       dailyFeedback,
+      dailyReveals,
       guesserSkipCount,
       guesserFeedback,
 
@@ -1346,6 +1362,7 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       dailySkipCount,
       dailyTotalAnswerTimeMs,
       dailyFeedback,
+      dailyReveals,
       guesserSkipCount,
       guesserFeedback,
       volume,

@@ -35,7 +35,6 @@ const SongGuesserPage: React.FC = () => {
     volume,
     setVolume,
     audioState,
-    progress,
     currentTime,
     totalDuration,
     handleToggleSnippetPlay,
@@ -243,7 +242,6 @@ const SongGuesserPage: React.FC = () => {
               stages={stages}
               currentStage={currentStage}
               audioState={audioState}
-              progress={progress}
               onTogglePlay={handleToggleSnippetPlay}
               volume={volume}
               onVolumeChange={setVolume}

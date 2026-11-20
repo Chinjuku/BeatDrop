@@ -30,5 +30,17 @@
     "expired": "รอบสิ้นสุด · 0 pts",
     "wrongKeepListening": "ทายผิด · 0 pts ฟังต่ออีกนิด"
   },
-  "historyHeading": "ประวัติการทายในรอบนี้ ({used}/{total})"
+  "historyHeading": "ประวัติการทายในรอบนี้ ({used}/{total})",
+  "songList": {
+    "heading": "เฉลยทั้ง {total} เพลง",
+    "notRevealed": "ยังไม่เฉลย",
+    "points": "+{points}",
+    "result": {
+      "correct": "ถูก",
+      "wrong": "ผิด",
+      "expired": "หมดเวลา",
+      "skipped": "ข้าม",
+      "pending": "ยังไม่เล่น"
+    }
+  }
 }

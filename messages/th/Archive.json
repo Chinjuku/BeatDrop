@@ -35,5 +35,11 @@
     "all": "ทุกเพลง",
     "thai": "เพลงไทย",
     "international": "เพลงสากล"
-  }
+  },
+  "finishedKicker": "ซ้อมย้อนหลังจบแล้ว",
+  "finishedHeading": "ฟังครบ {total} เพลงแล้ว!",
+  "finishedSub": "คะแนนซ้อม ไม่ขึ้นตารางอันดับ",
+  "chooseAnotherShort": "วันอื่น",
+  "attempts": "การทายในเพลงนี้",
+  "today": "เล่นโจทย์วันนี้"
 }

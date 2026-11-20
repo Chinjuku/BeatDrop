@@ -34,7 +34,6 @@ const PlayPage: React.FC = () => {
     volume,
     setVolume,
     audioState,
-    progress,
     currentTime,
     totalDuration,
     handleToggleSnippetPlay,
@@ -229,7 +228,6 @@ const PlayPage: React.FC = () => {
               stages={stages}
               currentStage={currentStage}
               audioState={audioState}
-              progress={progress}
               onTogglePlay={handleToggleSnippetPlay}
               volume={volume}
               onVolumeChange={setVolume}
