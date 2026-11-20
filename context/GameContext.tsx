@@ -38,7 +38,7 @@ import {
   invalidateDaily,
   invalidateSongs,
 } from '../lib/queryClient';
-import { getPreference, removePreference, setPreference } from '../lib/preferenceStorage';
+import { getPreference, isPreferenceStorageAllowed, removePreference, setPreference } from '../lib/preferenceStorage';
 import {
   CONFIG_PREFERENCE_KEYS,
   applyStoredConfigPreferences,
@@ -62,8 +62,19 @@ interface PlayedTrackEntry {
   ts: number;
 }
 
+/**
+ * In-memory copy of the played list for this page session. Used when preference storage is not
+ * allowed, so "no repeats" still holds while the page stays open; it is never written to disk
+ * and is lost on reload.
+ */
+let memoryPlayedEntries: PlayedTrackEntry[] = [];
+
 function loadValidPlayedIds(): { ids: string[]; entries: PlayedTrackEntry[] } {
   const now = Date.now();
+  if (!isPreferenceStorageAllowed()) {
+    memoryPlayedEntries = memoryPlayedEntries.filter((e) => now - e.ts < PLAYED_IDS_TTL_MS).slice(-MAX_PLAYED_HISTORY);
+    return { ids: memoryPlayedEntries.map((e) => e.id), entries: memoryPlayedEntries };
+  }
   try {
     const raw = getPreference(STORAGE_PLAYED_IDS_KEY);
     if (!raw) return { ids: [], entries: [] };
@@ -270,6 +281,7 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const nextIds = nextEntries.map((e) => e.id);
     playedIdsRef.current = nextIds;
     setPlayedIds(nextIds);
+    memoryPlayedEntries = nextEntries;
     try {
       setPreference(STORAGE_PLAYED_IDS_KEY, JSON.stringify(nextEntries));
     } catch {}
