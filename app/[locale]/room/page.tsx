@@ -13,6 +13,7 @@ import {
   textInputClass,
   textInputStyle,
 } from '../../../components/room/RoomControls';
+import { RoomCodeInput } from '../../../components/room/RoomCodeInput';
 import { ClipLengthPicker } from '../../../components/room/ClipLengthPicker';
 import { RoomArtistPicker } from '../../../components/room/RoomArtistPicker';
 import { errorKeyFor, saveRoomCredentials, type RoomErrorKey } from '../../../hooks/useRoom';
@@ -121,17 +122,12 @@ export default function RoomHomePage() {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <FieldLabel htmlFor="join-code">{t('join.code')}</FieldLabel>
-              <input
+              <RoomCodeInput
                 id="join-code"
                 value={joinCode}
-                onChange={(e) => setJoinCode(e.target.value.toUpperCase().slice(0, ROOM_LIMITS.codeLength))}
-                placeholder={t('join.codePlaceholder')}
-                autoCapitalize="characters"
-                autoComplete="off"
-                spellCheck={false}
-                inputMode="text"
-                className={`${textInputClass} tracking-[0.3em] uppercase`}
-                style={textInputStyle}
+                onChange={setJoinCode}
+                length={ROOM_LIMITS.codeLength}
+                invalid={joinError === 'code'}
               />
             </div>
             <div>

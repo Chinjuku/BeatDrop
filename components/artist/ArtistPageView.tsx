@@ -7,8 +7,9 @@
 import React, { useMemo, useRef, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { useQuery } from '@tanstack/react-query';
-import { ArrowLeft, Loader2, Pause, Play, RotateCcw, Shuffle, SkipForward, X } from 'lucide-react';
-import { Link, useRouter } from '../../i18n/navigation';
+import { Loader2, Pause, Play, RotateCcw, Shuffle, SkipForward, X } from 'lucide-react';
+import { useRouter } from '../../i18n/navigation';
+import { BackButton } from '../BackButton';
 import { useGame } from '../../context/GameContext';
 import { useArtistPreviewPlayer, type ArtistPreviewPlayer } from '../../hooks/useArtistPreviewPlayer';
 import {
@@ -315,14 +316,9 @@ export function ArtistPageView({ artistId }: { artistId: string }) {
   };
 
   const backLink = (
-    <Link
-      href="/categories"
-      className="inline-flex items-center gap-1.5 text-xs sm:text-sm font-bold mb-3 sm:mb-4 rounded-lg px-1 -ml-1 hover:text-[var(--song-accent-text)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--song-accent)]"
-      style={{ color: 'var(--song-muted)' }}
-    >
-      <ArrowLeft className="w-4 h-4" aria-hidden="true" />
-      {t('back')}
-    </Link>
+    <div className="mb-3 sm:mb-4">
+      <BackButton href="/categories" label={t('back')} />
+    </div>
   );
 
   if (query.isPending) {
