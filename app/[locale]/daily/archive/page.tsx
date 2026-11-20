@@ -7,7 +7,7 @@ import { PageHero, HeroPillButton } from '../../../../components/PageHero';
 import { AudioPlayer } from '../../../../components/AudioPlayer';
 import { GuessAutocomplete } from '../../../../components/GuessAutocomplete';
 import { StageSquares, type GuessStatus } from '../../../../components/StatusMark';
-import { ErrorText, PrimaryButton, RoomCard, SecondaryButton, Segmented } from '../../../../components/room/RoomControls';
+import { ErrorText, PrimaryButton, RoomCard, SecondaryButton } from '../../../../components/room/RoomControls';
 import { useAudioController } from '../../../../hooks/useAudioController';
 import { useConsent } from '../../../../context/ConsentContext';
 import { buildShareGrid, difficultyName, shareLink, shareOrCopy } from '../../../../lib/shareUtils';
@@ -47,6 +47,63 @@ function formatDate(dateKey: string, locale: string): string {
 const gridToStatuses = (grid: string): GuessStatus[] =>
   Array.from(grid).map((ch) => (ch === 'c' ? 'correct' : ch === 's' ? 'skipped' : ch === 'w' ? 'wrong' : 'unused'));
 
+const intlLocale = (locale: string) => (locale === 'th' ? 'th-TH' : 'en-GB');
+
+function dayParts(dateKey: string, locale: string) {
+  const d = new Date(`${dateKey}T00:00:00Z`);
+  const f = (o: Intl.DateTimeFormatOptions) => new Intl.DateTimeFormat(intlLocale(locale), { ...o, timeZone: 'UTC' }).format(d);
+  return { weekday: f({ weekday: 'short' }), day: f({ day: 'numeric' }), date: f({ day: 'numeric', month: 'short', year: 'numeric' }) };
+}
+
+function monthLabel(month: string, locale: string): string {
+  return new Intl.DateTimeFormat(intlLocale(locale), { month: 'long', year: 'numeric', timeZone: 'UTC' }).format(
+    new Date(`${month}-01T00:00:00Z`)
+  );
+}
+
+const LATEST = 'latest';
+
+/** Compact single-choice chip row; scrolls sideways on narrow screens instead of wrapping. */
+function ChipRow<T extends string>({
+  label,
+  value,
+  options,
+  onChange,
+}: {
+  label: string;
+  value: T;
+  options: Array<{ value: T; label: string }>;
+  onChange: (value: T) => void;
+}) {
+  return (
+    <div className="min-w-0">
+      <p className="text-[11px] font-black uppercase tracking-wider mb-1.5" style={{ color: 'var(--song-muted)' }}>{label}</p>
+      <div role="radiogroup" aria-label={label} className="flex gap-1.5 overflow-x-auto -mx-1 px-1 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        {options.map((o) => {
+          const active = o.value === value;
+          return (
+            <button
+              key={o.value}
+              type="button"
+              role="radio"
+              aria-checked={active}
+              onClick={() => onChange(o.value)}
+              className="shrink-0 min-h-10 whitespace-nowrap rounded-full border px-3.5 text-sm font-bold transition hover:brightness-110 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--song-accent)]"
+              style={
+                active
+                  ? { backgroundColor: 'var(--song-accent)', borderColor: 'var(--song-accent)', color: 'var(--song-accent-on)' }
+                  : { backgroundColor: 'var(--song-surface-soft)', borderColor: 'var(--song-border)', color: 'var(--song-text)' }
+              }
+            >
+              {o.label}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 export default function DailyArchivePage() {
   const t = useTranslations('Archive');
   const locale = useLocale();
@@ -54,28 +111,41 @@ export default function DailyArchivePage() {
   const { consent } = useConsent();
   const [category, setCategory] = useState<CategoryType>('all');
   const [difficulty, setDifficulty] = useState<DifficultyLevel>('easy');
+  const [month, setMonth] = useState<string>(LATEST);
   const [days, setDays] = useState<ArchiveDay[] | null>(null);
   const [loadError, setLoadError] = useState(false);
   const [practice, setPractice] = useState<Record<string, ArchivePracticeResult>>({});
   const [playing, setPlaying] = useState<string | null>(null);
+  const [months, setMonths] = useState<string[]>([]);
 
   useEffect(() => setPractice(readPracticeHistory()), [consent]);
 
-  const load = useCallback(async () => {
-    setDays(null);
-    setLoadError(false);
-    try {
-      const res = await fetch(`/api/daily/archive?${new URLSearchParams({ category, difficulty })}`, { cache: 'no-store' });
-      const json = await res.json().catch(() => null);
-      if (!res.ok || !Array.isArray(json?.data?.days)) throw new Error('archive');
-      setDays(json.data.days as ArchiveDay[]);
-    } catch {
-      setLoadError(true);
-    }
-  }, [category, difficulty]);
+  const load = useCallback(
+    async (signal?: AbortSignal) => {
+      setDays(null);
+      setLoadError(false);
+      try {
+        const params = new URLSearchParams({ category, difficulty });
+        if (month !== LATEST) params.set('month', month);
+        const res = await fetch(`/api/daily/archive?${params}`, { cache: 'no-store', signal });
+        const json = await res.json().catch(() => null);
+        if (!res.ok || !Array.isArray(json?.data?.days)) throw new Error('archive');
+        setDays(json.data.days as ArchiveDay[]);
+        if (Array.isArray(json.data.months)) {
+          setMonths((json.data.months as unknown[]).filter((m): m is string => typeof m === 'string' && /^\d{4}-\d{2}$/.test(m)));
+        }
+      } catch {
+        if (!signal?.aborted) setLoadError(true);
+      }
+    },
+    [category, difficulty, month]
+  );
 
   useEffect(() => {
-    void load();
+    // Abort a slower earlier request so a quick filter change can't show the wrong list.
+    const controller = new AbortController();
+    void load(controller.signal);
+    return () => controller.abort();
   }, [load]);
 
   const onFinished = useCallback(
@@ -85,8 +155,20 @@ export default function DailyArchivePage() {
     [category, difficulty]
   );
 
+  // Latest view: group the days under month headings.
+  const groups = useMemo(() => {
+    const out: Array<{ month: string; days: ArchiveDay[] }> = [];
+    for (const day of days ?? []) {
+      const m = day.dateKey.slice(0, 7);
+      const last = out[out.length - 1];
+      if (last && last.month === m) last.days.push(day);
+      else out.push({ month: m, days: [day] });
+    }
+    return out;
+  }, [days]);
+
   return (
-    <div className="w-full max-w-xl mx-auto flex flex-col items-center gap-4 pb-10">
+    <div className="w-full max-w-xl mx-auto flex flex-col items-center gap-3 sm:gap-4 pb-10">
       <PageHero title={t('title')} tagline={t('tagline')} gradient="from-amber-200 via-yellow-300 to-amber-500">
         <HeroPillButton onClick={() => router.push('/daily')} title={t('back')}>
           <ArrowLeft className="w-3.5 h-3.5" aria-hidden="true" />
@@ -106,84 +188,135 @@ export default function DailyArchivePage() {
         />
       ) : (
         <>
-          <RoomCard className="flex flex-col gap-4">
-            <Segmented
+          <RoomCard className="flex flex-col gap-3">
+            <ChipRow
               label={t('songs')}
               value={category}
               options={CATEGORIES.map((c) => ({ value: c, label: t(`categories.${c}`) }))}
               onChange={setCategory}
             />
-            <Segmented
+            <ChipRow
               label={t('difficulty')}
               value={difficulty}
               options={DIFFICULTIES.map((d) => ({ value: d, label: difficultyName(d) }))}
               onChange={setDifficulty}
             />
-            <p className="text-xs font-bold" style={{ color: 'var(--song-muted)' }}>{t('practiceNote')}</p>
+            <div>
+              <label htmlFor="archive-month" className="block text-[11px] font-black uppercase tracking-wider mb-1.5" style={{ color: 'var(--song-muted)' }}>
+                {t('month')}
+              </label>
+              <select
+                id="archive-month"
+                value={month}
+                onChange={(e) => setMonth(e.target.value)}
+                className="w-full min-h-11 rounded-xl border px-3 text-sm font-bold focus-visible:outline focus-visible:outline-2 focus-visible:outline-[color:var(--song-accent)]"
+                style={{ backgroundColor: 'var(--song-surface-soft)', borderColor: 'var(--song-border)', color: 'var(--song-text)' }}
+              >
+                <option value={LATEST}>{t('monthLatest')}</option>
+                {/* Keep the chosen month listed even if this level has no days in it. */}
+                {(month !== LATEST && !months.includes(month) ? [month, ...months] : months).map((m) => (
+                  <option key={m} value={m}>{monthLabel(m, locale)}</option>
+                ))}
+              </select>
+            </div>
+            <p className="text-xs" style={{ color: 'var(--song-muted)' }}>{t('practiceNote')}</p>
           </RoomCard>
 
-          <RoomCard>
+          <RoomCard className="!p-3 sm:!p-5">
             {loadError ? (
               <div className="flex flex-col items-center gap-3 py-4 text-center">
                 <ErrorText>{t('loadError')}</ErrorText>
                 <SecondaryButton onClick={() => void load()}>{t('retry')}</SecondaryButton>
               </div>
             ) : days === null ? (
-              <p role="status" className="flex items-center justify-center gap-2 py-6 text-sm font-bold" style={{ color: 'var(--song-muted)' }}>
+              <p role="status" className="flex items-center justify-center gap-2 py-8 text-sm font-bold" style={{ color: 'var(--song-muted)' }}>
                 <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" /> {t('loading')}
               </p>
             ) : days.length === 0 ? (
-              <div className="py-4 text-center flex flex-col gap-2">
-                <p className="text-sm font-bold" style={{ color: 'var(--song-text)' }}>{t('empty')}</p>
+              <div className="py-6 px-2 text-center flex flex-col items-center gap-2">
+                <CalendarDays className="w-6 h-6" style={{ color: 'var(--song-muted)' }} aria-hidden="true" />
+                <p className="text-sm font-bold" style={{ color: 'var(--song-text)' }}>{month === LATEST ? t('empty') : t('emptyMonth')}</p>
                 {difficulty !== 'easy' && <p className="text-xs" style={{ color: 'var(--song-muted)' }}>{t('emptyHarder')}</p>}
+                {month !== LATEST && (
+                  <button type="button" onClick={() => setMonth(LATEST)} className="mt-1 text-xs font-bold underline underline-offset-4" style={{ color: 'var(--song-accent-text)' }}>
+                    {t('monthLatest')}
+                  </button>
+                )}
               </div>
             ) : (
-              <ul className="flex flex-col gap-2">
-                {days.map((day) => {
-                  const mine = practice[practiceKey(day.dateKey, category, difficulty)];
-                  return (
-                    <li
-                      key={day.dateKey}
-                      className="flex items-center gap-3 rounded-xl border px-3 py-2.5"
-                      style={{ borderColor: 'var(--song-border)', backgroundColor: 'var(--song-surface-soft)' }}
-                    >
-                      <CalendarDays className="w-4 h-4 shrink-0" style={{ color: 'var(--song-accent-text)' }} aria-hidden="true" />
-                      <div className="flex-1 min-w-0">
-                        <p className="font-bold truncate" style={{ color: 'var(--song-text)' }}>{formatDate(day.dateKey, locale)}</p>
-                        <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-xs font-bold" style={{ color: 'var(--song-muted)' }}>
-                          {day.official &&
-                            (day.official.complete ? (
-                              <span className="inline-flex items-center gap-1" style={{ color: '#22c55e' }}>
-                                <Check className="w-3.5 h-3.5" aria-hidden="true" /> {t('played', { score: day.official.score })}
-                              </span>
-                            ) : (
-                              <span>{t('playedPartial', { rounds: day.official.roundsPlayed })}</span>
-                            ))}
-                          {mine && (
-                            <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
-                              <StageSquares statuses={gridToStatuses(mine.grid).slice(0, DAILY_ROUND_COUNT)} label={t('practiced', { score: mine.score })} />
-                              {t('practiced', { score: mine.score })}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => setPlaying(day.dateKey)}
-                        className="min-h-11 rounded-xl px-4 text-sm font-extrabold inline-flex items-center gap-1.5 transition hover:brightness-110"
-                        style={{ backgroundColor: 'var(--song-accent)', color: 'var(--song-accent-on)' }}
-                        aria-label={`${mine ? t('playAgain') : t('play')} · ${formatDate(day.dateKey, locale)}`}
-                      >
-                        {mine ? <RotateCcw className="w-4 h-4" aria-hidden="true" /> : <Play className="w-4 h-4" aria-hidden="true" />}
-                        {mine ? t('playAgain') : t('play')}
-                      </button>
-                    </li>
-                  );
-                })}
-              </ul>
+              <div className="flex flex-col gap-4">
+                <p className="px-1 text-xs font-bold" style={{ color: 'var(--song-muted)' }} aria-live="polite">
+                  {t('dayCount', { count: days.length })}
+                </p>
+                {groups.map((group) => (
+                  <section key={group.month} aria-label={monthLabel(group.month, locale)} className="flex flex-col gap-2">
+                    {month === LATEST && (
+                      <h2 className="px-1 text-[11px] font-black uppercase tracking-wider" style={{ color: 'var(--song-muted)' }}>
+                        {monthLabel(group.month, locale)}
+                      </h2>
+                    )}
+                    <ul className="flex flex-col gap-2">
+                      {group.days.map((day) => {
+                        const mine = practice[practiceKey(day.dateKey, category, difficulty)];
+                        const parts = dayParts(day.dateKey, locale);
+                        return (
+                          <li
+                            key={day.dateKey}
+                            className="flex items-center gap-3 rounded-xl border p-2 pr-2.5"
+                            style={{ borderColor: 'var(--song-border)', backgroundColor: 'var(--song-surface-soft)' }}
+                          >
+                            <div
+                              className="w-12 shrink-0 rounded-lg py-1.5 text-center"
+                              style={{ backgroundColor: 'color-mix(in srgb, var(--song-accent) 14%, var(--song-surface))', color: 'var(--song-accent-text)' }}
+                              aria-hidden="true"
+                            >
+                              <span className="block text-[10px] font-black uppercase leading-tight">{parts.weekday}</span>
+                              <span className="block text-lg font-black leading-tight tabular-nums">{parts.day}</span>
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-bold truncate" style={{ color: 'var(--song-text)' }}>{parts.date}</p>
+                              <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs font-bold" style={{ color: 'var(--song-muted)' }}>
+                                {day.official &&
+                                  (day.official.complete ? (
+                                    <span className="inline-flex items-center gap-1" style={{ color: '#22c55e' }}>
+                                      <Check className="w-3.5 h-3.5" aria-hidden="true" /> {t('played', { score: day.official.score })}
+                                    </span>
+                                  ) : (
+                                    <span>{t('playedPartial', { rounds: day.official.roundsPlayed })}</span>
+                                  ))}
+                                {mine && (
+                                  <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
+                                    <StageSquares statuses={gridToStatuses(mine.grid).slice(0, DAILY_ROUND_COUNT)} label={t('practiced', { score: mine.score })} />
+                                    {t('practiced', { score: mine.score })}
+                                  </span>
+                                )}
+                                {!day.official && !mine && <span>{t('notPlayed')}</span>}
+                              </div>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => setPlaying(day.dateKey)}
+                              className="shrink-0 min-h-10 min-w-10 rounded-full px-3.5 text-sm font-extrabold inline-flex items-center justify-center gap-1.5 transition hover:brightness-110 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--song-accent)]"
+                              style={
+                                mine
+                                  ? { backgroundColor: 'var(--song-surface)', color: 'var(--song-text)', border: '1px solid var(--song-border)' }
+                                  : { backgroundColor: 'var(--song-accent)', color: 'var(--song-accent-on)' }
+                              }
+                              aria-label={`${mine ? t('playAgain') : t('play')} · ${formatDate(day.dateKey, locale)}`}
+                            >
+                              {mine ? <RotateCcw className="w-4 h-4" aria-hidden="true" /> : <Play className="w-4 h-4 fill-current" aria-hidden="true" />}
+                              <span className="hidden min-[400px]:inline">{mine ? t('playAgain') : t('play')}</span>
+                            </button>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  </section>
+                ))}
+              </div>
             )}
             {consent && !consent.preferences && days && days.length > 0 && (
-              <p className="mt-3 text-xs" style={{ color: 'var(--song-muted)' }}>{t('rememberHint')}</p>
+              <p className="mt-3 px-1 text-xs" style={{ color: 'var(--song-muted)' }}>{t('rememberHint')}</p>
             )}
           </RoomCard>
         </>
