@@ -1,9 +1,10 @@
 'use client';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useLocale, useTranslations } from 'next-intl';
-import { ArrowLeft, CalendarDays, Check, ExternalLink, Loader2, Play, RotateCcw, Share2 } from 'lucide-react';
+import { CalendarDays, Check, ExternalLink, Loader2, Play, RotateCcw, Share2 } from 'lucide-react';
 import { useRouter } from '../../../../i18n/navigation';
-import { PageHero, HeroPillButton } from '../../../../components/PageHero';
+import { PageHero } from '../../../../components/PageHero';
+import { BackButton } from '../../../../components/BackButton';
 import { AudioPlayer } from '../../../../components/AudioPlayer';
 import { GuessAutocomplete } from '../../../../components/GuessAutocomplete';
 import { StageSquares, type GuessStatus } from '../../../../components/StatusMark';
@@ -170,10 +171,7 @@ export default function DailyArchivePage() {
   return (
     <div className="w-full max-w-xl mx-auto flex flex-col items-center gap-3 sm:gap-4 pb-10">
       <PageHero title={t('title')} tagline={t('tagline')} gradient="from-amber-200 via-yellow-300 to-amber-500">
-        <HeroPillButton onClick={() => router.push('/daily')} title={t('back')}>
-          <ArrowLeft className="w-3.5 h-3.5" aria-hidden="true" />
-          <span>{t('back')}</span>
-        </HeroPillButton>
+        <BackButton href="/daily" label={t('back')} />
       </PageHero>
 
       {playing ? (
@@ -519,16 +517,7 @@ function ArchivePlayer({
             </p>
           )}
         </div>
-        <button
-          type="button"
-          onClick={exit}
-          className="shrink-0 min-h-10 inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border px-3 text-xs font-bold transition hover:brightness-110"
-          style={{ backgroundColor: 'var(--song-surface-soft)', borderColor: 'var(--song-border)', color: 'var(--song-text)' }}
-          aria-label={t('chooseAnother')}
-        >
-          <ArrowLeft className="w-3.5 h-3.5" aria-hidden="true" />
-          {t('chooseAnotherShort')}
-        </button>
+        <BackButton onClick={exit} label={t('chooseAnotherShort')} ariaLabel={t('chooseAnother')} className="shrink-0" />
       </div>
       {!finished && (
         <div

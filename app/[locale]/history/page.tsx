@@ -1,9 +1,10 @@
 'use client';
 import React, { useEffect, useMemo, useState } from 'react';
 import { useTranslations } from 'next-intl';
-import { ArrowLeft, ExternalLink, Trash2 } from 'lucide-react';
+import { ExternalLink, Trash2 } from 'lucide-react';
 import { useRouter } from '../../../i18n/navigation';
-import { PageHero, HeroPillButton } from '../../../components/PageHero';
+import { PageHero } from '../../../components/PageHero';
+import { BackButton } from '../../../components/BackButton';
 import { PrimaryButton, RoomCard, Segmented } from '../../../components/room/RoomControls';
 import { useConsent } from '../../../context/ConsentContext';
 import { appleMusicUrl, clearSongHistory, readSongHistory, spotifySearchUrl, type SongHistoryEntry } from '../../../lib/songHistory';
@@ -39,10 +40,7 @@ export default function HistoryPage() {
   return (
     <div className="w-full max-w-xl mx-auto flex flex-col items-center gap-4 pb-10">
       <PageHero title={t('title')} tagline={t('tagline')} gradient="from-rose-200 via-pink-300 to-fuchsia-500">
-        <HeroPillButton onClick={() => router.push('/play')} title={t('back')}>
-          <ArrowLeft className="w-3.5 h-3.5" aria-hidden="true" />
-          <span>{t('back')}</span>
-        </HeroPillButton>
+        <BackButton href="/play" label={t('back')} />
       </PageHero>
 
       <RoomCard>
