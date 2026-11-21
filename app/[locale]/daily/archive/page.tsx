@@ -1,9 +1,10 @@
 'use client';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useLocale, useTranslations } from 'next-intl';
-import { CalendarDays, Check, ExternalLink, Loader2, Play, RotateCcw, Share2 } from 'lucide-react';
+import { CalendarDays, Check, Loader2, Play, RotateCcw, Share2 } from 'lucide-react';
 import { useRouter } from '../../../../i18n/navigation';
 import { PageHero } from '../../../../components/PageHero';
+import { SpinningAlbumArt } from '../../../../components/SpinningAlbumArt';
 import { BackButton } from '../../../../components/BackButton';
 import { AudioPlayer } from '../../../../components/AudioPlayer';
 import { GuessAutocomplete } from '../../../../components/GuessAutocomplete';
@@ -13,13 +14,13 @@ import { useAudioController } from '../../../../hooks/useAudioController';
 import { useConsent } from '../../../../context/ConsentContext';
 import { buildShareGrid, difficultyName, shareLink, shareOrCopy } from '../../../../lib/shareUtils';
 import { DailyFinishedCard, DailyResultDots, type DailyRoundResult } from '../../../../components/daily/DailyResults';
-import { recordSongResult, spotifySearchUrl } from '../../../../lib/songHistory';
 import { practiceKey, readPracticeHistory, savePracticeResult, type ArchivePracticeResult } from '../../../../lib/archiveHistory';
 import {
   DAILY_ROUND_COUNT,
   DAILY_STAGE_SCORES,
   type CategoryType,
   type DifficultyLevel,
+  type GuessHistoryItem,
   type RoundActionResponse,
   type RoundStartResponse,
   type Song,
@@ -360,7 +361,8 @@ function ArchivePlayer({
   const current = records[roundIndex];
   const stages = round?.stages ?? [0.5, 2, 6, 8, 15];
 
-  const audio = useAudioController({ audioUrl: round?.audioUrl ?? null, volume });
+  // Snippet while guessing; the song's full preview once it is revealed (as on Play/Daily).
+  const audio = useAudioController({ audioUrl: round?.audioUrl ?? current?.reveal?.previewUrl ?? null, volume });
 
   const startRound = useCallback(
     async (index: number) => {
@@ -396,7 +398,6 @@ function ArchivePlayer({
 
   const endRound = (status: GuessStatus, data: RoundActionResponse, points: number) => {
     audio.stop();
-    if (data.reveal) recordSongResult(data.reveal, points > 0 ? 'correct' : 'failed');
     const result: DailyRoundResult = points > 0 ? 'correct' : status === 'skipped' ? 'skipped' : 'wrong';
     setRecords((prev) => {
       const next = [...prev];
@@ -562,6 +563,24 @@ function ArchivePlayer({
     );
   }
 
+  // The reveal card's per-stage squares, from this song's recorded guesses.
+  const revealHistory: GuessHistoryItem[] = (current?.statuses ?? []).flatMap((status, stageIndex) =>
+    status === 'correct' || status === 'wrong' || status === 'skipped'
+      ? [{ title: '', stageIndex, clipSeconds: stages[stageIndex] ?? 0, status }]
+      : []
+  );
+
+  const goNext = () => {
+    audio.stop();
+    const next = roundIndex + 1;
+    if (next < DAILY_ROUND_COUNT) {
+      setRoundIndex(next);
+      void startRound(next);
+    } else {
+      setFinished(true);
+    }
+  };
+
   const attemptSquares = current && current.statuses.length > 0 && (
     <div className="flex items-center justify-center gap-2 text-[11px] font-bold" style={{ color: 'var(--song-muted)' }}>
       <span>{t('attempts')}</span>
@@ -581,63 +600,24 @@ function ArchivePlayer({
           <SecondaryButton onClick={() => void startRound(roundIndex)}>{t('retry')}</SecondaryButton>
         </div>
       ) : current?.reveal ? (
-        <div className="flex flex-col items-center gap-4 text-center animate-in fade-in duration-300">
-          {current.reveal.artworkUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={current.reveal.artworkUrl}
-              alt=""
-              width={144}
-              height={144}
-              className="w-36 h-36 rounded-2xl object-cover shadow-2xl border"
-              style={{ borderColor: 'var(--song-border)' }}
-            />
-          ) : (
-            <span className="w-36 h-36 rounded-2xl" style={{ backgroundColor: 'var(--song-border)' }} aria-hidden="true" />
-          )}
-          <div className="min-w-0 w-full">
-            <p className="text-[11px] font-black uppercase tracking-wider" style={{ color: 'var(--song-muted)' }}>{t('theSongWas')}</p>
-            <p className="text-xl font-extrabold truncate" style={{ color: 'var(--song-text)' }}>{current.reveal.title}</p>
-            <p className="text-sm truncate" style={{ color: 'var(--song-muted)' }}>{current.reveal.artistName}</p>
-            <p
-              role="status"
-              className="inline-block mt-2 rounded-full px-3 py-1 text-sm font-extrabold"
-              style={
-                current.points
-                  ? { backgroundColor: 'rgba(34, 197, 94, 0.15)', color: '#22c55e' }
-                  : { backgroundColor: 'rgba(239, 68, 68, 0.12)', color: '#f87171' }
-              }
-            >
-              {current.points ? t('correct', { points: current.points }) : t('missed')}
-            </p>
-          </div>
-          <div className="flex items-center gap-4 text-xs font-bold" style={{ color: 'var(--song-muted)' }}>
-            {current.reveal.trackViewUrl && (
-              <a href={current.reveal.trackViewUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 py-1 underline underline-offset-4">
-                Apple Music <ExternalLink className="w-3 h-3" aria-hidden="true" />
-              </a>
-            )}
-            <a href={spotifySearchUrl(current.reveal.title, current.reveal.artistName)} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 py-1 underline underline-offset-4">
-              Spotify <ExternalLink className="w-3 h-3" aria-hidden="true" />
-            </a>
-          </div>
-          {attemptSquares}
-          <div className="w-full">
-            <PrimaryButton
-              onClick={() => {
-                const next = roundIndex + 1;
-                if (next < DAILY_ROUND_COUNT) {
-                  setRoundIndex(next);
-                  void startRound(next);
-                } else {
-                  setFinished(true);
-                }
-              }}
-            >
-              {roundIndex + 1 < DAILY_ROUND_COUNT ? t('next') : t('finish')}
-            </PrimaryButton>
-          </div>
-        </div>
+        <SpinningAlbumArt
+          song={current.reveal}
+          outcome={current.points > 0 ? 'correct' : 'failed'}
+          guessedAtSeconds={stages[Math.min(Math.max(current.statuses.length - 1, 0), stages.length - 1)]}
+          difficulty={difficulty}
+          stages={stages}
+          history={revealHistory}
+          streak={0}
+          audioState={audio.state}
+          currentTime={audio.currentTime}
+          totalDuration={audio.totalDuration}
+          onToggleFullPlay={() => (audio.state === 'playing' ? audio.pauseFullPreview() : audio.playFullPreview())}
+          onSeek={audio.seekFullPreview}
+          volume={volume}
+          onVolumeChange={setVolume}
+          onNextSong={goNext}
+          nextLabel={roundIndex + 1 < DAILY_ROUND_COUNT ? t('next') : t('finish')}
+        />
       ) : !round ? (
         <p role="status" className="flex items-center justify-center gap-2 py-16 text-sm font-bold" style={{ color: 'var(--song-muted)' }}>
           <Loader2 className="w-6 h-6 animate-spin" style={{ color: 'var(--song-accent-text)' }} aria-hidden="true" />

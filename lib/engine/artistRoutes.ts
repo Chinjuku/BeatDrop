@@ -11,6 +11,7 @@ import {
   normalizeGenre,
   normalizeText,
   invalidateAllArtistsCache,
+  normalizeSingleOrCollaboratorArtists,
   syncCustomArtistsInMemory,
 } from './artists';
 
@@ -57,7 +58,8 @@ export async function getMergedArtists(): Promise<Artist[]> {
       }
     }
 
-    for (const sa of cachedSupabaseArtists) {
+    // Cloud rows can still hold collaboration names ("A & B"): list them as solo artists only.
+    for (const sa of cachedSupabaseArtists.flatMap(normalizeSingleOrCollaboratorArtists)) {
       const hasValidAvatar = Boolean(
         sa.avatarUrl &&
           (sa.avatarUrl.startsWith('http://') ||
@@ -191,9 +193,30 @@ export async function handleGetArtists(req: ApiRequest, res: ApiResponse): Promi
   });
 }
 
-export function handleDeleteArtist(req: ApiRequest, res: ApiResponse): void {
-  const id = String(req.params.id);
+/** DELETE /api/artists/:id (admin) — removes the artist record locally and in Supabase. Songs stay. */
+export async function handleDeleteArtist(req: ApiRequest, res: ApiResponse): Promise<void> {
+  const id = String(req.params.id || '');
+  if (!id) {
+    res.status(400).json({ code: -1, message: 'Missing artist id.' });
+    return;
+  }
+  const known = (await getMergedArtists()).find((a) => a.id === id);
+  const name = known?.name;
+
+  if (isSupabaseConfigured()) {
+    const ok = await supabaseAdmin.deleteArtist(id, name);
+    if (!ok) {
+      // Don't report success: the row would come back on the next load.
+      res.status(502).json({ code: -502, message: 'Could not delete the artist from the cloud database. Try again.' });
+      return;
+    }
+  }
+
   deleteCustomArtist(id);
+  cachedSupabaseArtists = cachedSupabaseArtists.filter(
+    (a) => a.id !== id && (!name || normalizeText(a.name) !== normalizeText(name))
+  );
+  invalidateAllArtistsCache();
   res.json({ code: 0, message: 'ok', data: { removedId: id } });
 }
 

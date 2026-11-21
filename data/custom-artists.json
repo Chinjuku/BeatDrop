@@ -1,12 +1,30 @@
 [
   {
-    "id": "artist_yessir_days",
-    "name": "Yes'sir days",
-    "category": "thai",
-    "mainGenre": "Rock",
-    "avatarUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music221/v4/d8/eb/4d/d8eb4d0b-610d-fd86-56d2-e7de71fd7264/888332888240.jpg/600x600bb.jpg",
+    "id": "artist_mannie_fresh",
+    "name": "Mannie Fresh",
+    "category": "international",
+    "mainGenre": "Hip-Hop/Rap",
+    "avatarUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music125/v4/d2/98/96/d29896dd-9446-efdc-a8bf-858b0e32f2c4/00602498627556.rgb.jpg/600x600bb.jpg",
     "isCustom": true,
-    "trackCount": 23
+    "trackCount": 1
+  },
+  {
+    "id": "artist_diplo",
+    "name": "Diplo",
+    "category": "international",
+    "mainGenre": "EDM",
+    "avatarUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music115/v4/b3/ea/21/b3ea217e-d5d0-4db7-5942-15cdff5ad68d/075679927354.jpg/600x600bb.jpg",
+    "isCustom": true,
+    "trackCount": 1
+  },
+  {
+    "id": "artist_rosé",
+    "name": "ROSÉ",
+    "category": "international",
+    "mainGenre": "Pop",
+    "avatarUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music221/v4/2d/1a/7d/2d1a7d91-587e-0ceb-d434-327bd66d9e86/075679628312.jpg/600x600bb.jpg",
+    "isCustom": true,
+    "trackCount": 2
   },
   {
     "id": "artist_jennie",
@@ -16,6 +34,15 @@
     "avatarUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music116/v4/db/28/e7/db28e7c3-f53a-76c8-eaa4-d92a22e4f160/23UMGIM72115.rgb.jpg/600x600bb.jpg",
     "isCustom": true,
     "trackCount": 3
+  },
+  {
+    "id": "artist_yessir_days",
+    "name": "Yes'sir days",
+    "category": "thai",
+    "mainGenre": "Rock",
+    "avatarUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music221/v4/d8/eb/4d/d8eb4d0b-610d-fd86-56d2-e7de71fd7264/888332888240.jpg/600x600bb.jpg",
+    "isCustom": true,
+    "trackCount": 23
   },
   {
     "id": "artist_freehand",
@@ -194,8 +221,8 @@
     "category": "international",
     "mainGenre": "Pop",
     "avatarUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music221/v4/2d/1a/7d/2d1a7d91-587e-0ceb-d434-327bd66d9e86/075679628312.jpg/600x600bb.jpg",
-    "isCustom": true,
-    "trackCount": 161
+    "isCustom": false,
+    "trackCount": 2
   },
   {
     "id": "artist_taylor_swi",
@@ -387,24 +414,6 @@
     "trackCount": 130
   },
   {
-    "id": "artist_ros_bruno_mars",
-    "name": "ROSÉ & Bruno Mars",
-    "category": "international",
-    "mainGenre": "Pop",
-    "avatarUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music221/v4/2d/1a/7d/2d1a7d91-587e-0ceb-d434-327bd66d9e86/075679628312.jpg/600x600bb.jpg",
-    "isCustom": true,
-    "trackCount": 2
-  },
-  {
-    "id": "artist_jack_skrillex_diplo",
-    "name": "Jack Ü, Skrillex & Diplo",
-    "category": "international",
-    "mainGenre": "EDM",
-    "avatarUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music115/v4/b3/ea/21/b3ea217e-d5d0-4db7-5942-15cdff5ad68d/075679927354.jpg/600x600bb.jpg",
-    "isCustom": true,
-    "trackCount": 1
-  },
-  {
     "id": "artist_clean_bandit",
     "name": "Clean Bandit",
     "category": "international",
@@ -412,15 +421,6 @@
     "avatarUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music125/v4/19/e0/1b/19e01b5f-0fd5-85f1-f347-461d4130309a/825646029594.jpg/600x600bb.jpg",
     "isCustom": true,
     "trackCount": 30
-  },
-  {
-    "id": "artist_baby_mannie_fresh",
-    "name": "Baby & Mannie Fresh",
-    "category": "international",
-    "mainGenre": "Hip-Hop/Rap",
-    "avatarUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music125/v4/d2/98/96/d29896dd-9446-efdc-a8bf-858b0e32f2c4/00602498627556.rgb.jpg/600x600bb.jpg",
-    "isCustom": true,
-    "trackCount": 1
   },
   {
     "id": "artist_urboytj",
@@ -540,57 +540,84 @@
     "trackCount": 34
   },
   {
-    "id": "artist_rosé",
-    "name": "ROSÉ",
+    "id": "artist_bus",
+    "name": "BUS",
+    "category": "thai",
+    "mainGenre": "T-Pop",
+    "avatarUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music221/v4/13/68/c5/1368c531-43b7-50f5-579a-c0383a1912fb/26UM1IM08739.rgb.jpg/600x600bb.jpg",
+    "isCustom": true,
+    "trackCount": 29
+  },
+  {
+    "id": "artist_guncharlie",
+    "name": "guncharlie",
+    "category": "thai",
+    "mainGenre": "T-Pop",
+    "avatarUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music221/v4/97/3d/cc/973dcc2d-ad7d-c6e0-e5b9-1de790b348ad/cover.jpg/600x600bb.jpg",
+    "isCustom": true,
+    "trackCount": 27
+  },
+  {
+    "id": "artist_lady_gaga",
+    "name": "Lady Gaga",
     "category": "international",
     "mainGenre": "Pop",
-    "avatarUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music221/v4/2d/1a/7d/2d1a7d91-587e-0ceb-d434-327bd66d9e86/075679628312.jpg/600x600bb.jpg",
+    "avatarUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music115/v4/b1/9f/ef/b19fef51-79de-a940-e8ab-9e4e07b04d96/18UMGIM53752.rgb.jpg/600x600bb.jpg",
     "isCustom": true,
-    "trackCount": 2
+    "trackCount": 55
   },
   {
-    "id": "artist_jack_ü",
-    "name": "Jack Ü",
-    "category": "international",
-    "mainGenre": "EDM",
-    "avatarUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music115/v4/b3/ea/21/b3ea217e-d5d0-4db7-5942-15cdff5ad68d/075679927354.jpg/600x600bb.jpg",
+    "id": "artist_lipta",
+    "name": "Lipta",
+    "category": "thai",
+    "mainGenre": "T-Pop",
+    "avatarUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music221/v4/ad/31/8b/ad318b20-3213-bfe1-b2ab-60ec418d4854/cover.jpg/600x600bb.jpg",
     "isCustom": true,
-    "trackCount": 1
+    "trackCount": 50
   },
   {
-    "id": "artist_skrillex",
-    "name": "Skrillex",
-    "category": "international",
-    "mainGenre": "EDM",
-    "avatarUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music115/v4/b3/ea/21/b3ea217e-d5d0-4db7-5942-15cdff5ad68d/075679927354.jpg/600x600bb.jpg",
+    "id": "artist_mirrr",
+    "name": "Mirrr",
+    "category": "thai",
+    "mainGenre": "T-Pop",
+    "avatarUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music211/v4/65/ce/69/65ce6958-e0c1-908b-e53e-5924a61cd000/26UMGIM86682.rgb.jpg/600x600bb.jpg",
     "isCustom": true,
-    "trackCount": 1
+    "trackCount": 35
   },
   {
-    "id": "artist_diplo",
-    "name": "Diplo",
-    "category": "international",
-    "mainGenre": "EDM",
-    "avatarUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music115/v4/b3/ea/21/b3ea217e-d5d0-4db7-5942-15cdff5ad68d/075679927354.jpg/600x600bb.jpg",
+    "id": "artist_musketeers",
+    "name": "Musketeers",
+    "category": "thai",
+    "mainGenre": "Rock",
+    "avatarUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music125/v4/0d/67/37/0d673744-de94-55ec-e5d5-06b3277620f9/cover.jpg/600x600bb.jpg",
     "isCustom": true,
-    "trackCount": 1
+    "trackCount": 41
   },
   {
-    "id": "artist_baby",
-    "name": "Baby",
-    "category": "international",
+    "id": "artist_pop_pongkool",
+    "name": "Pop Pongkool",
+    "category": "thai",
+    "mainGenre": "T-Pop",
+    "avatarUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music211/v4/28/bb/07/28bb073d-a20d-8673-8d20-54d125dc3bcc/888332998574.jpg/600x600bb.jpg",
+    "isCustom": true,
+    "trackCount": 31
+  },
+  {
+    "id": "artist_porzax",
+    "name": "PORZAX",
+    "category": "thai",
     "mainGenre": "Hip-Hop/Rap",
-    "avatarUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music125/v4/d2/98/96/d29896dd-9446-efdc-a8bf-858b0e32f2c4/00602498627556.rgb.jpg/600x600bb.jpg",
+    "avatarUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music221/v4/7d/74/a3/7d74a39b-906e-d336-29f9-ece2b00ee6f0/0840517265833_Cover.jpg/600x600bb.jpg",
     "isCustom": true,
-    "trackCount": 1
+    "trackCount": 44
   },
   {
-    "id": "artist_mannie_fresh",
-    "name": "Mannie Fresh",
+    "id": "artist_sia",
+    "name": "Sia",
     "category": "international",
-    "mainGenre": "Hip-Hop/Rap",
-    "avatarUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music125/v4/d2/98/96/d29896dd-9446-efdc-a8bf-858b0e32f2c4/00602498627556.rgb.jpg/600x600bb.jpg",
+    "mainGenre": "Pop",
+    "avatarUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music115/v4/00/bf/72/00bf72a2-3e50-e5e7-ae78-dc35bbf9bcda/886444578219.jpg/600x600bb.jpg",
     "isCustom": true,
-    "trackCount": 1
+    "trackCount": 36
   }
 ]

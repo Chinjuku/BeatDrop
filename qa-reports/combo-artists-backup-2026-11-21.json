@@ -1,0 +1,35 @@
+[
+  {
+    "id": "artist_jack_skrillex_diplo",
+    "name": "Jack Ü, Skrillex & Diplo",
+    "category": "international",
+    "main_genre": "EDM",
+    "avatar_url": "https://is1-ssl.mzstatic.com/image/thumb/Music115/v4/b3/ea/21/b3ea217e-d5d0-4db7-5942-15cdff5ad68d/075679927354.jpg/600x600bb.jpg",
+    "is_custom": true,
+    "track_count": 1,
+    "created_at": "2026-11-01T15:41:00.711463+00:00",
+    "updated_at": "2026-11-05T07:36:42.878+00:00"
+  },
+  {
+    "id": "artist_ros_bruno_mars",
+    "name": "ROSÉ & Bruno Mars",
+    "category": "international",
+    "main_genre": "Pop",
+    "avatar_url": "https://is1-ssl.mzstatic.com/image/thumb/Music221/v4/2d/1a/7d/2d1a7d91-587e-0ceb-d434-327bd66d9e86/075679628312.jpg/600x600bb.jpg",
+    "is_custom": true,
+    "track_count": 2,
+    "created_at": "2026-11-01T15:43:16.338408+00:00",
+    "updated_at": "2026-11-06T10:11:16.667+00:00"
+  },
+  {
+    "id": "artist_baby_mannie_fresh",
+    "name": "Baby & Mannie Fresh",
+    "category": "international",
+    "main_genre": "Hip-Hop/Rap",
+    "avatar_url": "https://is1-ssl.mzstatic.com/image/thumb/Music125/v4/d2/98/96/d29896dd-9446-efdc-a8bf-858b0e32f2c4/00602498627556.rgb.jpg/600x600bb.jpg",
+    "is_custom": true,
+    "track_count": 1,
+    "created_at": "2026-11-05T07:36:43.466842+00:00",
+    "updated_at": "2026-11-05T07:36:43.364+00:00"
+  }
+]
