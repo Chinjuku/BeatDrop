@@ -27,7 +27,8 @@ function resolveDbFile(): string {
   return LOCAL_DB_FILE;
 }
 
-const isServerlessSupabase = (): boolean => Boolean(process.env.VERCEL && isSupabaseConfigured());
+/** On Vercel with Supabase: bundled data files are read-only snapshots; Supabase is the source of truth. */
+export const isServerlessSupabase = (): boolean => Boolean(process.env.VERCEL && isSupabaseConfigured());
 
 let _db: DatabaseSync | null = null;
 let _insertSongStmt: ReturnType<DatabaseSync['prepare']> | null = null;

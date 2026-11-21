@@ -2,6 +2,7 @@ import type { ApiRequest, ApiResponse } from '../http/api';
 import crypto from 'node:crypto';
 import { Artist, CategoryType, Song } from '../../shared/types';
 import { isSupabaseConfigured, supabaseAdmin } from '../supabase';
+import { isServerlessSupabase } from '../db';
 import { songPool, fetchItunesSongs } from './songPool';
 import {
   getAllArtists,
@@ -41,7 +42,7 @@ export const invalidateSupabaseArtistsCache = invalidateArtistsServerCache;
  * The one artist list behind `/api/artists` and the artist page.
  */
 export async function getMergedArtists(): Promise<Artist[]> {
-  const list = getAllArtists(songPool).slice();
+  let list = getAllArtists(songPool).slice();
 
   // When Supabase is configured (DB_LOCAL=false), pull artists with in-memory caching
   if (isSupabaseConfigured()) {
@@ -56,6 +57,18 @@ export async function getMergedArtists(): Promise<Artist[]> {
       } catch (err) {
         console.warn('[handleGetArtists] Supabase getArtists error:', err);
       }
+    }
+
+    // On Vercel the bundled SQLite/JSON copy of custom artists can't be changed, so an artist
+    // deleted in admin would come back from it. There, a custom artist is listed only if it is
+    // also in Supabase. Curated artists stay. Skipped if the Supabase list couldn't be loaded.
+    if (isServerlessSupabase() && cachedSupabaseArtists.length > 0) {
+      const cloudKeys = new Set<string>();
+      for (const a of cachedSupabaseArtists.flatMap(normalizeSingleOrCollaboratorArtists)) {
+        cloudKeys.add(a.id);
+        cloudKeys.add(normalizeText(a.name));
+      }
+      list = list.filter((a) => !a.isCustom || cloudKeys.has(a.id) || cloudKeys.has(normalizeText(a.name)));
     }
 
     // Cloud rows can still hold collaboration names ("A & B"): list them as solo artists only.
