@@ -35,8 +35,6 @@ const SongGuesserPage: React.FC = () => {
     volume,
     setVolume,
     audioState,
-    currentTime,
-    totalDuration,
     handleToggleSnippetPlay,
     handleToggleFullPreview,
     onSeek,
@@ -220,8 +218,6 @@ const SongGuesserPage: React.FC = () => {
             history={history}
             streak={streak}
             audioState={audioState}
-            currentTime={currentTime}
-            totalDuration={totalDuration}
             onToggleFullPlay={handleToggleFullPreview}
             onSeek={onSeek}
             volume={volume}

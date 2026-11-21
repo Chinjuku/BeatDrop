@@ -114,7 +114,11 @@ export function saveCustomArtists(): void {
   }
 }
 
-function normalizeSingleOrCollaboratorArtists(artist: Artist): Artist[] {
+/**
+ * One artist record, or one per solo artist when the name is a collaboration
+ * ("A & B", "A feat. B"). Known bands are kept whole. Artists are always stored solo.
+ */
+export function normalizeSingleOrCollaboratorArtists(artist: Artist): Artist[] {
   const soloNames = extractSoloArtistNames(artist.name);
   if (soloNames.length <= 1) {
     const cleanName = soloNames[0] || cleanArtistDisplayName(artist.name) || artist.name;

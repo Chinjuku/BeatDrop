@@ -60,8 +60,6 @@ const DailyChallengePage: React.FC = () => {
     volume,
     setVolume,
     audioState,
-    currentTime,
-    totalDuration,
     handleToggleSnippetPlay,
     handleToggleFullPreview,
     onSeek,
@@ -381,8 +379,6 @@ const DailyChallengePage: React.FC = () => {
             history={history}
             streak={streak}
             audioState={audioState}
-            currentTime={currentTime}
-            totalDuration={totalDuration}
             onToggleFullPlay={handleToggleFullPreview}
             onSeek={onSeek}
             volume={volume}

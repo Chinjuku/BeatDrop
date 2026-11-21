@@ -667,6 +667,7 @@ export async function syncArtistSongs(
       cleanArtistDisplayName,
       buildCanonicalArtistId,
       parseTrackArtistCredits,
+      normalizeSingleOrCollaboratorArtists,
     } = await import('./engine/artists');
     const { invalidateArtistsServerCache } = await import('./engine/artistRoutes');
 
@@ -1014,7 +1015,10 @@ export async function syncArtistSongs(
 
       // Sync to Supabase if configured (parallelized chunks, fast & bounded)
       if (isSupabaseConfigured()) {
-        await supabaseAdmin.upsertArtist(finalArtist);
+        // Artists are stored solo: a collaboration name is saved as each solo artist.
+        for (const solo of normalizeSingleOrCollaboratorArtists(finalArtist)) {
+          await supabaseAdmin.upsertArtist(solo);
+        }
         const upsertedCount = await supabaseAdmin.upsertSongs(songsWithArtist, CHUNK_SIZE);
         if (upsertedCount < songsWithArtist.length) {
           // Partial failure recovery: mark job as 'pending' so remaining songs can be retried

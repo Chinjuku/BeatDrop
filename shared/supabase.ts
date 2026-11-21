@@ -759,6 +759,27 @@ export const supabaseAdmin = {
   },
 
   /**
+   * Delete one artist row by id (and by exact name, for rows saved under another id).
+   * Only the artist record: songs and track credits are left alone.
+   * Returns true when the request succeeded (also when no row matched).
+   */
+  async deleteArtist(id: string, name?: string): Promise<boolean> {
+    if (!isSupabaseConfigured()) return true;
+    const filters = [`id.eq.${encodeURIComponent(id)}`];
+    if (name) filters.push(`name.eq.${encodeURIComponent(name)}`);
+    try {
+      const res = await supabaseFetch(getRestUrl(`artists?or=(${filters.join(',')})`), {
+        method: 'DELETE',
+        headers: getSupabaseHeaders('return=minimal'),
+      });
+      return res.ok;
+    } catch (err) {
+      console.warn('[Supabase deleteArtist] network warning:', (err as Error).message);
+      return false;
+    }
+  },
+
+  /**
    * Fetch all registered artists from Supabase
    */
   async getArtists(): Promise<Artist[]> {

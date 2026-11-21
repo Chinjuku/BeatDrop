@@ -42,14 +42,20 @@ interface SpinningAlbumArtProps {
   history: GuessHistoryItem[];
   streak: number;
   audioState: AudioPlaybackState;
-  currentTime: number;
-  totalDuration: number;
+  /**
+   * Full-preview position. Pass these when the reveal is driven by its own audio controller
+   * (the Daily archive). Game pages leave them out and read the shared game progress context.
+   */
+  currentTime?: number;
+  totalDuration?: number;
   onToggleFullPlay: () => void;
   onSeek: (seconds: number) => void;
   volume: number;
   onVolumeChange: (val: number) => void;
   onNextSong: () => void;
   onOpenTicket?: () => void;
+  /** Label for the primary button; defaults to "Next song". */
+  nextLabel?: string;
 }
 
 function formatTime(sec: number): string {
@@ -76,13 +82,14 @@ export const SpinningAlbumArt: React.FC<SpinningAlbumArtProps> = ({
   onVolumeChange,
   onNextSong,
   onOpenTicket,
+  nextLabel,
 }) => {
   const t = useTranslations('Reveal');
   const ts = useTranslations('Share');
   const tc = useTranslations('Common');
   const audioProgress = useAudioProgress();
-  const currentTime = audioProgress ? audioProgress.currentTime : propCurrentTime;
-  const totalDuration = audioProgress ? audioProgress.totalDuration : propTotalDuration;
+  const currentTime = propCurrentTime ?? audioProgress?.currentTime ?? 0;
+  const totalDuration = propTotalDuration ?? audioProgress?.totalDuration ?? 0;
   const [copied, setCopied] = useState(false);
   const isPlaying = audioState === 'playing';
   const isWon = outcome === 'correct';
@@ -397,7 +404,7 @@ export const SpinningAlbumArt: React.FC<SpinningAlbumArtProps> = ({
               color: 'var(--song-accent-on)',
             }}
           >
-            <span>{t('nextSong')}</span>
+            <span>{nextLabel ?? t('nextSong')}</span>
             <SkipForward className="w-4 h-4" />
           </button>
         </div>
